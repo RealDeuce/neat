@@ -1,6 +1,6 @@
 # Copyright (c) 2022 Stephen Hurd
 # Developers:
-# Stephen Hurd (K6BSD/VE5BSD) <shurd@sasktel.net>
+# Stephen Hurd (W8BSD/VE5BSD) <shurd@sasktel.net>
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
