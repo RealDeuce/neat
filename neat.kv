@@ -1,0 +1,426 @@
+#:kivy 2.1.0
+#:import tuningMode kenwood.tuningMode
+#:import mode kenwood.mode
+
+<Neat>:
+	size: 874, 400
+
+	Smeter:
+		id: smeter
+		min: 0
+		max: 30
+		file_gauge: 'gardengauge/smeter.png'
+		pos: 7.5, root.size[1] - 256 - 10
+
+	SWRmeter:
+		id: SWRmeter
+		min: 0
+		max: 30
+		pos: smeter.pos[0] + 128 + 5, smeter.pos[1]
+
+	COMPmeter:
+		id: COMPmeter
+		min: 0
+		max: 30
+		pos: smeter.pos[0], smeter.pos[1] + 128
+
+	ALCmeter:
+		id: ALCmeter
+		min: 0
+		max: 30
+		file_gauge: 'gardengauge/ALC.png'
+		pos: SWRmeter.pos[0], COMPmeter.pos[1]
+
+	FreqDisplay:
+		id: mainFreq
+		activeColour: 1.0, 1.0, 1.0, 1.0
+		inactiveColour: 0.45, 0.45, 0.45, 1.0
+		zeroColour: 0.2, 0.2, 0.2, 1.0
+		font_size: 70
+		halign: 'right'
+		valign: 'top'
+		text_size: 588, 70
+		size_hint_min: self.text_size
+		size_hint_max: self.text_size
+		pos: root.size[0] - self.text_size[0] - 10, vfoBox.pos[1] - self.size[1] - 10
+		max_lines: 1
+		lines: 1
+		font_name: 'DroidSansMono'
+
+	MemoryDisplay:
+		id: mainMemory
+		color: 1,1,1,1
+		font_size: 20
+		halign: 'left'
+		valign: 'top'
+		text_size: 588, 24
+		size_hint_min: self.text_size
+		size_hint_max: self.text_size
+		pos: root.size[0] - self.text_size[0] - 10, mainFreq.pos[1] - 30
+		max_lines: 1
+		lines: 1
+		font_name: 'DroidSansMono'
+
+	VFOBox:
+		id: vfoBox
+		pos: 266, root.size[1] - self.size[1] - 10
+		size_hint_max: 100, 50
+		cols: 2
+		rows: 2
+
+		VFOBoxButton:
+			text: 'VFO A'
+			vfoID: int(tuningMode.VFOA)
+			state: 'down' if self.parent.vfo == int(tuningMode.VFOA) else 'normal'
+
+		VFOBoxButton:
+			text: 'VFO B'
+			vfoID: int(tuningMode.VFOB)
+			state: 'down' if self.parent.vfo == int(tuningMode.VFOB) else 'normal'
+
+		VFOBoxButton:
+			text: 'MEM'
+			vfoID: int(tuningMode.MEMORY)
+			state: 'down' if self.parent.vfo == int(tuningMode.MEMORY) else 'normal'
+
+		VFOBoxButton:
+			text: 'CALL'
+			vfoID: int(tuningMode.CALL)
+			state: 'down' if self.parent.vfo == int(tuningMode.CALL) else 'normal'
+
+	OPModeBox:
+		id: opModeBox
+		pos: 376, root.size[1] - self.size[1] - 10
+		size_hint_max: 200, 50
+		cols: 4
+		rows: 2
+		on_mode: highPassLabel.refresh(); lowPassLabel.refresh(); wideNarrowLabel.refresh(); noiseBlanker.refresh()
+
+		OPModeBoxButton:
+			text: 'USB'
+			modeID: int(mode.USB)
+			state: 'down' if self.parent.mode == int(mode.USB) else 'normal'
+
+		OPModeBoxButton:
+			text: 'CW'
+			modeID: int(mode.CW)
+			state: 'down' if self.parent.mode == int(mode.CW) else 'normal'
+
+		OPModeBoxButton:
+			text: 'AM'
+			modeID: int(mode.AM)
+			state: 'down' if self.parent.mode == int(mode.AM) else 'normal'
+
+		OPModeBoxButton:
+			text: 'FSK'
+			modeID: int(mode.FSK)
+			state: 'down' if self.parent.mode == int(mode.FSK) else 'normal'
+
+		OPModeBoxButton:
+			text: 'LSB'
+			modeID: int(mode.LSB)
+			state: 'down' if self.parent.mode == int(mode.LSB) else 'normal'
+
+		OPModeBoxButton:
+			text: 'CW-R'
+			modeID: int(mode.CW_REVERSED)
+			state: 'down' if self.parent.mode == int(mode.CW_REVERSED) else 'normal'
+
+		OPModeBoxButton:
+			text: 'FM'
+			modeID: int(mode.FM)
+			state: 'down' if self.parent.mode == int(mode.FM) else 'normal'
+
+		OPModeBoxButton:
+			text: 'FSK-R'
+			modeID: int(mode.FSK_REVERSED)
+			state: 'down' if self.parent.mode == int(mode.FSK_REVERSED) else 'normal'
+
+	BoolToggle:
+		rig_state: 'tuner'
+		id: tunerButton
+		pos: 586, root.size[1] - self.size[1] - 10
+		size_hint_max: 50, 25
+		text: 'AT'
+
+	BoolToggle:
+		rig_state: 'tunerState'
+		id: tuneButton
+		pos: 636, root.size[1] - self.size[1] - 10
+		size_hint_max: 50, 25
+		text: 'TUNE'
+
+	BoolToggle:
+		rig_state: 'tunerOnInRX'
+		id: tunerOnInRXbutton
+		pos: 611, root.size[1] - self.size[1] * 2 - 10
+		size_hint_max: 50, 25
+		text: 'ON-RX'
+
+	BoolToggle:
+		rig_state: 'mainPreAmp'
+		id: preAmpButton
+		pos: 696, root.size[1] - self.size[1] - 10
+		size_hint_max: 50, 25
+		text: 'PRE'
+
+	BoolToggle:
+		rig_state: 'attenuator'
+		id: attenuatorButton
+		pos: 696, root.size[1] - self.size[1] * 2 - 10
+		size_hint_max: 50, 25
+		text: 'ATT'
+
+	StateLamp:
+		id: rxLamp
+		rig_state: 'mainBusy'
+		active_color: 0, 1, 0, 1
+		size_hint_max: 50, 50
+		pos: attenuatorButton.pos[0] + attenuatorButton.width + 10, root.size[1] - self.size[1] - 10
+		text: 'RX'
+
+	StateLamp:
+		id: txLamp
+		rig_state: 'mainTransmitting'
+		active_color: 1, 0, 0, 1
+		size_hint_max: 50, 50
+		update_meter: smeter
+		meter_on: 'gardengauge/cadran.png'
+		meter_off: 'gardengauge/smeter.png'
+		pos: rxLamp.pos[0] + rxLamp.width + 10, root.size[1] - self.size[1] - 10
+		text: 'TX'
+
+	Label:
+		id: rfGainLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'RF Gain'
+		# Meter is actually square...
+		pos: 10, smeter.pos[1] - self.height - 10 + 50
+
+	StateSlider:
+		id: rfGain
+		rig_state: 'RFgain'
+		min: 0
+		max: 255
+		value_track: True
+		size_hint_max: 256, 30
+		pos: 10, rfGainLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: mainAFgainLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'AF Gain'
+		pos: 10, rfGain.pos[1] - self.height - 5
+
+	StateSlider:
+		rig_state: 'mainAFgain'
+		id: mainAFgain
+		min: 0
+		max: 255
+		value_track: True
+		size_hint_max: 256, 30
+		pos: 10, mainAFgainLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: mainSquelchLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Squelch'
+		pos: 10, mainAFgain.pos[1] - self.height - 5
+
+	StateSlider:
+		id: mainSquelch
+		rig_state: 'mainSquelch'
+		min: 0
+		max: 255
+		value_track: True
+		size_hint_max: 256, 30
+		pos: 10, mainSquelchLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: outputPowerLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Power'
+		pos: outputPower.pos[0], outputPower.pos[1] + outputPower.size[1]
+
+	StateSlider:
+		id: outputPower
+		rig_state: 'outputPower'
+		poll_after: True
+		min: 0
+		max: 100
+		value_track: True
+		size_hint_max: 256, 30
+		pos: root.size[0] - self.width - 10, mainAFgain.pos[1]
+		step: 1
+
+	Button:
+		id: bandUpButton
+		size_hint_max: 25, 25
+		text: 'UP'
+		on_press: root.control(bandUp = True)
+		pos: mainMemory.pos[0], mainMemory.pos[1] - self.height - 10
+
+	Button:
+		id: bandDownButton
+		size_hint_max: 25, 25
+		text: 'DN'
+		on_press: root.control(bandDown = True)
+		pos: bandUpButton.pos[0] + bandUpButton.width, bandUpButton.pos[1]
+
+	FilterDisplay:
+		id: filterDisplay
+		size_hint_max: 100, 25
+		pos: 100, 100
+		pos: root.width - self.width - 10, mainMemory.pos[1] - self.height - 10
+
+	HighPassLabel:
+		id: highPassLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 12
+		text_size: 588, 12
+		size_hint_max: self.text_size
+		halign: 'left'
+		suffix: 'Hz'
+		pos: filterDisplay.pos[0], filterDisplay.pos[1] - self.height - 4
+
+	LowPassLabel:
+		id: lowPassLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 12
+		text_size: 588, 12
+		size_hint_max: self.text_size
+		halign: 'right'
+		suffix: 'Hz'
+		pos: filterDisplay.pos[0] + filterDisplay.width - self.width, filterDisplay.pos[1] - self.height - 4
+
+	WideNarrowLabel:
+		id: wideNarrowLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 12
+		text_size: lowPassLabel.pos[0] + lowPassLabel.width - highPassLabel.pos[0], 12
+		size_hint_max: self.text_size
+		halign: 'center'
+		pos: highPassLabel.pos[0], highPassLabel.pos[1] - self.height - 4
+
+	Label:
+		id: AGCconstantLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'AGC Constant'
+		pos: AGCconstant.pos[0], AGCconstant.pos[1] + AGCconstant.height
+
+	StateSlider:
+		id: AGCconstant
+		rig_state: 'AGCconstant'
+		min: 0
+		max: 20
+		value_track: True
+		size_hint_max: 256, 30
+		pos: root.size[0] / 2 - self.width / 2, mainAFgain.pos[1]
+		step: 1
+
+	BoolToggle:
+		id: noiseBlanker
+		rig_state: 'noiseBlanker'
+		size_hint_max: 75, 25
+		text: 'NB'
+		pos: bandDownButton.pos[0] + bandDownButton.width + 10, bandDownButton.pos[1]
+
+	StateSlider:
+		id: noiseBlankerLevel
+		rig_state: 'noiseBlankerLevel'
+		min: 1
+		max: 10
+		value_track: True
+		size_hint_max: noiseBlanker.size
+		pos: noiseBlanker.pos[0], noiseBlanker.pos[1] - self.height - 3
+		step: 1
+
+	BoolToggle:
+		id: noiseReduction1
+		rig_state: 'noiseReduction1'
+		size_hint_max: 50, 25
+		text: 'NR1'
+		pos: noiseBlanker.pos[0] + noiseBlanker.width + 10, noiseBlanker.pos[1]
+		on_state: noiseReductionLevel.refresh()
+
+	BoolToggle:
+		id: noiseReduction2
+		rig_state: 'noiseReduction2'
+		size_hint_max: 50, 25
+		text: 'NR2'
+		pos: noiseReduction1.pos[0] + noiseReduction1.width, noiseReduction1.pos[1]
+		on_state: noiseReductionLevel.refresh()
+
+	StateSlider:
+		id: noiseReductionLevel
+		rig_state: 'noiseReductionLevel'
+		min: 0
+		max: 9
+		value_track: True
+		size_hint_max: noiseReduction2.pos[0] + noiseReduction2.width - noiseReduction1.pos[0], 25
+		pos: noiseReduction1.pos[0], noiseReduction2.pos[1] - self.height - 3
+		step: 1
+
+	BoolToggle:
+		id: autoNotch
+		rig_state: 'autoNotch'
+		size_hint_max: 75, 25
+		text: 'AN'
+		pos: noiseReduction2.pos[0] + noiseReduction2.width + 10, noiseReduction2.pos[1]
+
+	StateSlider:
+		id: autoNotchLevel
+		rig_state: 'autoNotchLevel'
+		min: 0
+		max: 4
+		value_track: True
+		size_hint_max: autoNotch.width, 25
+		pos: autoNotch.pos[0], autoNotch.pos[1] - self.height - 3
+		step: 1
+
+	BoolToggle:
+		id: autoBeatCanceller
+		rig_state: 'autoBeatCanceller'
+		size_hint_max: 50, 25
+		text: 'ABC'
+		pos: autoNotch.pos[0] + autoNotch.width + 10, autoNotch.pos[1]
+
+	BoolToggle:
+		id: manualBeatCanceller
+		rig_state: 'manualBeatCanceller'
+		size_hint_max: 50, 25
+		text: 'MBC'
+		pos: autoBeatCanceller.pos[0] + autoBeatCanceller.width, autoBeatCanceller.pos[1]
+
+	StateSlider:
+		id: manualBeatCancellerFrequency
+		rig_state: 'manualBeatCancellerFrequency'
+		min: 0
+		max: 63
+		value_track: True
+		size_hint_max: manualBeatCanceller.pos[0] + manualBeatCanceller.width - autoBeatCanceller.pos[0], 25
+		pos: autoBeatCanceller.pos[0], manualBeatCanceller.pos[1] - self.height - 3
+		step: 1

@@ -1,0 +1,773 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="256"
+   height="256"
+   id="svg3014"
+   version="1.1"
+   inkscape:version="1.1 (c68e22c387, 2021-05-23)"
+   sodipodi:docname="gauge-COMP.svg"
+   inkscape:export-filename="comp.png"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs3016">
+    <inkscape:path-effect
+       effect="spiro"
+       id="path-effect3852"
+       is_visible="true" />
+    <linearGradient
+       inkscape:collect="always"
+       id="linearGradient9780">
+      <stop
+         style="stop-color:#f3f0e5;stop-opacity:1;"
+         offset="0"
+         id="stop9782" />
+      <stop
+         style="stop-color:#f3f0e5;stop-opacity:0;"
+         offset="1"
+         id="stop9784" />
+    </linearGradient>
+    <marker
+       inkscape:stockid="TriangleOutL"
+       orient="auto"
+       refY="0.0"
+       refX="0.0"
+       id="TriangleOutL"
+       style="overflow:visible">
+      <path
+         id="path4259"
+         d="M 5.77,0.0 L -2.88,5.0 L -2.88,-5.0 L 5.77,0.0 z "
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1.0pt"
+         transform="scale(0.8)" />
+    </marker>
+    <marker
+       inkscape:stockid="DiamondMend"
+       orient="auto"
+       refY="0.0"
+       refX="0.0"
+       id="DiamondMend"
+       style="overflow:visible">
+      <path
+         id="path4217"
+         d="M 0,-7.0710768 L -7.0710894,0 L 0,7.0710589 L 7.0710462,0 L 0,-7.0710768 z "
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1.0pt"
+         transform="scale(0.4) translate(-6.5,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0.0"
+       refX="0.0"
+       id="Arrow1Lend"
+       style="overflow:visible;">
+      <path
+         id="path4120"
+         d="M 0.0,0.0 L 5.0,-5.0 L -12.5,0.0 L 5.0,5.0 L 0.0,0.0 z "
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1.0pt;"
+         transform="scale(0.8) rotate(180) translate(12.5,0)" />
+    </marker>
+    <inkscape:path-effect
+       effect="spiro"
+       id="path-effect4559"
+       is_visible="true" />
+    <marker
+       inkscape:stockid="Arrow2Lend"
+       orient="auto"
+       refY="0.0"
+       refX="0.0"
+       id="Arrow2Lend"
+       style="overflow:visible;">
+      <path
+         id="path4138"
+         style="fill-rule:evenodd;stroke-width:0.62500000;stroke-linejoin:round;"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.9730900,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         transform="scale(1.1) rotate(180) translate(1,0)" />
+    </marker>
+    <inkscape:path-effect
+       effect="spiro"
+       id="path-effect4077"
+       is_visible="true" />
+    <linearGradient
+       id="linearGradient4044">
+      <stop
+         id="stop4046"
+         offset="0"
+         style="stop-color:#46ec1b;stop-opacity:1;" />
+      <stop
+         id="stop4048"
+         offset="1"
+         style="stop-color:#f70808;stop-opacity:0.99137932;" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient4044"
+       id="linearGradient4042"
+       x1="109.93476"
+       y1="80.791306"
+       x2="146.53975"
+       y2="80.791306"
+       gradientUnits="userSpaceOnUse" />
+    <inkscape:path-effect
+       effect="spiro"
+       id="path-effect4077-2"
+       is_visible="true" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient9780"
+       id="linearGradient9786"
+       x1="127.98651"
+       y1="72.000004"
+       x2="128.01348"
+       y2="72.000004"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="translate(-48.013489,127.98651)" />
+    <inkscape:path-effect
+       effect="spiro"
+       id="path-effect3852-0"
+       is_visible="true" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="3.2645646"
+     inkscape:cx="124.97838"
+     inkscape:cy="118.08619"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer8"
+     showgrid="true"
+     inkscape:showpageshadow="false"
+     showguides="true"
+     inkscape:guide-bbox="true"
+     inkscape:window-width="1600"
+     inkscape:window-height="1176"
+     inkscape:window-x="0"
+     inkscape:window-y="192"
+     inkscape:window-maximized="1"
+     inkscape:pagecheckerboard="0">
+    <sodipodi:guide
+       orientation="1,0"
+       position="-173.26733,275.74257"
+       id="guide3846" />
+    <inkscape:grid
+       type="xygrid"
+       id="grid3848"
+       empspacing="5"
+       visible="false"
+       enabled="true"
+       snapvisiblegridlinesonly="true" />
+    <sodipodi:guide
+       orientation="0,1"
+       position="85,138"
+       id="guide3887" />
+    <sodipodi:guide
+       orientation="0,1"
+       position="95,118"
+       id="guide3889" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata3019">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(0,-796.36218)" />
+  <g
+     inkscape:groupmode="layer"
+     id="layer2"
+     inkscape:label="Fond"
+     style="display:inline">
+    <path
+       style="fill:#4b4b4b;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       d="M 128,0 C 57.307554,0 0,57.307554 0,128 c 0,3.36642 0.1198279,6.69903 0.375,10 l 255.25,0 C 255.88017,134.69903 256,131.36642 256,128 256,57.307554 198.69245,0 128,0 z"
+       id="path3845"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer8"
+     inkscape:label="Color_zone"
+     style="display:inline">
+    <path
+       sodipodi:end="6.2961336"
+       sodipodi:start="3.1289876"
+       transform="matrix(3.4766876,0,0,3.5073193,-321.19938,-265.13781)"
+       d="m 94.841826,112.52005 a 34.364166,34.064041 0 1 1 68.722724,0.0117"
+       sodipodi:ry="34.064041"
+       sodipodi:rx="34.364166"
+       sodipodi:cy="112.09068"
+       sodipodi:cx="129.20326"
+       id="path4016"
+       style="fill:none;stroke:url(#linearGradient4042);stroke-opacity:1"
+       sodipodi:type="arc"
+       sodipodi:open="true"
+       inkscape:export-filename="comp.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer3"
+     inkscape:label="Graduation_1"
+     style="display:inline">
+    <rect
+       inkscape:transform-center-x="-54.500005"
+       transform="rotate(30)"
+       style="fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3855"
+       width="3"
+       height="18"
+       x="173.35126"
+       y="-71.14875"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"
+       inkscape:transform-center-y="-94.396768" />
+    <rect
+       y="56.85125"
+       x="45.35125"
+       height="18"
+       width="3"
+       id="rect3857"
+       style="fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       transform="rotate(-30)"
+       inkscape:transform-center-x="54.500002"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"
+       inkscape:transform-center-y="-94.39677" />
+    <rect
+       style="fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3859"
+       width="3"
+       height="21.229977"
+       x="-129.5"
+       y="6.7700224"
+       inkscape:transform-center-x="128.5593"
+       transform="matrix(0,-1,1,0,0,0)"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       y="-249.19487"
+       x="126.5"
+       height="21.194868"
+       width="3"
+       id="rect3861"
+       style="fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       transform="matrix(0,1,-1,0,0,0)"
+       inkscape:transform-center-x="-128.3467"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer4"
+     inkscape:label="Graduation_2"
+     style="display:inline">
+    <rect
+       inkscape:transform-center-y="-66.419725"
+       style="fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3900"
+       width="3"
+       height="10"
+       x="-29.817678"
+       y="60.790688"
+       transform="rotate(-54)"
+       inkscape:transform-center-x="91.418927"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-56.500005"
+       style="fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3904"
+       width="3"
+       height="10"
+       x="-48.35125"
+       y="56.85125"
+       transform="rotate(-60)"
+       inkscape:transform-center-x="97.860878"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-45.961236"
+       style="fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3908"
+       width="3"
+       height="10"
+       x="-66.371536"
+       y="50.996109"
+       transform="rotate(-66)"
+       inkscape:transform-center-x="103.23063"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-23.494033"
+       style="fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3912"
+       width="3"
+       height="10"
+       x="-100.09019"
+       y="33.81559"
+       transform="rotate(-78)"
+       inkscape:transform-center-x="110.53069"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-34.918939"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3912-3"
+       width="3"
+       height="10"
+       x="-83.680801"
+       y="43.289639"
+       transform="rotate(-72)"
+       inkscape:transform-center-x="107.46939"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-11.811729"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3912-7"
+       width="3"
+       height="10"
+       x="-115.41896"
+       y="22.678724"
+       transform="rotate(-84)"
+       inkscape:transform-center-x="112.38098"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-x="66.419744"
+       y="60.790695"
+       x="26.817648"
+       height="10"
+       width="3"
+       id="rect3920"
+       style="fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       inkscape:transform-center-y="-91.418902"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"
+       transform="rotate(-36)" />
+    <rect
+       inkscape:transform-center-x="75.611757"
+       y="62.771259"
+       x="7.9738173"
+       height="10"
+       width="3"
+       id="rect3922"
+       style="fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       inkscape:transform-center-y="-83.975353"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"
+       transform="rotate(-42)" />
+    <rect
+       inkscape:transform-center-x="83.975361"
+       transform="rotate(-48)"
+       y="62.771252"
+       x="-10.9738"
+       height="10"
+       width="3"
+       id="rect3924"
+       style="fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       inkscape:transform-center-y="-75.61178"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-112.38098"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3900-6"
+       width="3"
+       height="10"
+       x="139.17848"
+       y="-4.0811758"
+       transform="rotate(6)"
+       inkscape:transform-center-x="-11.811709"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-113.00001"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3904-3"
+       width="3"
+       height="10"
+       x="126.50008"
+       y="9.9996777"
+       inkscape:transform-center-x="-3.3683047e-06"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-112.38096"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3908-3"
+       width="3"
+       height="10"
+       x="112.41927"
+       y="22.678129"
+       transform="rotate(-6)"
+       inkscape:transform-center-x="11.811719"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-107.4694"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3912-8"
+       width="3"
+       height="10"
+       x="80.681252"
+       y="43.28912"
+       transform="rotate(-18)"
+       inkscape:transform-center-x="34.918915"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-110.53069"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3912-3-6"
+       width="3"
+       height="10"
+       x="97.090599"
+       y="33.815514"
+       transform="rotate(-12)"
+       inkscape:transform-center-x="23.494006"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-103.23065"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3912-7-7"
+       width="3"
+       height="10"
+       x="63.371941"
+       y="50.99612"
+       transform="rotate(-24)"
+       inkscape:transform-center-x="45.961232"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-x="-45.961216"
+       y="-53.128799"
+       x="167.49603"
+       height="10"
+       width="3"
+       id="rect3920-9"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       inkscape:transform-center-y="-103.23064"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"
+       transform="rotate(24)" />
+    <rect
+       inkscape:transform-center-x="-34.918909"
+       y="-35.819275"
+       x="159.78938"
+       height="10"
+       width="3"
+       id="rect3922-3"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       inkscape:transform-center-y="-107.46938"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"
+       transform="rotate(18)" />
+    <rect
+       inkscape:transform-center-x="-23.494048"
+       transform="rotate(12)"
+       y="-19.410147"
+       x="150.31563"
+       height="10"
+       width="3"
+       id="rect3924-5"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       inkscape:transform-center-y="-110.53068"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-45.961249"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3900-4"
+       width="3"
+       height="10"
+       x="167.49583"
+       y="-182.87173"
+       transform="rotate(66)"
+       inkscape:transform-center-x="-103.23064"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-56.5"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3904-33"
+       width="3"
+       height="10"
+       x="173.35101"
+       y="-164.85147"
+       transform="rotate(60)"
+       inkscape:transform-center-x="-97.860872"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-66.419734"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3908-2"
+       width="3"
+       height="10"
+       x="177.29047"
+       y="-146.31792"
+       transform="rotate(54)"
+       inkscape:transform-center-x="-91.418917"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-83.975374"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3912-5"
+       width="3"
+       height="10"
+       x="179.2711"
+       y="-108.52647"
+       transform="rotate(42)"
+       inkscape:transform-center-x="-75.61177"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-75.611757"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3912-3-0"
+       width="3"
+       height="10"
+       x="179.27132"
+       y="-127.47386"
+       transform="rotate(48)"
+       inkscape:transform-center-x="-83.97538"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-y="-91.418914"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       id="rect3912-7-0"
+       width="3"
+       height="10"
+       x="177.29077"
+       y="-89.682358"
+       transform="rotate(36)"
+       inkscape:transform-center-x="-66.419752"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <rect
+       inkscape:transform-center-x="-112.38097"
+       y="-231.91927"
+       x="139.17812"
+       height="10"
+       width="3"
+       id="rect3920-0"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       inkscape:transform-center-y="-11.811737"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"
+       transform="rotate(84)" />
+    <rect
+       inkscape:transform-center-x="-110.53066"
+       y="-216.59033"
+       x="150.31529"
+       height="10"
+       width="3"
+       id="rect3922-1"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       inkscape:transform-center-y="-23.494026"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"
+       transform="rotate(78)" />
+    <rect
+       inkscape:transform-center-x="-107.4694"
+       transform="rotate(72)"
+       y="-200.18123"
+       x="159.78915"
+       height="10"
+       width="3"
+       id="rect3924-3"
+       style="display:inline;fill:#f6eaea;fill-opacity:1;fill-rule:nonzero;stroke:none"
+       inkscape:transform-center-y="-34.918904"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer5"
+     inkscape:label="Centre"
+     style="display:inline">
+    <path
+       sodipodi:type="arc"
+       style="fill:#c8c4b7;fill-opacity:1;fill-rule:nonzero;stroke:none;display:inline"
+       id="path3926"
+       sodipodi:cx="130.49876"
+       sodipodi:cy="133.29845"
+       sodipodi:rx="5.1283727"
+       sodipodi:ry="5.2984486"
+       d="m 135.62714,133.29845 a 5.1283727,5.2984486 0 1 1 -10.25675,0 5.1283727,5.2984486 0 1 1 10.25675,0 z"
+       transform="matrix(0.29249044,0,0,0.28310174,89.830359,90.262978)"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer7"
+     inkscape:label="Texte"
+     style="display:inline">
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:0%;font-family:PlainGermanica;-inkscape-font-specification:PlainGermanica;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
+       x="152.17276"
+       y="57.679092"
+       id="text3965"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"><tspan
+         sodipodi:role="line"
+         id="tspan3967"
+         x="152.17276"
+         y="57.679092"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:14px;line-height:1.25;font-family:'DejaVu Sans';-inkscape-font-specification:'DejaVu Sans Bold';fill:#f3dfdf;fill-opacity:1">20dB</tspan></text>
+    <text
+       id="text3981"
+       y="59.277988"
+       x="64.633308"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:0%;font-family:PlainGermanica;-inkscape-font-specification:PlainGermanica;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
+       xml:space="preserve"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:14px;line-height:1.25;font-family:'DejaVu Sans';-inkscape-font-specification:'DejaVu Sans Bold';fill:#f3dfdf;fill-opacity:1"
+         y="59.277988"
+         x="64.633308"
+         id="tspan3983"
+         sodipodi:role="line">10dB</tspan></text>
+    <text
+       id="text3989"
+       y="132.93095"
+       x="186.97598"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:0%;font-family:PlainGermanica;-inkscape-font-specification:PlainGermanica;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
+       xml:space="preserve"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:14px;line-height:1.25;font-family:'DejaVu Sans';-inkscape-font-specification:'DejaVu Sans Bold';fill:#f3dfdf;fill-opacity:1"
+         y="132.93095"
+         x="186.97598"
+         id="tspan3991"
+         sodipodi:role="line">30dB</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:0%;font-family:PlainGermanica;-inkscape-font-specification:PlainGermanica;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
+       x="29.987461"
+       y="133.34454"
+       id="text3993"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/garden.disc/cadran.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90"><tspan
+         sodipodi:role="line"
+         id="tspan3995"
+         x="29.987461"
+         y="133.34454"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:14px;line-height:1.25;font-family:'DejaVu Sans';-inkscape-font-specification:'DejaVu Sans Bold';fill:#f3dfdf;fill-opacity:1">0dB</tspan></text>
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer10"
+     inkscape:label="aiguille"
+     style="display:none">
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;marker-end:url(#Arrow2Lend)"
+       d="m 127.73483,128 0,-61.77454 -0.32921,0.189962"
+       id="path4075"
+       inkscape:path-effect="#path-effect4077-2"
+       inkscape:original-d="m 127.73483,128 0,-61.77454 -0.32921,0.189962"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/aiguille.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+    <path
+       style="fill:#eddddd;fill-opacity:1;stroke:none;display:inline"
+       d="m 125,128 3,-112 3,112 -6,0"
+       id="path3850"
+       inkscape:path-effect="#path-effect3852-0"
+       inkscape:original-d="m 125,128 3,-112 3,112 z"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cccc"
+       inkscape:transform-center-y="-56"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/aiguille.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer9"
+     inkscape:label="boule_centre"
+     style="display:none">
+    <path
+       transform="matrix(0.97496815,0,0,0.94367246,0.76786146,2.2099269)"
+       d="m 135.62714,133.29845 a 5.1283727,5.2984486 0 1 1 -10.25675,0 5.1283727,5.2984486 0 1 1 10.25675,0 z"
+       sodipodi:ry="5.2984486"
+       sodipodi:rx="5.1283727"
+       sodipodi:cy="133.29845"
+       sodipodi:cx="130.49876"
+       id="path4054"
+       style="fill:#c8c4b7;fill-opacity:1;fill-rule:nonzero;stroke:none;display:inline"
+       sodipodi:type="arc"
+       inkscape:export-filename="/mnt/dev/Kivy_Projects/kivy-garden/aiguille.png"
+       inkscape:export-xdpi="90"
+       inkscape:export-ydpi="90" />
+  </g>
+</svg>
