@@ -64,6 +64,7 @@ class Meter(Gauge):
 	accel_down_initial = NumericProperty(-0.02)
 	accel_down_mult = NumericProperty(1.1)
 	click_selects = NumericProperty(int(kenwood.meter.UNSELECTED))
+	calculation = StringProperty()
 
 	def __init__(self, **kwargs):
 		# Local variables
@@ -151,7 +152,7 @@ class Meter(Gauge):
 
 	def stateUpdate(self, value):
 		self.lastval = value
-		Clock.schedule_once(lambda dt: self._stateUpdate(), -1)
+		Clock.schedule_once(lambda dt: self._stateUpdate(), 0)
 
 	def _stateUpdate(self):
 		self._progress.value = self.lastval
@@ -172,9 +173,15 @@ class Meter(Gauge):
 		self._needle.center_y = self._gauge.center_y
 		self._needle.rotation = 90 - ((self.value - self.min_value) * self.unit)
 		if self.value < self.low_cutoff:
-			self._glab.text = self.low_format.format(self.value*9/15)
+			if self.calculation == 'SWR':
+				self._glab.text = self.low_format.format(self.value*9/15)
+			else:
+				self._glab.text = self.low_format.format(self.value)
 		else:
-			self._glab.text = self.high_format.format((self.value-15)*60/15)
+			if self.calculation == 'SWR':
+				self._glab.text = self.high_format.format((self.value-15)*60/15)
+			else:
+				self._glab.text = self.high_format.format(self.value)
 
 class FreqDisplay(Label):
 	freqValue = BoundedNumericProperty(0, min=0, max=99999999999, errorvalue=0)
@@ -269,13 +276,13 @@ class MemoryDisplay(Label):
 
 	def updateChannel(self, channel, *args):
 		if channel == self.memoryValue:
-			Clock.schedule_once(self._doUpdateChannel, -1)
+			Clock.schedule_once(self._doUpdateChannel, 0)
 
 	def _updateChannel(self, *args):
 		# We can't query the rig in here because we're already
 		# blocking the read method if we're called via a
 		# callback
-		Clock.schedule_once(self._doUpdateChannel, -1)
+		Clock.schedule_once(self._doUpdateChannel, 0)
 
 	def _doUpdateChannel(self, dt):
 		memData = rig.memories[self.memoryValue].value
@@ -347,8 +354,8 @@ class VFOBox(GridLayout):
 		self.vfo = int(vfo)
 
 	def _updateVFO(self, *args):
-		Clock.schedule_once(lambda dt: setMemoryVisibility(), -1)
-		Clock.schedule_once(lambda dt: setVFOCallback(), -1)
+		Clock.schedule_once(lambda dt: setMemoryVisibility(), 0)
+		Clock.schedule_once(lambda dt: setVFOCallback(), 0)
 		for c in self.children:
 			if c.vfoID == self.vfo:
 				if c.state != 'down':
@@ -381,7 +388,7 @@ class OPModeBox(GridLayout):
 
 	def _updateMode(self, *args):
 		# TODO: Update all the stuff that varies by mode here...
-		# ie: Clock.schedule_once(lambda dt: setVFOCallback(), -1)
+		# ie: Clock.schedule_once(lambda dt: setVFOCallback(), 0)
 		for c in self.children:
 			if c.modeID == self.mode:
 				if c.state != 'down':
@@ -423,7 +430,7 @@ class BoolToggle(ToggleButton):
 		if self.poll_after:
 			# We call this to force the update in case we exceeded
 			# limits
-			Clock.schedule_once(lambda dt: getattr(rig, self.rig_state).uncached_value, -1)
+			Clock.schedule_once(lambda dt: getattr(rig, self.rig_state).uncached_value, 0)
 
 class StateSlider(Slider):
 	rig_state = StringProperty()
@@ -435,7 +442,7 @@ class StateSlider(Slider):
 			self.on_rig_state(self, self.rig_state)
 
 	def refresh(self):
-		Clock.schedule_once(lambda dt: self._refresh(), -1)
+		Clock.schedule_once(lambda dt: self._refresh(), 0)
 
 	def _refresh(self):
 		st = getattr(rig, self.rig_state).value
@@ -459,7 +466,7 @@ class StateSlider(Slider):
 	def on_value(self, *args):
 		getattr(rig, self.rig_state).value = int(self.value)
 		if self.poll_after:
-			Clock.schedule_once(lambda dt: getattr(rig, self.rig_state).uncached_value, -1)
+			Clock.schedule_once(lambda dt: getattr(rig, self.rig_state).uncached_value, 0)
 
 class StateLamp(Label):
 	background_color = ColorProperty(defaultvalue=[0, 0, 0, 0])
@@ -468,6 +475,8 @@ class StateLamp(Label):
 	rig_state = StringProperty()
 	meter_on = StringProperty()
 	meter_off = StringProperty()
+	meter_on_calculation = StringProperty()
+	meter_off_calculation = StringProperty()
 	meter_on_low = StringProperty()
 	meter_off_low = StringProperty()
 	meter_on_high = StringProperty()
@@ -505,7 +514,7 @@ class StateLamp(Label):
 
 	def newValue(self, value, *args):
 		self.background_color = self.active_color if value else self.inactive_color
-		Clock.schedule_once(self._newValue, -1)
+		Clock.schedule_once(self._newValue, 0)
 
 	def _newValue(self, dt):
 		self.col.rgba = self.background_color
@@ -516,11 +525,13 @@ class StateLamp(Label):
 				self.update_meter.file_gauge = self.meter_on
 				self.update_meter.low_format = self.meter_on_low
 				self.update_meter.high_format = self.meter_on_high
+				self.update_meter.calculation = self.meter_on_calculation
 		else:
 			if self.meter_off != '' and self.update_meter is not None:
 				self.update_meter.file_gauge = self.meter_off
 				self.update_meter.low_format = self.meter_off_low
 				self.update_meter.high_format = self.meter_off_high
+				self.update_meter.calculation = self.meter_off_calculation
 		getattr(rig, self.rig_state).add_callback(self.newValue)
 
 class FilterDisplay(Widget):
@@ -568,7 +579,7 @@ class FilterDisplay(Widget):
 			newline += (self.pos[0] + xpos, self.pos[1] + (ystep if bit else self.tb_offset),)
 		newline += (self.pos[0] + xpos + xstep, self.pos[1] + self.tb_offset)
 		self.line_points = newline
-		Clock.schedule_once(self._on_points, -1)	
+		Clock.schedule_once(self._on_points, 0)	
 
 	def _on_points(self, dy):
 		self.lines.points = self.line_points

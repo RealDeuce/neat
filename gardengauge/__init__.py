@@ -31,7 +31,6 @@ from kivy.uix.label import Label
 from kivy.uix.progressbar import ProgressBar
 from os.path import join, dirname, abspath
 
-
 class Gauge(Widget):
     '''
     Gauge class
@@ -85,22 +84,29 @@ class Gauge(Widget):
         self.add_widget(self._needle)
         self.add_widget(self._glab)
         self.add_widget(self._progress)
+        self._updateMinMax(self)
 
         self.bind(pos=self._update)
         self.bind(size=self._update)
-        self.bind(max_value=self._update)
-        self.bind(min_value=self._update)
+        self.bind(max_value=self._updateMinMax)
+        self.bind(min_value=self._updateMinMax)
         self.bind(size_gauge=self._update)
         self.bind(value=self._turn)
         self.bind(file_gauge=self._newimage)
         self.bind(file_needle=self._newneedle)
 
     def _newimage(self, *args):
-        print('New image: '+self.file_gauge)
         self._img_gauge.source = self.file_gauge
 
     def _newneedle(self, *args):
         self._img_needle.source = self.file_needle
+
+    def _updateMinMax(self, *args):
+        self.unit = 180 / (self.max_value - self.min_value)
+        self.unit = 180 / (self.max_value - self.min_value)
+        self.property('value').set_min(self, self.min_value)
+        self.property('value').set_max(self, self.max_value)
+        self._progress.max = self.max_value - self.min_value
 
     def _update(self, *args):
         '''
@@ -110,8 +116,6 @@ class Gauge(Widget):
         self._gauge.size = (self.size_gauge, self.size_gauge)
         self._img_gauge.size = (self.size_gauge, self.size_gauge)
         self._needle.size = (self.size_gauge, self.size_gauge)
-        self.property('value').set_min(self, self.min_value)
-        self.property('value').set_max(self, self.max_value)
         self.unit = 180 / (self.max_value - self.min_value)
         self._gauge.pos = self.pos
         self._needle.pos = (self.x, self.y)
@@ -121,7 +125,6 @@ class Gauge(Widget):
         self._progress.x = self._gauge.x
         self._progress.y = self._gauge.y + (self.size_gauge / 4)
         self._progress.width = self.size_gauge
-        self._progress.max = self.max_value - self.min_value
 
     def _turn(self, *args):
         '''

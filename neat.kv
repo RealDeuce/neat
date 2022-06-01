@@ -41,6 +41,7 @@
 		pos: 7.5, root.size[1] - 256 - 10
 		low_format: 'S[b]{0:.0f}[/b]'
 		high_format: '+[b]{0:.0f}[/b]'
+		calculation: 'SWR'
 
 	Meter:
 		id: SWRmeter
@@ -59,22 +60,22 @@
 
 	Meter:
 		id: COMPmeter
-		min: 0
-		max: 30
+		min_value: 0
+		max_value: 30
 		size_gauge: 128
 		size_text: 20
 		rig_state: 'compressionMeter'
 		file_gauge: 'gardengauge/comp.png'
 		pos: smeter.pos[0], smeter.pos[1] + 128
-		low_cutoff: 10
+		low_cutoff: 11
 		low_format: '{0:.0f}'
 		high_format: '[color=#F00]{0:.0f}[/color]'
 		click_selects: int(meter.COMPRESSION)
 
 	Meter:
 		id: ALCmeter
-		min: 0
-		max: 30
+		min_value: 0
+		max_value: 30
 		size_gauge: 128
 		size_text: 20
 		rig_state: 'ALCmeter'
@@ -244,6 +245,8 @@
 		meter_off_high: '+[b]{0:.0f}[/b]'
 		meter_on_low: '{0:.0f}'
 		meter_on_high: '{0:.0f}'
+		meter_on_calculation: ''
+		meter_off_calculation: 'SWR'
 		pos: rxLamp.pos[0] + rxLamp.width + 10, root.size[1] - self.size[1] - 10
 		text: 'TX'
 
