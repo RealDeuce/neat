@@ -123,27 +123,27 @@ class Smeter(Gauge):
 		self.schedule()
 
 	def update(self, value):
+		self.lastval = value
+		self._progress.value = value * 10 / 3
 		if self._img_gauge != 'gardengauge/SWR.png':
 			self.all_updates = {}
-			self.lastval = value
 		else:
-			self._progress.value = value * 10 / 3
 			now = time.time()
-			self.lastval = value
 			if now in self.all_updates:
 				if value < self.all_updates[now]:
 					return
-			self.all_updates[now] = value
+			self.all_updates[now] = self.lastval
 		self.schedule()
 
 	def _turn(self, *args):
 		'''
 		Turn needle, 1 degree = 1 unit, 0 degree point start on 50 value.
 		'''
+		self._progress.value = self.lastval * 10 / 3
 		self._needle.center_x = self._gauge.center_x
 		self._needle.center_y = self._gauge.center_y
 		self._needle.rotation = (15 * self.unit) - (self.value * self.unit)
-		if self._img_gauge != 'gardengauge/smeter.png':
+		if self._img_gauge.source != 'gardengauge/smeter.png':
 			self._glab.text = ''
 		else:
 			if self.value < 16:
@@ -358,7 +358,7 @@ class ALCmeter(Gauge):
 		self.schedule()
 
 	def update(self, value):
-		if self._img_gauge != 'gardengauge/SWR.png':
+		if self._img_gauge.source != 'gardengauge/SWR.png':
 			self.all_updates = {}
 			self.lastval = value
 		else:
@@ -378,7 +378,7 @@ class ALCmeter(Gauge):
 		self._needle.center_x = self._gauge.center_x
 		self._needle.center_y = self._gauge.center_y
 		self._needle.rotation = (15 * self.unit) - (self.value * self.unit)
-		if self._img_gauge != 'gardengauge/smeter.png':
+		if self._img_gauge.source != 'gardengauge/smeter.png':
 			self._glab.text = ''
 		else:
 			if self.value < 16:
