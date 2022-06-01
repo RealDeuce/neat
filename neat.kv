@@ -25,35 +25,64 @@
 #:kivy 2.1.0
 #:import tuningMode kenwood.tuningMode
 #:import mode kenwood.mode
+#:import meter kenwood.meter
 
 <Neat>:
 	size: 874, 400
 
-	Smeter:
+	Meter:
 		id: smeter
-		min: 0
-		max: 30
+		min_value: 0
+		max_value: 30
+		size_gauge: 128
+		size_text: 20
+		rig_state: 'mainSMeter'
 		file_gauge: 'gardengauge/smeter.png'
 		pos: 7.5, root.size[1] - 256 - 10
+		low_format: 'S[b]{0:.0f}[/b]'
+		high_format: '+[b]{0:.0f}[/b]'
 
-	SWRmeter:
+	Meter:
 		id: SWRmeter
-		min: 0
-		max: 30
+		min_value: 0
+		max_value: 30
+		size_gauge: 128
+		size_text: 20
+		rig_state: 'SWRmeter'
+		peak_hold: 0
+		accel_down_initial: -3
+		file_gauge: 'gardengauge/SWR.png'
 		pos: smeter.pos[0] + 128 + 5, smeter.pos[1]
+		click_selects: int(meter.SWR)
+		low_format: ''
+		high_format: ''
 
-	COMPmeter:
+	Meter:
 		id: COMPmeter
 		min: 0
 		max: 30
+		size_gauge: 128
+		size_text: 20
+		rig_state: 'compressionMeter'
+		file_gauge: 'gardengauge/comp.png'
 		pos: smeter.pos[0], smeter.pos[1] + 128
+		low_cutoff: 10
+		low_format: '{0:.0f}'
+		high_format: '[color=#F00]{0:.0f}[/color]'
+		click_selects: int(meter.COMPRESSION)
 
-	ALCmeter:
+	Meter:
 		id: ALCmeter
 		min: 0
 		max: 30
+		size_gauge: 128
+		size_text: 20
+		rig_state: 'ALCmeter'
 		file_gauge: 'gardengauge/ALC.png'
 		pos: SWRmeter.pos[0], COMPmeter.pos[1]
+		low_format: ''
+		high_format: '[color=#F00][b]Over[/b][/color]'
+		click_selects: int(meter.ALC)
 
 	FreqDisplay:
 		id: mainFreq
@@ -211,6 +240,10 @@
 		update_meter: smeter
 		meter_on: 'gardengauge/cadran.png'
 		meter_off: 'gardengauge/smeter.png'
+		meter_off_low: 'S[b]{0:.0f}[/b]'
+		meter_off_high: '+[b]{0:.0f}[/b]'
+		meter_on_low: '{0:.0f}'
+		meter_on_high: '{0:.0f}'
 		pos: rxLamp.pos[0] + rxLamp.width + 10, root.size[1] - self.size[1] - 10
 		text: 'TX'
 

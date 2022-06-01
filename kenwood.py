@@ -297,6 +297,7 @@ class StateValue():
 		if self._set_format is not None and self._set_method is not None:
 			raise Exception('Only one of set_method or set_format may be specified')
 		self._validity_check = kwargs.get('validity_check')
+		self._range_check = kwargs.get('range_check')
 		self._query_command = kwargs.get('query_command')
 		self._query_method = kwargs.get('query_method')
 		if  self._query_command is not None and self._query_method is not None:
@@ -334,6 +335,8 @@ class StateValue():
 
 	@value.setter
 	def value(self, value):
+		if self._range_check is not None and not self._range_check(value):
+			return
 		if self._validity_check is not None and not self._validity_check():
 			return
 		if self._set_format is not None:
@@ -349,6 +352,11 @@ class StateValue():
 	def valid(self):
 		if self._validity_check is not None:
 			return self._validity_check()
+		return True
+
+	def range_check(self, value):
+		if self._range_check is not None:
+			return self._range_check(value)
 		return True
 
 	def add_callback(self, cb):
@@ -440,6 +448,11 @@ class Kenwood:
 			self._write('TX1')
 		else:
 			self._write('RX1')
+
+	def _checkMeterValue(self, value):
+		if meter(value) == meter.COMPRESSION and not self.speechProcessor.value:
+			return False
+		return True
 
 	def init_19(self):
 		# Errors
@@ -643,7 +656,7 @@ class Kenwood:
 		self.scanSpeedDown =                StateValue(self,                        set_format = 'RD{:04d}', validity_check = self._scanSpeedUpDownValid)
 		self.RFgain =                       StateValue(self, query_command = 'RG',  set_format = 'RG{:03d}')
 		self.noiseReductionLevel =          StateValue(self, query_command = 'RL',  set_format = 'RL{:02d}', validity_check = self._noiseReductionLevelValid)
-		self.meterType =                    StateValue(self, query_command = 'RM',  set_format = 'RM{:01d}')
+		self.meterType =                    StateValue(self, query_command = 'RM',  set_format = 'RM{:01d}', range_check = self._checkMeterValue)
 		self.meterValue =                   StateValue(self, query_command = 'RM')
 		self.SWRmeter =                     StateValue(self, query_command = 'RM')
 		self.compressionMeter =             StateValue(self, query_command = 'RM')

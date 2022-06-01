@@ -53,26 +53,53 @@ class Neat(FloatLayout):
 		for k in kwargs.keys():
 			getattr(rig, k).value = kwargs[k]
 
-class Smeter(Gauge):
+class Meter(Gauge):
 	rig_state = StringProperty()
+	peak_hold = NumericProperty(0.5)
+	low_cutoff = NumericProperty(16)
+	low_format = StringProperty('{:.0f}')
+	high_format = StringProperty('{:.0f}')
+	accel_up_initial = NumericProperty(3)
+	accel_up_mult = NumericProperty(1.1)
+	accel_down_initial = NumericProperty(-0.02)
+	accel_down_mult = NumericProperty(1.1)
+	click_selects = NumericProperty(int(kenwood.meter.UNSELECTED))
 
 	def __init__(self, **kwargs):
-		# Gauge variables
-		self.file_gauge = 'gardengauge/smeter.png'
-		self.unit = 6
-		self.peak_hold = 0.5
-		self.size_gauge = 128
-		self.size_text = 20
 		# Local variables
 		self.all_updates = dict()
 		self.timed_event = None
 		self.lastval = 0
 		self.lastinc = 0
 		self.pos = (10, 10)
-		super(Smeter, self).__init__(**kwargs)
-		self.value = rig.mainSMeter.value
-		rig.mainSMeter.add_callback(self.update)
+		super(Meter, self).__init__(**kwargs)
+		if self.rig_state != '':
+			getattr(rig, self.rig_state).add_callback(self.stateUpdate)
+			self.value = getattr(rig, self.rig_state).value
+		self._old_rig_state = self.rig_state
 		self._turn()
+		self.bind(low_format=self._turn)
+		self.bind(high_format=self._turn)
+		self.bind(rig_state=self._newRigState)
+
+	def on_touch_down(self, touch):
+		if self.click_selects == kenwood.meter.UNSELECTED:
+			return False
+		if not 'button' in touch.profile:
+			return False
+		if not touch.button in ('left'):
+			return False
+		if not self._gauge.collide_point(touch.pos[0], touch.pos[1]):
+			return False
+		if touch.pos[1] < (self._gauge.pos[1] + self._gauge.size[1] * 0.4):
+			return False
+		rig.meterType.value = kenwood.meter(self.click_selects)
+
+	def _newRigState(self, *args):
+		if self._old_rig_state != '':
+			getattr(rig, self._old_rig_state).remove_callback(self.stateUpdate)
+		getattr(rig, self.rig_state).add_callback(self.stateUpdate)
+		self._old_rig_state = self.rig_state
 
 	def target(self):
 		# Eliminate values older than peak_hold
@@ -102,17 +129,17 @@ class Smeter(Gauge):
 		highval = self.target()
 		if self.value != highval[1]:
 			if highval[1] > self.value:
-				inc = 3
+				inc = self.accel_up_initial
 				if self.lastinc > 0:
-					inc = self.lastinc * 1.1
+					inc = self.lastinc * self.accel_up_mult
 				newval = self.value + inc
 				self.lastinc = inc
 				if highval[1] < newval:
 					newval = highval[1]
 			else:
-				inc = -0.02
+				inc = self.accel_down_initial
 				if self.lastinc < 0:
-					inc = self.lastinc * 1.1
+					inc = self.lastinc * self.accel_down_mult
 				newval = self.value + inc
 				self.lastinc = inc
 				if highval[1] > newval:
@@ -122,269 +149,32 @@ class Smeter(Gauge):
 			self.lastinc = 0
 		self.schedule()
 
-	def update(self, value):
+	def stateUpdate(self, value):
 		self.lastval = value
-		self._progress.value = value * 10 / 3
-		if self._img_gauge != 'gardengauge/SWR.png':
-			self.all_updates = {}
-		else:
-			now = time.time()
-			if now in self.all_updates:
-				if value < self.all_updates[now]:
-					return
-			self.all_updates[now] = self.lastval
-		self.schedule()
+		Clock.schedule_once(lambda dt: self._stateUpdate(), -1)
 
-	def _turn(self, *args):
-		'''
-		Turn needle, 1 degree = 1 unit, 0 degree point start on 50 value.
-		'''
-		self._progress.value = self.lastval * 10 / 3
-		self._needle.center_x = self._gauge.center_x
-		self._needle.center_y = self._gauge.center_y
-		self._needle.rotation = (15 * self.unit) - (self.value * self.unit)
-		if self._img_gauge.source != 'gardengauge/smeter.png':
-			self._glab.text = ''
-		else:
-			if self.value < 16:
-				self._glab.text = "S[b]{0:.0f}[/b]".format(self.value*9/15)
-			else:
-				self._glab.text = "+[b]{0:.0f}[/b]".format((self.value-15)*60/15)
-
-class SWRmeter(Gauge):
-	def __init__(self, **kwargs):
-		# Gauge variables
-		self.file_gauge = 'gardengauge/SWR.png'
-		self.unit = 6
-		self.size_gauge = 128
-		self.size_text = 0
-		# Local variables
-		self.all_updates = dict()
-		self.timed_event = None
-		self.lastval = 0
-		self.lastinc = 0
-		self.pos = (10, 10)
-		super(SWRmeter, self).__init__(**kwargs)
-		self.value = 0
-		rig.SWRmeter.add_callback(self.update)
-		self._turn()
-
-	def target(self):
-		return self.lastval
-
-	def schedule(self):
-		highval = self.target()
-		if self.timed_event is not None:
-			self.timed_event.cancel()
-		if highval != self.value:
-			self.timed_event = Clock.schedule_once(lambda *t: self.tick(), 0.01)
-
-	def tick(self):
-		self.timed_event = None
-		highval = self.target()
-		if self.value != highval:
-			if highval > self.value:
-				inc = 3
-				if self.lastinc > 0:
-					inc = self.lastinc * 1.1
-				newval = self.value + inc
-				self.lastinc = inc
-				if highval < newval:
-					newval = highval
-			else:
-				inc = -0.02
-				if self.lastinc < 0:
-					inc = self.lastinc * 1.1
-				newval = self.value + inc
-				self.lastinc = inc
-				if highval > newval:
-					newval = highval
-			self.value = newval
-		else:
-			self.lastinc = 0
-		self.schedule()
-
-	def update(self, value):
-		self.lastval = value
-		self.schedule()
-
-	def _turn(self, *args):
-		'''
-		Turn needle, 1 degree = 1 unit, 0 degree point start on 50 value.
-		'''
-		self._needle.center_x = self._gauge.center_x
-		self._needle.center_y = self._gauge.center_y
-		self._needle.rotation = (15 * self.unit) - (self.value * self.unit)
-		if self.value < 16:
-			self._glab.text = "S[b]{0:.0f}[/b]".format(self.value*9/15)
-		else:
-			self._glab.text = "+[b]{0:.0f}[/b]".format((self.value-15)*60/15)
-
-class COMPmeter(Gauge):
-	def __init__(self, **kwargs):
-		# Gauge variables
-		self.file_gauge = 'gardengauge/comp.png'
-		self.unit = 6
-		self.size_gauge = 128
-		self.size_text = 0
-		# Local variables
-		self.all_updates = dict()
-		self.timed_event = None
-		self.lastval = 0
-		self.lastinc = 0
-		self.pos = (10, 10)
-		super(COMPmeter, self).__init__(**kwargs)
-		self.value = 0
-		rig.SWRmeter.add_callback(self.update)
-		self._turn()
-
-	def target(self):
-		return self.lastval
-
-	def schedule(self):
-		highval = self.target()
-		if self.timed_event is not None:
-			self.timed_event.cancel()
-		if highval != self.value:
-			self.timed_event = Clock.schedule_once(lambda *t: self.tick(), 0.01)
-
-	def tick(self):
-		self.timed_event = None
-		highval = self.target()
-		if self.value != highval:
-			if highval > self.value:
-				inc = 3
-				if self.lastinc > 0:
-					inc = self.lastinc * 1.1
-				newval = self.value + inc
-				self.lastinc = inc
-				if highval < newval:
-					newval = highval
-			else:
-				inc = -0.02
-				if self.lastinc < 0:
-					inc = self.lastinc * 1.1
-				newval = self.value + inc
-				self.lastinc = inc
-				if highval > newval:
-					newval = highval
-			self.value = newval
-		else:
-			self.lastinc = 0
-		self.schedule()
-
-	def update(self, value):
-		self.lastval = value
-		self.schedule()
-
-	def _turn(self, *args):
-		'''
-		Turn needle, 1 degree = 1 unit, 0 degree point start on 50 value.
-		'''
-		self._needle.center_x = self._gauge.center_x
-		self._needle.center_y = self._gauge.center_y
-		self._needle.rotation = (15 * self.unit) - (self.value * self.unit)
-		if self.value < 11:
-			self._glab.text = "{0:.0f}dB".format(self.value*9/15)
-		else:
-			self._glab.text = "[color=#F00]{0:.0f}[/color]dB".format((self.value-15)*60/15)
-class ALCmeter(Gauge):
-	rig_state = StringProperty()
-
-	def __init__(self, **kwargs):
-		# Gauge variables
-		self.file_gauge = 'gardengauge/ALC.png'
-		self.unit = 6
-		self.peak_hold = 0.5
-		self.size_gauge = 128
-		self.size_text = 20
-		# Local variables
-		self.all_updates = dict()
-		self.timed_event = None
-		self.lastval = 0
-		self.lastinc = 0
-		self.pos = (10, 10)
-		super(ALCmeter, self).__init__(**kwargs)
-		self.value = rig.ALCmeter.value
-		rig.ALCmeter.add_callback(self.update)
-		self._turn()
-
-	def target(self):
-		# Eliminate values older than peak_hold
+	def _stateUpdate(self):
+		self._progress.value = self.lastval
 		now = time.time()
-		cutoff = now - self.peak_hold
-		for t in list(self.all_updates):
-			if t < cutoff:
-				del self.all_updates[t]
-		# Find highest value
-		sz = len(self.all_updates)
-		if sz < 1:
-			return (now, self.lastval)
-		byval = dict(sorted(self.all_updates.items(), key = lambda x:x[1]))
-		return (list(byval.keys())[sz - 1], list(byval.values())[sz - 1])
-
-	def schedule(self):
-		highval = self.target()
-		if self.timed_event is not None:
-			self.timed_event.cancel()
-		if highval[1] != self.value:
-			self.timed_event = Clock.schedule_once(lambda *t: self.tick(), 0.01)
-		else:
-			self.timed_event = Clock.schedule_once(lambda *t: self.tick(), (self.peak_hold - (time.time() - highval[0])))
-
-	def tick(self):
-		self.timed_event = None
-		highval = self.target()
-		if self.value != highval[1]:
-			if highval[1] > self.value:
-				inc = 3
-				if self.lastinc > 0:
-					inc = self.lastinc * 1.1
-				newval = self.value + inc
-				self.lastinc = inc
-				if highval[1] < newval:
-					newval = highval[1]
-			else:
-				inc = -0.02
-				if self.lastinc < 0:
-					inc = self.lastinc * 1.1
-				newval = self.value + inc
-				self.lastinc = inc
-				if highval[1] > newval:
-					newval = highval[1]
-			self.value = newval
-		else:
-			self.lastinc = 0
-		self.schedule()
-
-	def update(self, value):
-		if self._img_gauge.source != 'gardengauge/SWR.png':
-			self.all_updates = {}
-			self.lastval = value
-		else:
-			self._progress.value = value * 10 / 3
-			now = time.time()
-			self.lastval = value
-			if now in self.all_updates:
-				if value < self.all_updates[now]:
-					return
-			self.all_updates[now] = value
+		if now in self.all_updates:
+			if value < self.all_updates[now]:
+				return
+		self.all_updates[now] = self.lastval
 		self.schedule()
 
 	def _turn(self, *args):
 		'''
 		Turn needle, 1 degree = 1 unit, 0 degree point start on 50 value.
+
 		'''
+		self._progress.value = self.lastval
 		self._needle.center_x = self._gauge.center_x
 		self._needle.center_y = self._gauge.center_y
-		self._needle.rotation = (15 * self.unit) - (self.value * self.unit)
-		if self._img_gauge.source != 'gardengauge/smeter.png':
-			self._glab.text = ''
+		self._needle.rotation = 90 - ((self.value - self.min_value) * self.unit)
+		if self.value < self.low_cutoff:
+			self._glab.text = self.low_format.format(self.value*9/15)
 		else:
-			if self.value < 16:
-				self._glab.text = "S[b]{0:.0f}[/b]".format(self.value*9/15)
-			else:
-				self._glab.text = "+[b]{0:.0f}[/b]".format((self.value-15)*60/15)
+			self._glab.text = self.high_format.format((self.value-15)*60/15)
 
 class FreqDisplay(Label):
 	freqValue = BoundedNumericProperty(0, min=0, max=99999999999, errorvalue=0)
@@ -420,16 +210,10 @@ class FreqDisplay(Label):
 			return False
 		if not touch.button in ('scrollup', 'scrolldown', 'left'):
 			return False
+		if not self.collide_point(touch.pos[0], touch.pos[1]):
+			return False
 		#if ids.vfoBox.vfo != vfoa and ids.vfoBox.vfo != vfob:
 		#	return
-		if (touch.pos[0] > self.pos[0] + self.size[0]):
-			return False
-		if (touch.pos[0] < self.pos[0]):
-			return False
-		if (touch.pos[1] > self.pos[1] + self.size[1]):
-			return False
-		if (touch.pos[1] < self.pos[1]):
-			return False
 		cell = math.floor(14 - ((touch.pos[0] - self.pos[0]) / 42))
 		if cell == 3 or cell == 7 or cell == 11:
 			return False
@@ -684,6 +468,11 @@ class StateLamp(Label):
 	rig_state = StringProperty()
 	meter_on = StringProperty()
 	meter_off = StringProperty()
+	meter_on_low = StringProperty()
+	meter_off_low = StringProperty()
+	meter_on_high = StringProperty()
+	meter_off_high = StringProperty()
+
 	update_meter = ObjectProperty()
 
 	def __init__(self, **kwargs):
@@ -724,10 +513,14 @@ class StateLamp(Label):
 		self.col.rgba = self.active_color if st else self.inactive_color
 		if st:
 			if self.meter_on != '' and self.update_meter is not None:
-				self.update_meter._img_gauge.source = self.meter_on
+				self.update_meter.file_gauge = self.meter_on
+				self.update_meter.low_format = self.meter_on_low
+				self.update_meter.high_format = self.meter_on_high
 		else:
 			if self.meter_off != '' and self.update_meter is not None:
-				self.update_meter._img_gauge.source = self.meter_off
+				self.update_meter.file_gauge = self.meter_off
+				self.update_meter.low_format = self.meter_off_low
+				self.update_meter.high_format = self.meter_off_high
 		getattr(rig, self.rig_state).add_callback(self.newValue)
 
 class FilterDisplay(Widget):
