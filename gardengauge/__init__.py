@@ -69,16 +69,16 @@ class Gauge(Widget):
             do_translation=False
         )
 
-        _img_needle = Image(
+        self._img_needle = Image(
             source=self.file_needle,
             size=(self.size_gauge, self.size_gauge)
         )
 
-        self._glab = Label(font_size=self.size_text, markup=True)
+        self._glab = Label(font_size=self.size_text, markup=True, halign='center')
         self._progress = ProgressBar(max=100, height=20, value=self.value)
 
         self._gauge.add_widget(self._img_gauge)
-        self._needle.add_widget(_img_needle)
+        self._needle.add_widget(self._img_needle)
 
         self.add_widget(self._gauge)
         self.add_widget(self._needle)
@@ -94,6 +94,10 @@ class Gauge(Widget):
         self.bind(value=self._turn)
         self.bind(file_gauge=self._newimage)
         self.bind(file_needle=self._newneedle)
+        self.bind(size_text=self._newfontsize)
+
+    def _newfontsize(self, *args):
+        self._glab.font_size = self.size_text
 
     def _newimage(self, *args):
         self._img_gauge.source = self.file_gauge
@@ -115,6 +119,7 @@ class Gauge(Widget):
         '''
         self._gauge.size = (self.size_gauge, self.size_gauge)
         self._img_gauge.size = (self.size_gauge, self.size_gauge)
+        self._img_needle.size = (self.size_gauge, self.size_gauge)
         self._needle.size = (self.size_gauge, self.size_gauge)
         self.unit = 180 / (self.max_value - self.min_value)
         self._gauge.pos = self.pos

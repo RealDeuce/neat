@@ -1,4 +1,5 @@
 # Copyright (c) 2022 Stephen Hurd
+# Copyright (c) 2022 Stephen Hurd
 # Developers:
 # Stephen Hurd (W8BSD/VE5BSD) <shurd@sasktel.net>
 # 
@@ -24,6 +25,7 @@
 
 import bitarray
 import bitarray.util
+import copy
 import re
 import serial
 import sys
@@ -331,7 +333,8 @@ class StateValue():
 				self._rig._query(self)
 			else:
 				raise Exception('Attempt to set value without a setter')
-		return self._cached
+		# We just deepcopy it as an easy hack
+		return copy.deepcopy(self._cached)
 
 	@value.setter
 	def value(self, value):
@@ -401,7 +404,8 @@ class Kenwood:
 		self._write('LK{:01d}{:01d}'.format(fa, value))
 
 	def _set_memoryGroups(self, value):
-		self._write('MU{:01d}{:01d}{:01d}{:01d}{:01d}{:01d}{:01d}{:01d}{:01d}{:01d}'.format(value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7], value[8], value[9]))
+		self._write('MU{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}'.format(value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7], value[8], value[9]))
+		self._write('MU')
 
 	def _set_noiseReduction2(self, value):
 		self._write('NR{:01d}'.format(noiseReduction.NR2 if value else noiseReduction.OFF))
@@ -431,7 +435,12 @@ class Kenwood:
 	def _noiseReductionLevelValid(self):
 		return self.noiseReduction.value != noiseReduction.OFF
 
+	def _mainReceiverOnly(self):
+		return self.controlMain.value
+
 	def _voiceCutoffValid(self):
+		if not self.controlMain.value:
+			return False
 		return self.mode.value in (mode.AM, mode.FM, mode.LSB, mode.USB)
 
 	def _inMemoryMode(self):
@@ -454,104 +463,161 @@ class Kenwood:
 			return False
 		return True
 
+	def _checkMainFrequencyValid(self, value):
+		ranges = {
+			'HF': [30000, 60000000],
+			'VHF': [142000000, 151999999],
+			'UHF': [420000000, 449999999],
+		}
+		for r in ranges:
+			if value >= ranges[r][0] and value <= ranges[r][1]:
+				return True
+		return False
+
+	def _checkSubFrequencyValid(self, value):
+		ranges = {
+			'VHF': [142000000, 151999999],
+			'UHF': [420000000, 449999999],
+		}
+		for r in ranges:
+			if value >= ranges[r][0] and value <= ranges[r][1]:
+				return True
+		return False
+
+	def _antennaRangeCheck(self, value):
+		if self.currentFrequency.value <= 60000000 and (value == 1 or value == 2):
+			return True
+		return False
+
+	def _antenna1Valid(self):
+		return self._antennaRangeCheck(1)
+
+	def _antenna2Valid(self):
+		return self._antennaRangeCheck(2)
+
+	def _setAntenna1(self, value):
+		self._write('AN' + '1' if value else '2')
+
+	def _setAntenna2(self, value):
+		self._write('AN' + '2' if value else '1')
+
+	def _cwAutoTuneRange(self, value):
+		if not self.mode.value in (mode.CW, mode.CW_REVERSED, ):
+			return False
+		if value:
+			return True
+		if self.CWautoTune:
+			return True
+		return False
+
+	def _cwAutoTuneValid(self):
+		if self.mode.value in (mode.CW, mode.CW_REVERSED, ):
+			return True
+		return False
+
+	def _memoryGroupRange(self, value):
+		if not 1 in value:
+			return False
+		return True
+
 	def init_19(self):
 		# Errors
-		self.command[b'?'] = {'update': self.__update_Error}
-		self.command[b'E'] = {'update': self.__update_ComError}
-		self.command[b'O'] = {'update': self.__update_IncompleteError}
+		self.command[b'?'] = {'update': self._update_Error}
+		self.command[b'E'] = {'update': self._update_ComError}
+		self.command[b'O'] = {'update': self._update_IncompleteError}
 
 		# State updates
-		self.command[b'AC'] = {'update': self.__update_AC}
-		self.command[b'AG'] = {'update': self.__update_AG}
-		self.command[b'AI'] = {'update': self.__update_AI}
-		self.command[b'AL'] = {'update': self.__update_AL}
-		self.command[b'AM'] = {'update': self.__update_AM}
-		self.command[b'AN'] = {'update': self.__update_AN}
-		self.command[b'AR'] = {'update': self.__update_AR}
+		self.command[b'AC'] = {'update': self._update_AC}
+		self.command[b'AG'] = {'update': self._update_AG}
+		self.command[b'AI'] = {'update': self._update_AI}
+		self.command[b'AL'] = {'update': self._update_AL}
+		self.command[b'AM'] = {'update': self._update_AM}
+		self.command[b'AN'] = {'update': self._update_AN}
+		self.command[b'AR'] = {'update': self._update_AR}
 		# TODO: AS (auto mode configuration)
-		self.command[b'BC'] = {'update': self.__update_BC}
-		self.command[b'BP'] = {'update': self.__update_BP}
-		self.command[b'BY'] = {'update': self.__update_BY}
-		self.command[b'CA'] = {'update': self.__update_CA}
-		self.command[b'CG'] = {'update': self.__update_CG}
-		self.command[b'CM'] = {'update': self.__update_CM}
-		self.command[b'CN'] = {'update': self.__update_CN}
-		self.command[b'CT'] = {'update': self.__update_CT}
-		self.command[b'DC'] = {'update': self.__update_DC}
-		self.command[b'DQ'] = {'update': self.__update_DQ}
-		self.command[b'EX'] = {'update': self.__update_EX}
-		self.command[b'FA'] = {'update': self.__update_FA}
-		self.command[b'FB'] = {'update': self.__update_FB}
-		self.command[b'FC'] = {'update': self.__update_FC}
-		self.command[b'FD'] = {'update': self.__update_FD}
-		self.command[b'FR'] = {'update': self.__update_FR}
-		self.command[b'FS'] = {'update': self.__update_FS}
-		self.command[b'FT'] = {'update': self.__update_FT}
-		self.command[b'FW'] = {'update': self.__update_FW}
-		self.command[b'GT'] = {'update': self.__update_GT}
-		self.command[b'IF'] = {'update': self.__update_IF}
-		self.command[b'IS'] = {'update': self.__update_IS}
-		self.command[b'KS'] = {'update': self.__update_KS}
-		self.command[b'KY'] = {'update': self.__update_KY}
-		self.command[b'LK'] = {'update': self.__update_LK}
-		self.command[b'LM'] = {'update': self.__update_LM}
-		self.command[b'LT'] = {'update': self.__update_LT}
-		self.command[b'MC'] = {'update': self.__update_MC}
-		self.command[b'MD'] = {'update': self.__update_MD}
-		self.command[b'MF'] = {'update': self.__update_MF}
-		self.command[b'MG'] = {'update': self.__update_MG}
-		self.command[b'ML'] = {'update': self.__update_ML}
-		self.command[b'MO'] = {'update': self.__update_MO}
-		self.command[b'MR'] = {'update': self.__update_MR}
-		self.command[b'MU'] = {'update': self.__update_MU}
-		self.command[b'NB'] = {'update': self.__update_NB}
-		self.command[b'NL'] = {'update': self.__update_NL}
-		self.command[b'NR'] = {'update': self.__update_NR}
-		self.command[b'NT'] = {'update': self.__update_NT}
-		self.command[b'OF'] = {'update': self.__update_OF}
-		self.command[b'OS'] = {'update': self.__update_OS}
+		self.command[b'BC'] = {'update': self._update_BC}
+		self.command[b'BP'] = {'update': self._update_BP}
+		self.command[b'BY'] = {'update': self._update_BY}
+		self.command[b'CA'] = {'update': self._update_CA}
+		self.command[b'CG'] = {'update': self._update_CG}
+		self.command[b'CM'] = {'update': self._update_CM}
+		self.command[b'CN'] = {'update': self._update_CN}
+		self.command[b'CT'] = {'update': self._update_CT}
+		self.command[b'DC'] = {'update': self._update_DC}
+		self.command[b'DQ'] = {'update': self._update_DQ}
+		self.command[b'EX'] = {'update': self._update_EX}
+		self.command[b'FA'] = {'update': self._update_FA}
+		self.command[b'FB'] = {'update': self._update_FB}
+		self.command[b'FC'] = {'update': self._update_FC}
+		self.command[b'FD'] = {'update': self._update_FD}
+		self.command[b'FR'] = {'update': self._update_FR}
+		self.command[b'FS'] = {'update': self._update_FS}
+		self.command[b'FT'] = {'update': self._update_FT}
+		self.command[b'FW'] = {'update': self._update_FW}
+		self.command[b'GT'] = {'update': self._update_GT}
+		self.command[b'IF'] = {'update': self._update_IF}
+		self.command[b'IS'] = {'update': self._update_IS}
+		self.command[b'KS'] = {'update': self._update_KS}
+		self.command[b'KY'] = {'update': self._update_KY}
+		self.command[b'LK'] = {'update': self._update_LK}
+		self.command[b'LM'] = {'update': self._update_LM}
+		self.command[b'LT'] = {'update': self._update_LT}
+		self.command[b'MC'] = {'update': self._update_MC}
+		self.command[b'MD'] = {'update': self._update_MD}
+		self.command[b'MF'] = {'update': self._update_MF}
+		self.command[b'MG'] = {'update': self._update_MG}
+		self.command[b'ML'] = {'update': self._update_ML}
+		self.command[b'MO'] = {'update': self._update_MO}
+		self.command[b'MR'] = {'update': self._update_MR}
+		self.command[b'MU'] = {'update': self._update_MU}
+		self.command[b'NB'] = {'update': self._update_NB}
+		self.command[b'NL'] = {'update': self._update_NL}
+		self.command[b'NR'] = {'update': self._update_NR}
+		self.command[b'NT'] = {'update': self._update_NT}
+		self.command[b'OF'] = {'update': self._update_OF}
+		self.command[b'OS'] = {'update': self._update_OS}
 		# TODO: OI appears to be IF for the non-active receiver... not sure if that's PTT or CTRL
-		self.command[b'PA'] = {'update': self.__update_PA}
-		self.command[b'PB'] = {'update': self.__update_PB}
-		self.command[b'PC'] = {'update': self.__update_PC}
-		self.command[b'PK'] = {'update': self.__update_PK}
-		self.command[b'PL'] = {'update': self.__update_PL}
-		self.command[b'PM'] = {'update': self.__update_PM}
-		self.command[b'PR'] = {'update': self.__update_PR}
-		self.command[b'PS'] = {'update': self.__update_PS}
-		self.command[b'QC'] = {'update': self.__update_QC}
-		self.command[b'QR'] = {'update': self.__update_QR}
-		self.command[b'RA'] = {'update': self.__update_RA}
-		self.command[b'RD'] = {'update': self.__update_RD}
-		self.command[b'RG'] = {'update': self.__update_RG}
-		self.command[b'RL'] = {'update': self.__update_RL}
-		self.command[b'RM'] = {'update': self.__update_RM}
-		self.command[b'RT'] = {'update': self.__update_RT}
-		self.command[b'RU'] = {'update': self.__update_RU}
-		self.command[b'RX'] = {'update': self.__update_RX}
-		self.command[b'SA'] = {'update': self.__update_SA}
-		self.command[b'SB'] = {'update': self.__update_SB}
-		self.command[b'SC'] = {'update': self.__update_SC}
-		self.command[b'SD'] = {'update': self.__update_SD}
-		self.command[b'SH'] = {'update': self.__update_SH}
-		self.command[b'SL'] = {'update': self.__update_SL}
-		self.command[b'SM'] = {'update': self.__update_SM}
-		self.command[b'SQ'] = {'update': self.__update_SQ}
+		self.command[b'PA'] = {'update': self._update_PA}
+		self.command[b'PB'] = {'update': self._update_PB}
+		self.command[b'PC'] = {'update': self._update_PC}
+		self.command[b'PK'] = {'update': self._update_PK}
+		self.command[b'PL'] = {'update': self._update_PL}
+		self.command[b'PM'] = {'update': self._update_PM}
+		self.command[b'PR'] = {'update': self._update_PR}
+		self.command[b'PS'] = {'update': self._update_PS}
+		self.command[b'QC'] = {'update': self._update_QC}
+		self.command[b'QR'] = {'update': self._update_QR}
+		self.command[b'RA'] = {'update': self._update_RA}
+		self.command[b'RD'] = {'update': self._update_RD}
+		self.command[b'RG'] = {'update': self._update_RG}
+		self.command[b'RL'] = {'update': self._update_RL}
+		self.command[b'RM'] = {'update': self._update_RM}
+		self.command[b'RT'] = {'update': self._update_RT}
+		self.command[b'RU'] = {'update': self._update_RU}
+		self.command[b'RX'] = {'update': self._update_RX}
+		self.command[b'SA'] = {'update': self._update_SA}
+		self.command[b'SB'] = {'update': self._update_SB}
+		self.command[b'SC'] = {'update': self._update_SC}
+		self.command[b'SD'] = {'update': self._update_SD}
+		self.command[b'SH'] = {'update': self._update_SH}
+		self.command[b'SL'] = {'update': self._update_SL}
+		self.command[b'SM'] = {'update': self._update_SM}
+		self.command[b'SQ'] = {'update': self._update_SQ}
 		# TODO: SS - "Program Scan pause frequency unintelligable docs
-		self.command[b'ST'] = {'update': self.__update_ST}
+		self.command[b'ST'] = {'update': self._update_ST}
 		# TODO: SU - Program Scan pause frequency group stuff?
-		self.command[b'TC'] = {'update': self.__update_TC}
-		self.command[b'TI'] = {'update': self.__update_TI}
-		self.command[b'TN'] = {'update': self.__update_TN}
-		self.command[b'TO'] = {'update': self.__update_TO}
+		self.command[b'TC'] = {'update': self._update_TC}
+		self.command[b'TI'] = {'update': self._update_TI}
+		self.command[b'TN'] = {'update': self._update_TN}
+		self.command[b'TO'] = {'update': self._update_TO}
 		# TODO: TS - Weird docs
-		self.command[b'TX'] = {'update': self.__update_TX}
-		self.command[b'TY'] = {'update': self.__update_TY}
-		self.command[b'UL'] = {'update': self.__update_UL}
-		self.command[b'VD'] = {'update': self.__update_VD}
-		self.command[b'VG'] = {'update': self.__update_VG}
-		self.command[b'VX'] = {'update': self.__update_VX}
-		self.command[b'XT'] = {'update': self.__update_XT}
+		self.command[b'TX'] = {'update': self._update_TX}
+		self.command[b'TY'] = {'update': self._update_TY}
+		self.command[b'UL'] = {'update': self._update_UL}
+		self.command[b'VD'] = {'update': self._update_VD}
+		self.command[b'VG'] = {'update': self._update_VG}
+		self.command[b'VX'] = {'update': self._update_VX}
+		self.command[b'XT'] = {'update': self._update_XT}
 
 		# State objects
 		self.tuner =                        StateValue(self, query_command = 'AC',  set_format = 'AC1{:1d}0')
@@ -563,7 +629,9 @@ class Kenwood:
 		self.autoInformation =              StateValue(self, query_command = 'AI',  set_format = 'AI{:01d}')
 		self.autoNotchLevel =               StateValue(self, query_command = 'AL',  set_format = 'AL{:03d}')
 		self.autoMode =                     StateValue(self, query_command = 'AM',  set_format = 'AM{:01d}')
-		self.antennaConnector =             StateValue(self, query_command = 'AN',  set_format = 'AN{:01d}')
+		self.antennaConnector =             StateValue(self, query_command = 'AN',  set_format = 'AN{:01d}', range_check = self._antennaRangeCheck)
+		self.antenna1 =                     StateValue(self, query_command = 'AN',  set_method = self._setAntenna1, validity_check = self._antenna1Valid)
+		self.antenna2 =                     StateValue(self, query_command = 'AN',  set_method = self._setAntenna2, validity_check = self._antenna2Valid)
 		self.mainAutoSimplexOn =            StateValue(self, query_command = 'AR0', set_format = 'AR0{:01d}1')
 		self.mainSimplexPossible =          StateValue(self, query_command = 'AR0')
 		self.subAutoSimplexOn =             StateValue(self, query_command = 'AR1', set_format = 'AR1{:01d}1')
@@ -576,7 +644,7 @@ class Kenwood:
 		self.bandUp =                       StateValue(self,                        set_format = 'BU')
 		self.mainBusy =                     StateValue(self, query_command = 'BY')
 		self.subBusy =                      StateValue(self, query_command = 'BY')
-		self.CWautoTune =                   StateValue(self, query_command = 'CA',  set_format = 'CA{:01d}')
+		self.CWautoTune =                   StateValue(self, query_command = 'CA',  set_format = 'CA{:01d}', validity_check = self._cwAutoTuneValid, range_check = self._cwAutoTuneRange)
 		self.carrierGain =                  StateValue(self, query_command = 'CG',  set_format = 'CG{:03d}')
 		# False turns it up, True turns it down (derp derp)
 		self.turnMultiChControlDown =       StateValue(self,                        set_format = 'CH{:01d}')
@@ -589,14 +657,15 @@ class Kenwood:
 		self.controlMain =                  StateValue(self, query_command = 'DC')
 		self.down =                         StateValue(self,                        set_format = 'DN')
 		self.DCS =                          StateValue(self, query_command = 'DQ',  set_format = 'DQ{:01d}')
-		self.vfoAFrequency =                StateValue(self, query_command = 'FA',  set_format = 'FA{:011d}')
-		self.vfoBFrequency =                StateValue(self, query_command = 'FB',  set_format = 'FB{:011d}')
-		self.subReceiverFrequency =         StateValue(self, query_command = 'FC',  set_format = 'FC{:011d}')
+		self.vfoAFrequency =                StateValue(self, query_command = 'FA',  set_format = 'FA{:011d}', range_check = self._checkMainFrequencyValid)
+		self.vfoBFrequency =                StateValue(self, query_command = 'FB',  set_format = 'FB{:011d}', range_check = self._checkMainFrequencyValid)
+		self.subReceiverFrequency =         StateValue(self, query_command = 'FC',  set_format = 'FC{:011d}', range_check = self._checkSubFrequencyValid)
 		self.filterDisplayPattern =         StateValue(self, query_command = 'FD')
 		self.RXtuningMode =                 StateValue(self, query_command = 'FR',  set_format = 'FR{:01d}')
 		self.fineTuning =                   StateValue(self, query_command = 'FS',  set_format = 'FS{:01d}')
 		self.TXtuningMode =                 StateValue(self, query_command = 'FT',  set_format = 'FT{:01d}')
-		self.filterWidth =                  StateValue(self, query_command = 'FW',  set_format = 'FW{:04d}')
+		self.split =                        StateValue(self)
+		self.filterWidth =                  StateValue(self, query_command = 'FW',  set_format = 'FW{:04d}', validity_check = self._mainReceiverOnly)
 		self.AGCconstant =                  StateValue(self, query_command = 'GT',  set_format = 'GT{:03d}')
 		self.ID =                           StateValue(self, query_command = 'ID')
 		self.currentReceiverTransmitting =  StateValue(self, query_command = 'IF')
@@ -625,7 +694,7 @@ class Kenwood:
 		self.skyCommandMonitor =            StateValue(self, query_command = 'MO',  set_format = 'MO{:01d}')
 		# TODO: Modernize MR (memory read)
 		# TODO: Modernize MW (memory write)
-		self.memoryGroups =                 StateValue(self, query_command = 'MU',  set_method = self._set_memoryGroups)
+		self.memoryGroups =                 StateValue(self, query_command = 'MU',  set_method = self._set_memoryGroups, range_check = self._memoryGroupRange)
 		self.noiseBlanker =                 StateValue(self, query_command = 'NB',  set_format = 'NB{:01d}', validity_check = self._noiseBlankerValid)
 		self.noiseBlankerLevel =            StateValue(self, query_command = 'NL',  set_format = 'NL{:03d}')
 		self.noiseReduction =               StateValue(self, query_command = 'NR',  set_format = 'NR{:01d}')
@@ -640,6 +709,7 @@ class Kenwood:
 		self.playbackChannel =              StateValue(self, query_command = 'PB',  set_format = 'PB{:01d}')
 		self.outputPower =                  StateValue(self, query_command = 'PC',  set_format = 'PC{:03d}')
 		self.storeAsProgrammableMemory =    StateValue(self,                        set_format = 'PI{:01d}')
+		self.lastSpot =                     StateValue(self)
 		self.speechProcessorInputLevel =    StateValue(self, query_command = 'PL',  set_method = self._set_speechProcessorInputLevel)
 		self.speechProcessorOutputLevel =   StateValue(self, query_command = 'PL',  set_method = self._set_speechProcessorOutputLevel)
 		self.programmableMemoryChannel =    StateValue(self, query_command = 'PM',  set_format = 'PM{:01d}')
@@ -719,15 +789,22 @@ class Kenwood:
 		# Initialization
 		self.autoInformation.value = 2
 
+		# Populate values used in parser callbacks:
+		self.controlMain      # used for currentFrequency
+		self.RXtuningMode     # used for split
+		self.TXtuningMode     # used for split
+		self.mainTransmitting # Derived value
+		self.subTransmitting  # Derived value
+
 	def __init__(self, port = "/dev/ttyU0", speed = 4800, stopbits = 2):
 		self.init_done = False
-		self.__terminate = False
+		self._terminate = False
 		self.serial = serial.Serial(port = port, baudrate = speed, stopbits = stopbits, rtscts = True, timeout = 0.1, inter_byte_timeout = 0.5)
 		self.error_count = 0
 		# We assume all rigs support the ID command (for no apparent reason)
 		self.ID = StateValue(self, query_command = 'ID')
 		self.command = dict()
-		self.command[b'ID'] = {'update': self.__update_ID}
+		self.command[b'ID'] = {'update': self._update_ID}
 		self.readThread = threading.Thread(target = self.__readThread, name = "Read Thread")
 		self.readThread.start()
 		self.last_command = None
@@ -740,16 +817,18 @@ class Kenwood:
 		self.init_done = True
 
 	def __del__(self):
-		self.__write(b'AI0;')
-		self.__terminate = True
+		self._write('AI0')
+		self._terminate = True
 		self.readThread.join()
 
 	def terminate(self):
-		self.__write(b'AI0;')
-		self.__terminate = True
+		self._write('AI0')
+		self._terminate = True
 		self.readThread.join()
 
 	def _query(self, state):
+		if threading.get_ident() == self.readThread.ident:
+			raise Exception('_query() called from read thread')
 		self.error_count = 0
 		ev = threading.Event()
 		cb = lambda x: ev.set()
@@ -759,26 +838,22 @@ class Kenwood:
 		state._remove_wait_callback(cb)
 
 	def _write(self, cmd):
-		self.last_command = bytes(cmd + ';', 'ascii')
-		print("Writing: "+str(self.last_command))
-		self.serial.write(self.last_command)
+		self.last_command = cmd
+		wr = bytes(self.last_command + ';', 'ascii')
+		print("Writing: " + str(wr))
+		self.serial.write(wr)
 
-	def __write(self, barr):
-		self.last_command = barr
-		print("Writing: '"+str(barr)+"'")
-		self.serial.write(barr)
-
-	def __read(self):
+	def _read(self):
 		ret = b'';
-		while not self.__terminate:
+		while not self._terminate:
 			ret += self.serial.read_until(b';')
 			if ret[-1:] == b';':
 				print("Read: '"+str(ret)+"'")
 				return ret
 
 	def __readThread(self):
-		while not self.__terminate:
-			cmdline = self.__read()
+		while not self._terminate:
+			cmdline = self._read()
 			if cmdline is not None:
 				m = re.match(b"^([?A-Z]{1,2})([\x00-\x3a\x3c-\x7f]*);$", cmdline)
 				if m:
@@ -793,230 +868,194 @@ class Kenwood:
 				else:
 					print('Bad command line: "'+str(cmdline)+'"', file=sys.stderr)
 
-	'''
-	def queryMemory(self, channel):
-		self.error_count = 0
-		if self.memories[channel] is None:
-			self.__getResponse((b'MR', bytes('0{:03d}'.format(channel), 'ascii')), 'Memory{:03d}'.format(channel))
-		return self.memories[channel]
-		
-
-	# Sends the passed command and waits for the echo or an error
-	def __getResponse(self, cmd, name):
-		if callable(cmd[0]):
-			cmd[0]()
-		else:
-			if not cmd[0] in self.command:
-				raise KeyError('Unsupported command %s' % (cmd[0]))
-			if not self.readThread.is_alive() or self.__terminate:
-				raise EOFError('Read thread has exited')
-			if hasattr(self, 'event'):
-				raise Exception('Attempt recursive query')
-			self.event = threading.Event()
-			self.waiting = name
-			if len(cmd) > 1 and cmd[1] is not None:
-				self.__write(cmd[0] + cmd[1] + b';')
-			else:
-				self.__write(cmd[0] + b';')
-			self.event.wait()
-			self.waiting = None
-			del self.event
-	'''
-
-	def __updated(self, name, value):
-		getattr(self, name)._cached = value
-		return ()
-
-	def __update_AC(self, args):
+	def _update_AC(self, args):
 		split = parse('1d1d1d', args)
-		ret = ()
 		self.tuner._cached = bool(split[0]) or bool(split[1])
-		ret += self.__updated('tuner', (bool(split[0]) or bool(split[1])))
-		ret += self.__updated('tunerRX', bool(split[0]))
-		ret += self.__updated('tunerTX', bool(split[1]))
-		ret += self.__updated('tunerState', tunerState(split[2]))
-		return ret
+		self.tunerRX._cached = bool(split[0])
+		self.tunerTX._cached = bool(split[1])
+		self.tunerState._cached = tunerState(split[2])
 
-	def __update_AG(self, args):
+	def _update_AG(self, args):
 		split = parse('1d3d', args)
-		ret = ()
 		if split[0] == 0:
-			ret += self.__updated('mainAFgain', split[1]);
+			self.mainAFgain._cached = split[1]
 		else:
-			ret += self.__updated('subAFgain', split[1])
-		return ret
+			self.subAFgain._cached = split[1]
 
-	def __update_AI(self, args):
+	def _update_AI(self, args):
 		split = parse('1d', args)
-		return self.__updated('autoInformation', AI(split[0]))
+		self.autoInformation._cached = AI(split[0])
 
-	def __update_AL(self, args):
+	def _update_AL(self, args):
 		split = parse('3d', args)
-		return self.__updated('autoNotchLevel', split[0])
+		self.autoNotchLevel._cached = split[0]
 
-	def __update_AM(self, args):
+	def _update_AM(self, args):
 		split = parse('1d', args)
-		return self.__updated('autoMode', bool(split[0]))
+		self.autoMode._cached = bool(split[0])
 
 	# TODO: None here means 2m or 440 fixed antenna
 	#       maybe something better would be good?
-	def __update_AN(self, args):
+	def _update_AN(self, args):
 		split = parse('1d', args)
-		ret = ()
-		if split[0] == 0:
-			ret += self.__updated('antennaConnector', None)
-		else:
-			ret += self.__updated('antennaConnector', split[0])
-		return ret
+		self.antennaConnector._cached = None if split[0] == 0 else split[0]
+		self.antenna1._cached = (split[0] == 1) if split[0] != 0 else None
+		self.antenna2._cached = (split[0] == 2) if split[0] != 0 else None
 
-	def __update_AR(self, args):
+	def _update_AR(self, args):
 		split = parse('1d1d1d', args)
-		ret = ()
 		aso = bool(split[1])
 		if split[0] == 0:
-			ret += self.__updated('mainAutoSimplexOn', aso)
-			if aso:
-				ret += self.__updated('mainSimplexPossible', bool(split[2]))
-			else:
-				ret += self.__updated('mainSimplexPossible', False)
+			self.mainAutoSimplexOn._cached = aso
+			self.mainSimplexPossible._cached = bool(split[2]) if aso else False
 		else:
-			ret += self.__updated('subAutoSimplexOn', aso)
-			if aso:
-				ret += self.__updated('subSimplexPossible', bool(split[2]))
-			else:
-				ret += self.__updated('subSimplexPossible', False)
-		return ret
+			self.subAutoSimplexOn._cached = aso
+			self.subSimplexPossible._cached = bool(split[2]) if aso else False
 
-	def __update_BC(self, args):
+	def _update_BC(self, args):
 		split = parse('1d', args)
-		ret = ()
-		ret += self.__updated('beatCanceller', BeatCanceller(split[0]))
+		self.beatCanceller._cached = BeatCanceller(split[0])
 		if split[0] == 0:
-			ret += self.__updated('autoBeatCanceller', False)
-			ret += self.__updated('manualBeatCanceller', False)
+			self.autoBeatCanceller._cached = False
+			self.manualBeatCanceller._cached = False
 		elif split[0] == 1:
-			ret += self.__updated('autoBeatCanceller', True)
-			ret += self.__updated('manualBeatCanceller', False)
+			self.autoBeatCanceller._cached = True
+			self.manualBeatCanceller._cached = False
 		elif split[0] == 2:
-			ret += self.__updated('autoBeatCanceller', False)
-			ret += self.__updated('manualBeatCanceller', True)
-		return ret;
+			self.autoBeatCanceller._cached = False
+			self.manualBeatCanceller._cached = True
 
-	def __update_BP(self, args):
+	def _update_BP(self, args):
 		split = parse('3d', args)
-		return self.__updated('manualBeatCancellerFrequency', split[0])
+		self.manualBeatCancellerFrequency._cached = split[0]
 
-	def __update_BY(self, args):
+	def _update_BY(self, args):
 		split = parse('1d1d', args)
-		ret = ()
-		ret += self.__updated('mainBusy', bool(split[0]))
-		ret += self.__updated('subBusy', bool(split[1]))
-		return ret
+		self.mainBusy._cached = bool(split[0])
+		self.subBusy._cached = bool(split[1])
 
-	def __update_CA(self, args):
+	def _update_CA(self, args):
 		split = parse('1d', args)
-		return self.__updated('CWautoTune', bool(split[0]))
+		self.CWautoTune._cached = bool(split[0])
 
-	def __update_CG(self, args):
+	def _update_CG(self, args):
 		split = parse('3d', args)
-		return self.__updated('carrierGain', split[0])
+		self.carrierGain._cached = split[0]
 
-	def __update_CM(self, args):
+	def _update_CM(self, args):
 		split = parse('1d', args)
-		return self.__updated('packetClusterTune', bool(split[0]))
+		self.packetClusterTune._cached = bool(split[0])
 
-	def __update_CN(self, args):
+	def _update_CN(self, args):
 		split = parse('2d', args)
-		return self.__updated('CTCSStone', CTCSStone(split[0]))
+		self.CTCSStone._cached = CTCSStone(split[0])
 
-	def __update_CT(self, args):
+	def _update_CT(self, args):
 		split = parse('1d', args)
-		return self.__updated('CTCSS', bool(split[0]))
+		self.CTCSS._cached = bool(split[0])
 
-	def __update_DC(self, args):
+	def _update_DC(self, args):
 		split = parse('1d1d', args)
-		ret = ()
-		ret += self.__updated('TXmain', not bool(split[0]))
-		ret += self.__updated('controlMain', not bool(split[1]))
-		return ret;
+		self.TXmain._cached = not bool(split[0])
+		self.controlMain._cached = not bool(split[1])
 
-	def __update_DQ(self, args):
+	def _update_DQ(self, args):
 		split = parse('1d', args)
-		return self.__updated('DCS', bool(split[0]))
+		self.DCS._cached = bool(split[0])
 
-	def __update_EX(self, args):
+	def _update_EX(self, args):
 		split = parse('3d2d1d1d0l', args)
-		ret = ()
 		if split[0] == 27:
-			ret += self.__updated('tunerOnInRX', bool(int(split[4])))
+			self.tunerOnInRX._cached = bool(int(split[4]))
 		else:
 			print('Unhandled EX menu {:03d}'.format(split[0]), file=sys.stderr)
-		return ret
 
-	def __update_FA(self, args):
+	def _update_FA(self, args):
 		split = parse('11d', args)
-		return self.__updated('vfoAFrequency', split[0])
+		if self.tuningMode == tuningMode.VFOA:
+			self.currentFrequency._cached = split[0]
+		self.vfoAFrequency._cached = split[0]
 
-	def __update_FB(self, args):
+	def _update_FB(self, args):
 		split = parse('11d', args)
-		return self.__updated('vfoBFrequency', split[0])
+		if self.tuningMode == tuningMode.VFOB:
+			self.currentFrequency._cached = split[0]
+		self.vfoBFrequency._cached = split[0]
 
-	def __update_FC(self, args):
+	def _update_FC(self, args):
 		split = parse('11d', args)
-		return self.__updated('subReceiverFrequency', split[0])
+		if not self.controlMain:
+			if not self.subTransmitting:
+				self.currentFrequency._cached = split[0]
+		elif not self.TXmain:
+			if self.subTransmitting:
+				self.currentFrequency._cached = split[0]
+		self.subReceiverFrequency._cached = split[0]
 
-	def __update_FD(self, args):
+	def _update_FD(self, args):
 		split = parse('8x', args)
-		return self.__updated('filterDisplayPattern', bitarray.util.int2ba(split[0], 32))
+		self.filterDisplayPattern._cached = bitarray.util.int2ba(split[0], 32)
 
-	def __update_FW(self, args):
+	def _update_FW(self, args):
 		split = parse('4d', args)
-		return self.__updated('filterWidth', split[0])
+		self.filterWidth._cached = split[0]
 
-	def __update_FR(self, args):
+	def _update_FR(self, args):
 		split = parse('1d', args)
-		return self.__updated('RXtuningMode', tuningMode(split[0]))
+		self.currentFrequency._cached = None
+		if self.TXtuningMode._cached_value is not None:
+			if self.TXtuningMode != tuningMode(split[0]):
+				self.split._cached = True
+		if not self.mainTransmitting:
+			self.tuningMode._cached = tuningMode(split[0])
+		self.RXtuningMode._cached = tuningMode(split[0])
 
-	def __update_FS(self, args):
+	def _update_FS(self, args):
 		split = parse('1d', args)
-		return self.__updated('fineTuning', bool(split[0]))
+		self.fineTuning._cached = bool(split[0])
 
-	def __update_FT(self, args):
+	def _update_FT(self, args):
 		split = parse('1d', args)
-		return self.__updated('TXtuningMode', tuningMode(split[0]))
+		self.currentFrequency._cached = None
+		if self.RXtuningMode._cached_value is not None:
+			if self.RXtuningMode != tuningMode(split[0]):
+				self.split._cached = True
+		if self.mainTransmitting:
+			self.tuningMode._cached = tuningMode(split[0])
+		self.TXtuningMode._cached = tuningMode(split[0])
 
-	def __update_GT(self, args):
+	def _update_GT(self, args):
 		if args == '   ':
-			return self.__updated('AGCconstant', None)
-		split = parse('3d', args)
-		return self.__updated('AGCconstant', split[0])
+			self.AGCconstant._cached = None
+		else:
+			split = parse('3d', args)
+			self.AGCconstant._cached = split[0]
 
-	def __update_ID(self, args):
-		return self.__updated('ID', parse('3d', args)[0])
+	def _update_ID(self, args):
+		self.ID._cached = parse('3d', args)[0]
 
-	def __update_IF(self, args):
+	def _update_IF(self, args):
 		# TODO: Synchronize these with the single-value options
 		# NOTE: Combined P6 and P7 since they're effectively one number on the TS-2000
 		#'00003810000' '    ' ' 00000' '0' '0' '101' '0' '1' '0' '0' '0' '0' '08' '0'
 		#'00003810000' '    ' ' 00000' '0' '0' '101' '0' '1' '0' '0' '0' '0' '08' '0'
 		#     3810000,     0,       1,  0,  1,    0,  1,  0,  0,  0,  0,  0,   8,  0
 		split = parse('11d4d6d1d1d3d1d1d1d1d1d1d2d1d', args)
-		ret = ()
-		ret += self.__updated('currentFrequency', split[0])
-		ret += self.__updated('frequencyStep', split[1])
-		ret += self.__updated('RIT_XITfrequency', split[2])
-		ret += self.__updated('RIT', bool(split[3]))
-		ret += self.__updated('XIT', bool(split[4]))
-		ret += self.__updated('channelBank', split[5])
-		ret += self.__updated('currentReceiverTransmitting', bool(split[6]))
-		ret += self.__updated('mode', mode(split[7]))
-		ret += self.__updated('tuningMode', tuningMode(split[8]))
-		ret += self.__updated('scanMode', scanMode(split[9]))
+		self.currentFrequency._cached = split[0]
+		self.frequencyStep._cached = split[1]
+		self.RIT_XITfrequency._cached = split[2]
+		self.RIT._cached = bool(split[3])
+		self.XIT._cached = bool(split[4])
+		self.channelBank._cached = split[5]
+		self.currentReceiverTransmitting._cached = bool(split[6])
+		self._update_MD(str(split[7]))
+		self.tuningMode._cached = tuningMode(split[8])
+		self.scanMode._cached = scanMode(split[9])
 		# TODO: Split is undocumented and full-duplex may be here?
-		ret += self.__updated('splitMode', bool(split[10]))
+		self.splitMode._cached = bool(split[10])
 		# TODO: TONE/CTCSS/DCS squished together here in split[11]
 		# TODO: Tone frequency
-		ret += self.__updated('shiftStatus', offset(split[13]))
+		self.shiftStatus._cached = offset(split[13])
 		# Fun hack... in CALL mode, MC300 is updated via IF...
 		# We handle this special case by asserting that if we get IF
 		# when in MC300, the MC has been updated
@@ -1025,78 +1064,79 @@ class Kenwood:
 			self.memoryChannel._cached_value = None
 			self.memoryChannel._cached = 300
 			ret += ('memoryChannel',)
-		return ret;
 
-	def __update_IS(self, args):
+	def _update_IS(self, args):
 		split = parse('5d', args)
-		return self.__updated('IFshift', split[0])
+		self.IFshift._cached = split[0]
 
-	def __update_KS(self, args):
+	def _update_KS(self, args):
 		split = parse('3d', args)
-		return self.__updated('keyerSpeed', split[0])
+		self.keyerSpeed._cached = split[0]
 
-	def __update_KY(self, args):
+	def _update_KY(self, args):
 		split = parse('1d', args)
-		return self.__updated('keyerBufferFull', bool(split[0]))
+		self.keyerBufferFull._cached = bool(split[0])
 
-	def __update_LK(self, args):
+	def _update_LK(self, args):
 		split = parse('1d1d', args)
-		ret = ()
-		ret += self.__updated('rigLock', rigLock(self[0]))
+		self.rigLock._cached = rigLock(self[0])
 		if split[0] == 0:
-			ret += self.__updated('frequencyLock', False)
-			ret += self.__updated('allLock', False)
+			self.frequencyLock._cached = False
+			self.allLock._cached = False
 		elif split[0] == 1:
-			ret += self.__updated('frequencyLock', True)
-			ret += self.__updated('allLock', False)
+			self.frequencyLock._cached = True
+			self.allLock._cached = False
 		elif split[1] == 2:
-			ret += self.__updated('frequencyLock', True)
-			ret += self.__updated('allLock', True)
-		ret += self.__updated('rc2000Lock', bool(split[1]))
-		return ret
+			self.frequencyLock._cached = True
+			self.allLock._cached = True
+		self.rc2000Lock._cached = bool(split[1])
 
-	def __update_LM(self, args):
+	def _update_LM(self, args):
 		# TODO: Maybe false for 0 and be an int?
 		split = parse('1d', args)
-		return self.__updated('recordingChannel', recordingChannel(split[0]))
+		self.recordingChannel._cached = recordingChannel(split[0])
 
-	def __update_LT(self, args):
+	def _update_LT(self, args):
 		split = parse('1d', args)
-		return self.__updated('autoLockTuning', bool(split[0]))
+		self.autoLockTuning._cached = bool(split[0])
 
-	def __update_MC(self, args):
+	def _update_MC(self, args):
 		split = parse('3d', args)
 		# Any time we get an MC300; it means we entered CALL mode
 		# The calling frequency *may* be different than last time!
 		if split[0] == 300:
 			self.memories[300]._cached_value = None
-		return self.__updated('memoryChannel', split[0])
+		self.memoryChannel._cached = split[0]
 
-	def __update_MD(self, args):
+	def _update_MD(self, args):
 		split = parse('1d', args)
-		return self.__updated('mode', mode(split[0]))
+		self.mode._cached = mode(split[0])
+		if not self.mode._cached in (mode.CW, mode.CW_REVERSED,):
+			self.CWautoTune._cached = None
+		else:
+			self.CWautoTune._cached = False
 
-	def __update_MF(self, args):
+	def _update_MF(self, args):
 		split = parse('1d', args)
 		if split[0] == 0:
-			return self.__updated('menuAB', 'A')
+			self.menuAB._cached = 'A'
 		elif split[0] == 1:
-			return self.__updated('menuAB', 'B')
+			self.menuAB._cached = 'B'
 
-	def __update_MG(self, args):
+	def _update_MG(self, args):
 		split = parse('3d', args)
-		return self.__updated('microphoneGain', split[0])
+		self.microphoneGain._cached = split[0]
 
-	def __update_ML(self, args):
+	def _update_ML(self, args):
 		split = parse('3d', args)
-		return self.__updated('monitorLevel', split[0])
+		self.monitorLevel._cached = split[0]
 
-	def __update_MO(self, args):
+	def _update_MO(self, args):
 		split = parse('1d', args)
-		return self.__updated('skyCommandMonitor', bool(split[0]))
+		self.skyCommandMonitor._cached = bool(split[0])
 
 	# TODO: We actually need to merge these because the TX and RX memory is completely different
-	def __update_MR(self, args):
+	def _update_MR(self, args):
 		split = parse('1d3d11d1d1d1d2d2d3d1d1d9d2d1d0l', args)
 		newVal = {
 			'Channel': split[1],
@@ -1120,287 +1160,263 @@ class Kenwood:
 		else:
 			newVal['Start'] = not bool(split[0])
 		self.memories[split[1]]._cached = newVal
-		return ('Memory{:03d}'.format(split[1]),)
 
-	def __update_MU(self, args):
-		return self.__updated('memoryGroups', bitarray.bitarray(args))
+	def _update_MU(self, args):
+		self.memoryGroups._cached = bitarray.util.base2ba(2, args)
 
-	def __update_NB(self, args):
+	def _update_NB(self, args):
 		split = parse('1d', args)
-		return self.__updated('noiseBlanker', bool(split[0]))
+		self.noiseBlanker._cached = bool(split[0])
 
-	def __update_NL(self, args):
+	def _update_NL(self, args):
 		split = parse('3d', args)
-		return self.__updated('noiseBlankerLevel', split[0])
+		self.noiseBlankerLevel._cached = split[0]
 
-	def __update_NR(self, args):
+	def _update_NR(self, args):
 		split = parse('1d', args)
-		ret = ()
-		ret += self.__updated('noiseReduction', noiseReduction(split[0]))
+		self.noiseReduction._cached = noiseReduction(split[0])
 		if split[0] == 0:
-			ret += self.__updated('noiseReduction1', False)
-			ret += self.__updated('noiseReduction2', False)
+			self.noiseReduction1._cached = False
+			self.noiseReduction2._cached = False
 		elif split[0] == 1:
-			ret += self.__updated('noiseReduction1', True)
-			ret += self.__updated('noiseReduction2', False)
+			self.noiseReduction1._cached = True
+			self.noiseReduction2._cached = False
 		else:
-			ret += self.__updated('noiseReduction1', False)
-			ret += self.__updated('noiseReduction2', True)
-		return ret
+			self.noiseReduction1._cached = False
+			self.noiseReduction2._cached = True
 
-	def __update_NT(self, args):
+	def _update_NT(self, args):
 		split = parse('1d', args)
-		return self.__updated('autoNotch', bool(split[0]))
+		self.autoNotch._cached = bool(split[0])
 
-	def __update_OF(self, args):
+	def _update_OF(self, args):
 		split = parse('9d', args)
-		return self.__updated('offsetFrequency', split[0])
+		self.offsetFrequency._cached = split[0]
 
-	def __update_OS(self, args):
+	def _update_OS(self, args):
 		split = parse('1d', args)
-		return self.__updated('offsetType', offset(split[0]))
+		self.offsetType._cached = offset(split[0])
 
-	def __update_PA(self, args):
+	def _update_PA(self, args):
 		split = parse('1d1d', args)
-		ret = ()
-		ret += self.__updated('mainPreAmp', bool(split[0]))
-		ret += self.__updated('subPreAmp', bool(split[1]))
-		return ret
+		self.mainPreAmp._cached = bool(split[0])
+		self.subPreAmp._cached = bool(split[1])
 
-	def __update_PB(self, args):
+	def _update_PB(self, args):
 		split = parse('1d', args)
-		return self.__updated('playbackChannel', recordingChannel(split[0]))
+		self.playbackChannel._cached = recordingChannel(split[0])
 
-	def __update_PC(self, args):
+	def _update_PC(self, args):
 		split = parse('3d', args)
-		return self.__updated('outputPower', split[0])
+		self.outputPower._cached = split[0]
 
-	def __update_PK(self, args):
+	def _update_PK(self, args):
 		split = parse('11d12l20l5l', args)
-		self.__updated('spotFrequency', split[0])
-		self.__updated('spotCallsign', split[1])
-		self.__updated('spotComments', split[2])
-		self.__updated('spotTime', split[3])
-		# NOTE: Always include all of them
-		return ('spotFrequency', 'spotCallsign', 'spotComments', 'spotTime')
+		spot = {
+			frequency: split[0],
+			callsign: split[1],
+			comments: split[2],
+			time: split[3]
+		}
+		self.lastSpot.value = spot
 
-	def __update_PL(self, args):
+	def _update_PL(self, args):
 		split = parse('3d3d', args)
-		ret = ()
-		ret += self.__updated('speechProcessorInputLevel', split[0])
-		ret += self.__updated('speechProcessorOutputLevel', split[1])
-		return ret
+		self.speechProcessorInputLevel._cached = split[0]
+		self.speechProcessorOutputLevel._cached = split[1]
 
-	def __update_PM(self, args):
+	def _update_PM(self, args):
 		split = parse('1d', args)
 		# TODO: Should this be False when it's off?
-		return self.__updated('programmableMemoryChannel', split[0])
+		self.programmableMemoryChannel._cached = split[0]
 
-	def __update_PR(self, args):
+	def _update_PR(self, args):
 		split = parse('1d', args)
-		return self.__updated('speechProcessor', bool(split[0]))
+		self.speechProcessor._cached = bool(split[0])
 
-	def __update_PS(self, args):
+	def _update_PS(self, args):
 		split = parse('1d', args)
-		return self.__updated('powerOn', bool(split[0]))
+		self.powerOn._cached = bool(split[0])
 
-	def __update_QC(self, args):
+	def _update_QC(self, args):
 		split = parse('3d', args)
-		return self.__updated('DCScode', DCScode(split[0]))
+		self.DCScode._cached = DCScode(split[0])
 
-	def __update_QR(self, args):
+	def _update_QR(self, args):
 		split = parse('1d1d', args)
-		ret = ()
-		ret += self.__updated('quickMemory', bool(split[0]))
-		ret += self.__updated('quickMemoryChannel', split[1])
-		return ret
+		self.quickMemory._cached = bool(split[0])
+		self.quickMemoryChannel._cached = split[1]
 
-	def __update_RA(self, args):
+	def _update_RA(self, args):
 		split = parse('2d', args)
-		return self.__updated('attenuator', bool(split[0]))
+		self.attenuator._cached = bool(split[0])
 
 	# NOTE: Updates the same value as RU
-	def __update_RD(self, args):
+	def _update_RD(self, args):
 		split = parse('1d', args)
-		return self.__updated('scanSpeed', split[0])
+		self.scanSpeed._cached = split[0]
 
-	def __update_RG(self, args):
+	def _update_RG(self, args):
 		split = parse('3d', args)
-		return self.__updated('RFgain', split[0])
+		self.RFgain._cached = split[0]
 
-	def __set_RFgain(self, value):
-		self.__write(bytes('RG{:03d};'.format(value), 'ascii'))
-
-	def __update_RL(self, args):
+	def _update_RL(self, args):
 		split = parse('2d', args)
-		return self.__updated('noiseReductionLevel', split[0])
+		self.noiseReductionLevel._cached = split[0]
 
-	def __update_RM(self, args):
+	def _update_RM(self, args):
 		split = parse('1d4d', args)
-		ret = ()
-		ret += self.__updated('meterType', meter(split[0]))
-		ret += self.__updated('meterValue', split[1])
-		if split[0] == 1:
-			ret += self.__updated('SWRmeter', split[1])
-			ret += self.__updated('compressionMeter', 0)
-			ret += self.__updated('ALCmeter', 0)
-		elif split[0] == 2:
-			ret += self.__updated('SWRmeter', 0)
-			ret += self.__updated('compressionMeter', split[1])
-			ret += self.__updated('ALCmeter', 0)
-		if split[0] == 3:
-			ret += self.__updated('SWRmeter', 0)
-			ret += self.__updated('compressionMeter', 0)
-			ret += self.__updated('ALCmeter', split[1])
-		return ret
+		self.meterType._cached = meter(split[0])
+		self.meterValue._cached = split[1]
+		self.SWRmeter._cached = split[1] if split[0] == 1 else 0
+		self.SWRmeter._cached = split[1] if split[0] == 2 else 0
+		self.SWRmeter._cached = split[1] if split[0] == 3 else 0
 
 	# Note: Can only set RM2 when COMP is on
 
-	def __update_RT(self, args):
+	def _update_RT(self, args):
 		split = parse('1d', args)
-		return self.__updated('RIT', bool(split[0]))
+		self.RIT._cached = bool(split[0])
 
 	# NOTE: Updates the same value as RD
-	def __update_RU(self, args):
+	def _update_RU(self, args):
 		split = parse('1d', args)
-		return self.__updated('scanSpeed', split[0])
+		self.scanSpeed._cached = split[0]
 
-	def __update_RX(self, args):
+	def _update_RX(self, args):
 		split = parse('1d', args)
 		if split[0] == 0:
-			return self.__updated('mainTransmitting', False)
+			self.mainTransmitting._cached = False
 		if split[0] == 1:
-			return self.__updated('subTransmitting', False)
+			self.subTransmitting._cached = False
 
-	def __update_SA(self, args):
+	def _update_SA(self, args):
 		split = parse('1d1d1d1d1d1d1d8l', args)
-		ret = ()
-		ret += self.__updated('satelliteMode', bool(split[0]))
-		ret += self.__updated('satelliteMemoryChannel', split[1])
-		ret += self.__updated('satelliteMainUpSubDown', not bool(split[2]))
-		ret += self.__updated('satelliteControlMain', not bool(split[3]))
-		ret += self.__updated('satelliteTrace', bool(split[4]))
-		ret += self.__updated('satelliteTraceReverse', bool(split[5]))
-		ret += self.__updated('satelliteMultiKnobVFO', not bool(split[6]))
-		ret += self.__updated('satelliteChannelName', split[7])
+		self.satelliteMode._cached = bool(split[0])
+		self.satelliteMemoryChannel._cached = split[1]
+		self.satelliteMainUpSubDown._cached = not bool(split[2])
+		self.satelliteControlMain._cached = not bool(split[3])
+		self.satelliteTrace._cached = bool(split[4])
+		self.satelliteTraceReverse._cached = bool(split[5])
+		self.satelliteMultiKnobVFO._cached = not bool(split[6])
+		self.satelliteChannelName._cached = split[7]
 
-	def __update_SB(self, args):
+	def _update_SB(self, args):
 		split = parse('1d', args)
-		return self.__updated('subReceiver', bool(split[0]))
+		self.subReceiver._cached = bool(split[0])
 
-	def __update_SC(self, args):
+	def _update_SC(self, args):
 		split = parse('1d', args)
-		return self.__updated('scanMode', scanMode(split[0]))
+		self.scanMode._cached = scanMode(split[0])
 
-	def __update_SD(self, args):
+	def _update_SD(self, args):
 		split = parse('4d', args)
-		return self.__updated('cwBreakInTimeDelay', split[0])
+		self.cwBreakInTimeDelay._cached = split[0]
 
-	def __update_SH(self, args):
+	def _update_SH(self, args):
 		split = parse('2d', args)
-		return self.__updated('voiceLowPassCutoff', split[0])
+		self.voiceLowPassCutoff._cached = split[0]
 
-	def __update_SL(self, args):
+	def _update_SL(self, args):
 		split = parse('2d', args)
-		return self.__updated('voiceHighPassCutoff', split[0])
+		self.voiceHighPassCutoff._cached = split[0]
 
-	def __update_SM(self, args):
+	def _update_SM(self, args):
 		split = parse('1d4d', args)
 		# TODO: Figure out what 2 and 3 actually are...
 		if split[0] == 0:
-			return self.__updated('mainSMeter', split[1])
+			self.mainSMeter._cached = split[1]
 		if split[0] == 1:
-			return self.__updated('subSMeter', split[1])
+			self.subSMeter._cached = split[1]
 		if split[0] == 2:
 			print('Got SM2!', file=sys.stderr)
-			return self.__updated('mainSMeterLevel', split[1])
+			self.mainSMeterLevel._cached = split[1]
 		if split[0] == 3:
 			print('Got SM3!', file=sys.stderr)
-			return self.__updated('subSMeterLevel', split[1])
+			self.subSMeterLevel._cached = split[1]
 
-	def __update_SQ(self, args):
+	def _update_SQ(self, args):
 		split = parse('1d3d', args)
 		if split[0] == 0:
-			return self.__updated('mainSquelch', split[1])
+			self.mainSquelch._cached = split[1]
 		elif split[0] == 1:
-			return self.__updated('subSquelch', split[1])
+			self.subSquelch._cached = split[1]
 
-	def __update_ST(self, args):
+	def _update_ST(self, args):
 		split = parse('2d', args)
-		return self.__updated('multiChFrequencySteps', split[0])
+		self.multiChFrequencySteps._cached = split[0]
 
-	def __update_TC(self, args):
+	def _update_TC(self, args):
 		split = parse('1d1d', args)
-		return self.__updated('PCcontrolCommandMode', bool(split[1]))
+		self.PCcontrolCommandMode._cached = bool(split[1])
 
-	def __update_TI(self, args):
+	def _update_TI(self, args):
 		split = parse('1d1d1d', args)
-		ret = ()
-		ret += self.__updated('tnc96kLED', bool(split[0]))
-		ret += self.__updated('tncSTALED', bool(split[1]))
-		ret += self.__updated('tncCONLED', bool(split[2]))
-		return ret
+		self.tnc96kLED._cached = bool(split[0])
+		self.tncSTALED._cached = bool(split[1])
+		self.tncCONLED._cached = bool(split[2])
 
-	def __update_TN(self, args):
+	def _update_TN(self, args):
 		split = parse('2d', args)
 		# TODO: Smart mapping thing?
-		return self.__updated('subToneFrequency', CTCSStone(split[0]))
+		self.subToneFrequency._cached = CTCSStone(split[0])
 
-	def __update_TO(self, args):
+	def _update_TO(self, args):
 		split = parse('1d', args)
-		return self.__updated('toneFunction', bool(split[0]))
+		self.toneFunction._cached = bool(split[0])
 
-	def __update_TX(self, args):
+	def _update_TX(self, args):
 		split = parse('1d', args)
+		self.currentFrequency._cached = None
 		if split[0] == 0:
-			return self.__updated('mainTransmitting', True)
+			self.mainTransmitting._cached = True
 		if split[0] == 1:
-			return self.__updated('subTransmitting', True)
+			self.subTransmitting._cached = True
 
-	def __update_TY(self, args):
+	def _update_TY(self, args):
 		split = parse('3d', args)
-		return self.__updated('firmwareType', firmwareType(split[0]))
+		self.firmwareType._cached = firmwareType(split[0])
 
-	def __update_UL(self, args):
+	def _update_UL(self, args):
 		split = parse('1d', args)
 		if split[0] == 1:
 			raise Exception('PLL Unlocked!')
-		return self.__updated('PLLunlock', bool(split[0]))
+		self.PLLunlock._cached = bool(split[0])
 
-	def __update_VD(self, args):
+	def _update_VD(self, args):
 		split = parse('4d', args)
-		return self.__updated('VOXdelayTime', split[0])
+		self.VOXdelayTime._cached = split[0]
 
-	def __update_VG(self, args):
+	def _update_VG(self, args):
 		split = parse('3d', args)
-		return self.__updated('VOXgain', split[0])
+		self.VOXgain._cached = split[0]
 
-	def __update_VX(self, args):
+	def _update_VX(self, args):
 		split = parse('1d', args)
-		return self.__updated('VOX', bool(split[0]))
+		self.VOX._cached = bool(split[0])
 
-	def __update_XT(self, args):
+	def _update_XT(self, args):
 		split = parse('1d', args)
-		return self.__updated('XIT', bool(split[0]))
+		self.XIT._cached = bool(split[0])
 
-	def __update_Error(self, args):
+	def _update_Error(self, args):
 		self.error_count += 1
 		if self.error_count < 10:
-			self.__write(self.last_command)
+			self._write(self.last_command)
 		else:
 			raise Exception('Error count exceeded')
 
-	def __update_ComError(self, args):
+	def _update_ComError(self, args):
 		self.error_count += 1
 		if self.error_count < 10:
-			self.__write(self.last_command)
+			self._write(self.last_command)
 		else:
 			raise Exception('Error count exceeded')
 
-	def __update_IncompleteError(self, args):
+	def _update_IncompleteError(self, args):
 		self.error_count += 1
 		if self.error_count < 10:
-			self.__write(self.last_command)
+			self._write(self.last_command)
 		else:
 			raise Exception('Error count exceeded')
 
