@@ -522,102 +522,105 @@ class Kenwood:
 
 	def init_19(self):
 		# Errors
-		self.command[b'?'] = {'update': self._update_Error}
-		self.command[b'E'] = {'update': self._update_ComError}
-		self.command[b'O'] = {'update': self._update_IncompleteError}
+		self.command = {
+			b'?': self._update_Error,
+			b'E': self._update_ComError,
+			b'O': self._update_IncompleteError,
 
-		# State updates
-		self.command[b'AC'] = {'update': self._update_AC}
-		self.command[b'AG'] = {'update': self._update_AG}
-		self.command[b'AI'] = {'update': self._update_AI}
-		self.command[b'AL'] = {'update': self._update_AL}
-		self.command[b'AM'] = {'update': self._update_AM}
-		self.command[b'AN'] = {'update': self._update_AN}
-		self.command[b'AR'] = {'update': self._update_AR}
-		# TODO: AS (auto mode configuration)
-		self.command[b'BC'] = {'update': self._update_BC}
-		self.command[b'BP'] = {'update': self._update_BP}
-		self.command[b'BY'] = {'update': self._update_BY}
-		self.command[b'CA'] = {'update': self._update_CA}
-		self.command[b'CG'] = {'update': self._update_CG}
-		self.command[b'CM'] = {'update': self._update_CM}
-		self.command[b'CN'] = {'update': self._update_CN}
-		self.command[b'CT'] = {'update': self._update_CT}
-		self.command[b'DC'] = {'update': self._update_DC}
-		self.command[b'DQ'] = {'update': self._update_DQ}
-		self.command[b'EX'] = {'update': self._update_EX}
-		self.command[b'FA'] = {'update': self._update_FA}
-		self.command[b'FB'] = {'update': self._update_FB}
-		self.command[b'FC'] = {'update': self._update_FC}
-		self.command[b'FD'] = {'update': self._update_FD}
-		self.command[b'FR'] = {'update': self._update_FR}
-		self.command[b'FS'] = {'update': self._update_FS}
-		self.command[b'FT'] = {'update': self._update_FT}
-		self.command[b'FW'] = {'update': self._update_FW}
-		self.command[b'GT'] = {'update': self._update_GT}
-		self.command[b'IF'] = {'update': self._update_IF}
-		self.command[b'IS'] = {'update': self._update_IS}
-		self.command[b'KS'] = {'update': self._update_KS}
-		self.command[b'KY'] = {'update': self._update_KY}
-		self.command[b'LK'] = {'update': self._update_LK}
-		self.command[b'LM'] = {'update': self._update_LM}
-		self.command[b'LT'] = {'update': self._update_LT}
-		self.command[b'MC'] = {'update': self._update_MC}
-		self.command[b'MD'] = {'update': self._update_MD}
-		self.command[b'MF'] = {'update': self._update_MF}
-		self.command[b'MG'] = {'update': self._update_MG}
-		self.command[b'ML'] = {'update': self._update_ML}
-		self.command[b'MO'] = {'update': self._update_MO}
-		self.command[b'MR'] = {'update': self._update_MR}
-		self.command[b'MU'] = {'update': self._update_MU}
-		self.command[b'NB'] = {'update': self._update_NB}
-		self.command[b'NL'] = {'update': self._update_NL}
-		self.command[b'NR'] = {'update': self._update_NR}
-		self.command[b'NT'] = {'update': self._update_NT}
-		self.command[b'OF'] = {'update': self._update_OF}
-		self.command[b'OS'] = {'update': self._update_OS}
-		# TODO: OI appears to be IF for the non-active receiver... not sure if that's PTT or CTRL
-		self.command[b'PA'] = {'update': self._update_PA}
-		self.command[b'PB'] = {'update': self._update_PB}
-		self.command[b'PC'] = {'update': self._update_PC}
-		self.command[b'PK'] = {'update': self._update_PK}
-		self.command[b'PL'] = {'update': self._update_PL}
-		self.command[b'PM'] = {'update': self._update_PM}
-		self.command[b'PR'] = {'update': self._update_PR}
-		self.command[b'PS'] = {'update': self._update_PS}
-		self.command[b'QC'] = {'update': self._update_QC}
-		self.command[b'QR'] = {'update': self._update_QR}
-		self.command[b'RA'] = {'update': self._update_RA}
-		self.command[b'RD'] = {'update': self._update_RD}
-		self.command[b'RG'] = {'update': self._update_RG}
-		self.command[b'RL'] = {'update': self._update_RL}
-		self.command[b'RM'] = {'update': self._update_RM}
-		self.command[b'RT'] = {'update': self._update_RT}
-		self.command[b'RU'] = {'update': self._update_RU}
-		self.command[b'RX'] = {'update': self._update_RX}
-		self.command[b'SA'] = {'update': self._update_SA}
-		self.command[b'SB'] = {'update': self._update_SB}
-		self.command[b'SC'] = {'update': self._update_SC}
-		self.command[b'SD'] = {'update': self._update_SD}
-		self.command[b'SH'] = {'update': self._update_SH}
-		self.command[b'SL'] = {'update': self._update_SL}
-		self.command[b'SM'] = {'update': self._update_SM}
-		self.command[b'SQ'] = {'update': self._update_SQ}
-		# TODO: SS - "Program Scan pause frequency unintelligable docs
-		self.command[b'ST'] = {'update': self._update_ST}
-		# TODO: SU - Program Scan pause frequency group stuff?
-		self.command[b'TC'] = {'update': self._update_TC}
-		self.command[b'TI'] = {'update': self._update_TI}
-		self.command[b'TN'] = {'update': self._update_TN}
-		self.command[b'TO'] = {'update': self._update_TO}
-		# TODO: TS - Weird docs
-		self.command[b'TX'] = {'update': self._update_TX}
-		self.command[b'TY'] = {'update': self._update_TY}
-		self.command[b'UL'] = {'update': self._update_UL}
-		self.command[b'VD'] = {'update': self._update_VD}
-		self.command[b'VG'] = {'update': self._update_VG}
-		self.command[b'VX'] = {'update': self._update_VX}
-		self.command[b'XT'] = {'update': self._update_XT}
+			# State updates
+			b'AC': self._update_AC,
+			b'AG': self._update_AG,
+			b'AI': self._update_AI,
+			b'AL': self._update_AL,
+			b'AM': self._update_AM,
+			b'AN': self._update_AN,
+			b'AR': self._update_AR,
+			# TODO: AS (auto mode configuration)
+			b'BC': self._update_BC,
+			b'BP': self._update_BP,
+			b'BY': self._update_BY,
+			b'CA': self._update_CA,
+			b'CG': self._update_CG,
+			b'CM': self._update_CM,
+			b'CN': self._update_CN,
+			b'CT': self._update_CT,
+			b'DC': self._update_DC,
+			b'DQ': self._update_DQ,
+			b'EX': self._update_EX,
+			b'FA': self._update_FA,
+			b'FB': self._update_FB,
+			b'FC': self._update_FC,
+			b'FD': self._update_FD,
+			b'FR': self._update_FR,
+			b'FS': self._update_FS,
+			b'FT': self._update_FT,
+			b'FW': self._update_FW,
+			b'GT': self._update_GT,
+			b'ID': self._update_ID,
+			b'IF': self._update_IF,
+			b'IS': self._update_IS,
+			b'KS': self._update_KS,
+			b'KY': self._update_KY,
+			b'LK': self._update_LK,
+			b'LM': self._update_LM,
+			b'LT': self._update_LT,
+			b'MC': self._update_MC,
+			b'MD': self._update_MD,
+			b'MF': self._update_MF,
+			b'MG': self._update_MG,
+			b'ML': self._update_ML,
+			b'MO': self._update_MO,
+			b'MR': self._update_MR,
+			b'MU': self._update_MU,
+			b'NB': self._update_NB,
+			b'NL': self._update_NL,
+			b'NR': self._update_NR,
+			b'NT': self._update_NT,
+			b'OF': self._update_OF,
+			b'OS': self._update_OS,
+			# TODO: OI appears to be IF for the non-active receiver... not sure if that's PTT or CTRL
+			b'PA': self._update_PA,
+			b'PB': self._update_PB,
+			b'PC': self._update_PC,
+			b'PK': self._update_PK,
+			b'PL': self._update_PL,
+			b'PM': self._update_PM,
+			b'PR': self._update_PR,
+			b'PS': self._update_PS,
+			b'QC': self._update_QC,
+			b'QR': self._update_QR,
+			b'RA': self._update_RA,
+			b'RD': self._update_RD,
+			b'RG': self._update_RG,
+			b'RL': self._update_RL,
+			b'RM': self._update_RM,
+			b'RT': self._update_RT,
+			b'RU': self._update_RU,
+			b'RX': self._update_RX,
+			b'SA': self._update_SA,
+			b'SB': self._update_SB,
+			b'SC': self._update_SC,
+			b'SD': self._update_SD,
+			b'SH': self._update_SH,
+			b'SL': self._update_SL,
+			b'SM': self._update_SM,
+			b'SQ': self._update_SQ,
+			# TODO: SS - "Program Scan pause frequency unintelligable docs
+			b'ST': self._update_ST,
+			# TODO: SU - Program Scan pause frequency group stuff?
+			b'TC': self._update_TC,
+			b'TI': self._update_TI,
+			b'TN': self._update_TN,
+			b'TO': self._update_TO,
+			# TODO: TS - Weird docs
+			b'TX': self._update_TX,
+			b'TY': self._update_TY,
+			b'UL': self._update_UL,
+			b'VD': self._update_VD,
+			b'VG': self._update_VG,
+			b'VX': self._update_VX,
+			b'XT': self._update_XT,
+		}
 
 		# State objects
 		self.tuner =                        StateValue(self, query_command = 'AC',  set_format = 'AC1{:1d}0')
@@ -804,7 +807,7 @@ class Kenwood:
 		# We assume all rigs support the ID command (for no apparent reason)
 		self.ID = StateValue(self, query_command = 'ID')
 		self.command = dict()
-		self.command[b'ID'] = {'update': self._update_ID}
+		self.command = {b'ID': self._update_ID}
 		self.readThread = threading.Thread(target = self.__readThread, name = "Read Thread")
 		self.readThread.start()
 		self.last_command = None
@@ -860,8 +863,7 @@ class Kenwood:
 					cmd = m.group(1)
 					args = m.group(2).decode('ascii')
 					if cmd in self.command:
-						if 'update' in self.command[cmd]:
-							self.command[cmd]['update'](args)
+						self.command[cmd](args)
 					else:
 						if self.init_done:
 							print('Unhandled command "%s" (args: "%s")' % (cmd, args), file=sys.stderr)
