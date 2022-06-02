@@ -26,12 +26,13 @@
 import bitarray
 import bitarray.util
 import copy
+import enum
 import re
 import serial
 import sys
-import time
 import threading
-import enum
+import time
+import queue
 
 from types import SimpleNamespace
 
@@ -321,7 +322,7 @@ class StateValue():
 			for cb in self._callbacks:
 				cb(value)
 		for cb in self._wait_callbacks:
-			cb(value)
+			cb(self, value)
 
 	@property
 	def value(self):
@@ -380,7 +381,7 @@ class StateValue():
 		self._callbacks = tuple(filter(lambda x: x == cb, self._callbacks))
 
 	def _remove_wait_callback(self, cb):
-		self._wait_callbacks = tuple(filter(lambda x: x == cb, self._wait_callbacks))
+		self._wait_callbacks = tuple(filter(lambda x: x is cb, self._wait_callbacks))
 
 class Kenwood:
 	def _update_mainTransmitting(self):
@@ -525,6 +526,13 @@ class Kenwood:
 
 	def _memoryGroupRange(self, value):
 		if not 1 in value:
+			return False
+		return True
+
+	def _filterWidthValid(self):
+		if not self.controlMain.value:
+			return False
+		if self.mode.value in (mode.LSB, mode.USB,):
 			return False
 		return True
 
@@ -676,7 +684,7 @@ class Kenwood:
 		self.fineTuning =                   StateValue(self, query_command = 'FS',  set_format = 'FS{:01d}')
 		self.TXtuningMode =                 StateValue(self, query_command = 'FT',  set_format = 'FT{:01d}')
 		self.split =                        StateValue(self)
-		self.filterWidth =                  StateValue(self, query_command = 'FW',  set_format = 'FW{:04d}', validity_check = self._mainReceiverOnly)
+		self.filterWidth =                  StateValue(self, query_command = 'FW',  set_format = 'FW{:04d}', validity_check = self._filterWidthValid)
 		self.AGCconstant =                  StateValue(self, query_command = 'GT',  set_format = 'GT{:03d}')
 		self.ID =                           StateValue(self, query_command = 'ID',  works_powered_off = True)
 		self.currentReceiverTransmitting =  StateValue(self, query_command = 'IF')
@@ -702,7 +710,8 @@ class Kenwood:
 		self.menuAB =                       StateValue(self, query_command = 'MF',  set_format = 'MF{:1}')
 		self.microphoneGain =               StateValue(self, query_command = 'MG',  set_format = 'MG{:03d}')
 		self.monitorLevel =                 StateValue(self, query_command = 'ML',  set_format = 'ML{:03d}')
-		self.skyCommandMonitor =            StateValue(self, query_command = 'MO',  set_format = 'MO{:01d}')
+		# MO; fails, and I dont' see a way to check if Sky Command is ON
+		#self.skyCommandMonitor =            StateValue(self, query_command = 'MO',  set_format = 'MO{:01d}')
 		# TODO: Modernize MR (memory read)
 		# TODO: Modernize MW (memory write)
 		self.memoryGroups =                 StateValue(self, query_command = 'MU',  set_method = self._set_memoryGroups, range_check = self._memoryGroupRange)
@@ -811,15 +820,26 @@ class Kenwood:
 	def __init__(self, port = "/dev/ttyU0", speed = 4800, stopbits = 2):
 		self.init_done = False
 		self._terminate = False
-		self.serial = serial.Serial(port = port, baudrate = speed, stopbits = stopbits, rtscts = True, timeout = 0.1, inter_byte_timeout = 0.5)
+		self._writeQueue = queue.Queue(maxsize = 0)
+		self.serial = serial.Serial(baudrate = speed, stopbits = stopbits, rtscts = False, timeout = 0.01, inter_byte_timeout = 0.5)
+		self.serial.rts = True
+		self.serial.port = port
+		self.serial.open()
 		self.error_count = 0
 		# We assume all rigs support the ID command (for no apparent reason)
 		self.ID = StateValue(self, query_command = 'ID', works_powered_off = True)
 		self.command = dict()
-		self.command = {b'ID': self._update_ID}
+		self.command = {
+			b'ID': self._update_ID,
+			b'?': self._update_Error,
+			b'E': self._update_ComError,
+			b'O': self._update_IncompleteError,
+		}
 		self.readThread = threading.Thread(target = self._readThread, name = "Read Thread")
 		self.readThread.start()
 		self.last_command = None
+		self._last_power_state = None
+		self._fill_cache_state = {}
 		resp = self.ID.value
 		initFunction = 'init_' + str(resp)
 		if callable(getattr(self, initFunction, None)):
@@ -827,6 +847,54 @@ class Kenwood:
 		else:
 			raise Exception("Unsupported rig (%d)!" % (resp))
 		self.init_done = True
+
+	def _fill_cache_cb(self, prop, *args):
+		nxt = None
+		while len(self._fill_cache_state['todo']) > 0:
+			nxt = self._fill_cache_state['todo'].pop(0)
+			if nxt[0]._validity_check is not None:
+				if not nxt[0]._validity_check():
+					self._fill_cache_state['matched_count'] += 1
+					nxt = None
+					continue
+				else:
+					break
+			break
+		if nxt is not None:
+			nxt[0]._add_wait_callback(nxt[1])
+			self._write(nxt[0]._query_command)
+
+		if prop is not None:
+			self._fill_cache_state['matched_count'] += 1
+			prop._remove_wait_callback(self._fill_cache_cb)
+			if self._fill_cache_state['matched_count'] == self._fill_cache_state['target_count']:
+				for cb in self._fill_cache_state['call_after']:
+					cb()
+
+	def _fill_cache(self):
+		done = {}
+		self._fill_cache_state['todo'] = []
+		self._fill_cache_state['call_after'] = ()
+		self._fill_cache_state['target_count'] = 0
+		self._fill_cache_state['matched_count'] = 0
+		# Perform queries in this order:
+		# 1) Simple string queries without validators
+		# 2) Simple string queries with validators
+		# 3) Method queries
+		for a, p in self.__dict__.items():
+			if isinstance(p, StateValue):
+				if p._query_command == None:
+					if p._query_method is not None:
+						self._fill_cache_state['call_after'] += (p._query_method,)
+				else:
+					if not p._query_command in done:
+						done[p._query_command] = True
+						self._fill_cache_state['target_count'] += 1
+						if p._validity_check is not None:
+							self._fill_cache_state['todo'].append((p, self._fill_cache_cb,))
+						else:
+							self._fill_cache_state['todo'].insert(0, (p, self._fill_cache_cb,))
+		self._fill_cache_cb(None, None)
 
 	def __del__(self):
 		self._write('AI0')
@@ -843,32 +911,59 @@ class Kenwood:
 			raise Exception('_query() called from read thread')
 		self.error_count = 0
 		ev = threading.Event()
-		cb = lambda x: ev.set()
+		cb = lambda x, y: ev.set()
 		state._add_wait_callback(cb)
-		self._write(state._query_command)
-		ev.wait()
+		while True:
+			self._write(state._query_command)
+			if ev.wait(1):
+				break
 		state._remove_wait_callback(cb)
 
-	def _write(self, cmd):
-		self.last_command = cmd
-		wr = bytes(self.last_command + ';', 'ascii')
-		#print("Write: "+str(wr))
-		self.serial.write(wr)
+	def _write(self, cmd, keepErrors = False):
+		if not keepErrors:
+			self.error_count = 0
+		if isinstance(cmd, bytes):
+			wr = cmd
+		else:
+			wr = bytes(cmd + ';', 'ascii')
+		self._writeQueue.put(wr)
 
 	def _read(self):
 		ret = b'';
 		while not self._terminate:
-			ret += self.serial.read_until(b';')
-			if ret[-1:] == b';':
-				#print("Read: '"+str(ret)+"'")
-				return ret
+			if not self.serial.rts and not self.serial.cts:
+				# Nobody is allowed to send, bust the pileup
+				# this is stupid, but it works.
+				if not self._writeQueue.empty():
+					self.serial.write(b'\x00')
+			if self.serial.cts:
+				if not self._writeQueue.empty():
+					wr = self._writeQueue.get()
+					self.last_command = wr
+					#print('Writing ' + str(wr))
+					self.serial.write(wr)
+				if self._writeQueue.empty():
+					self.serial.rts = True
+			else:
+				self.serial.rts = True
+			if self.serial.rts:
+				ret += self.serial.read_until(b';')
+				if ret[-1:] == b';':
+					#print("Read: '"+str(ret)+"'")
+					return ret
+				else:
+					if not self._writeQueue.empty():
+						self.serial.rts = False
+			if not self._writeQueue.empty():
+				if self.serial.cts:
+					self.serial.rts = False
 
 	def _readThread(self):
 		while not self._terminate:
 			cmdline = self._read()
 			if cmdline is not None:
-				re.sub(b'[\x00-\x1f\x7f-\xff]', b'', cmdline)
-				m = re.match(b"^([?A-Z]{1,2})([\x00-\x3a\x3c-\x7f]*);$", cmdline)
+				cmdline = re.sub(b'[\x00-\x1f\x7f-\xff]', b'', cmdline)
+				m = re.match(b"^([\?A-Z]{1,2})([\x00-\x3a\x3c-\x7f]*);$", cmdline)
 				if m:
 					cmd = m.group(1)
 					args = m.group(2).decode('ascii')
@@ -1091,7 +1186,7 @@ class Kenwood:
 
 	def _update_LK(self, args):
 		split = parse('1d1d', args)
-		self.rigLock._cached = rigLock(self[0])
+		self.rigLock._cached = rigLock(split[0])
 		if split[0] == 0:
 			self.frequencyLock._cached = False
 			self.allLock._cached = False
@@ -1248,14 +1343,12 @@ class Kenwood:
 
 	def _update_PS(self, args):
 		split = parse('1d', args)
+		old = self._last_power_state
 		self.powerOn._cached = bool(split[0])
-		if split[0]:
+		self._last_power_state = bool(split[0])
+		if split[0] and old == False:
 			self._write(self.autoInformation._set_format.format(2))
-			self._write(self.controlMain._query_command)
-			self._write(self.RXtuningMode._query_command)     # used for split
-			self._write(self.TXtuningMode._query_command)     # used for split
-			self._write(self.TXmain._query_command)
-			self._write(self.currentReceiverTransmitting._query_command)
+			self._fill_cache()
 
 	def _update_QC(self, args):
 		split = parse('3d', args)
@@ -1393,8 +1486,8 @@ class Kenwood:
 			self.subTransmitting._cached = True
 
 	def _update_TY(self, args):
-		split = parse('3d', args)
-		self.firmwareType._cached = firmwareType(split[0])
+		split = parse('2d1d', args)
+		self.firmwareType._cached = firmwareType(split[1])
 
 	def _update_UL(self, args):
 		split = parse('1d', args)
@@ -1421,21 +1514,23 @@ class Kenwood:
 	def _update_Error(self, args):
 		self.error_count += 1
 		if self.error_count < 10:
-			self._write(self.last_command)
+			print('Resending: '+str(self.last_command), file=sys.stderr)
+			self._write(self.last_command, True)
 		else:
 			raise Exception('Error count exceeded')
 
 	def _update_ComError(self, args):
 		self.error_count += 1
 		if self.error_count < 10:
-			self._write(self.last_command)
+			print('Resending: '+str(self.last_command), file=sys.stderr)
+			self._write(self.last_command, True)
 		else:
 			raise Exception('Error count exceeded')
 
 	def _update_IncompleteError(self, args):
 		self.error_count += 1
 		if self.error_count < 10:
-			self._write(self.last_command)
+			print('Resending: '+str(self.last_command), file=sys.stderr)
+			self._write(self.last_command, True)
 		else:
 			raise Exception('Error count exceeded')
-
