@@ -458,7 +458,6 @@ class BoolToggle(ToggleButton):
 
 	def on_press(self):
 		getattr(rig, self.rig_state).value = (self.state == 'down')
-		print("PollAfter: "+str(self.poll_after))
 		if self.poll_after:
 			# We call this to force the update in case we exceeded
 			# limits
