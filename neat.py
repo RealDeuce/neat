@@ -22,6 +22,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import getopt
+import sys
+
+opts, args = getopt.getopt(sys.argv[1:], "d", ["debug"])
+verbose = False
+print('Opts: '+str(opts))
+for o, a in opts:
+	if o in ('-d', '--debug'):
+		verbose = True
+
 import kenwood
 import math
 import re
@@ -41,7 +51,7 @@ from kivy.uix.widget import Widget
 import kivy.utils
 from gardengauge import Gauge
 
-rig = kenwood.Kenwood("/dev/ttyU0", 57600, 1)
+rig = kenwood.Kenwood("/dev/ttyU1", 57600, 1, verbose = verbose)
 vfoa = int(kenwood.tuningMode.VFOA)
 vfob = int(kenwood.tuningMode.VFOB)
 mem = int(kenwood.tuningMode.MEMORY)

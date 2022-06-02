@@ -843,10 +843,11 @@ class Kenwood:
 			self._send_query(self.TXmain)
 			self._send_query(self.currentReceiverTransmitting)
 
-	def __init__(self, port = "/dev/ttyU0", speed = 4800, stopbits = 2):
+	def __init__(self, port = "/dev/ttyU0", speed = 4800, stopbits = 2, verbose = False):
 		self.init_done = False
 		self._terminate = False
 		self._writeQueue = queue.Queue(maxsize = 0)
+		self._verbose = verbose
 		self.serial = serial.Serial(baudrate = speed, stopbits = stopbits, rtscts = False, timeout = 0.01, inter_byte_timeout = 0.5)
 		self.serial.rts = True
 		self.serial.port = port
@@ -925,9 +926,12 @@ class Kenwood:
 		self.terminate()
 
 	def terminate(self):
-		self.autoInformation.value = 0
-		self._terminate = True
-		self.readThread.join()
+		if hasattr(self, 'autoInformation'):
+			self.autoInformation.value = 0
+		if hasattr(self, '_terminate'):
+			self._terminate = True
+		if hasattr(self, 'readThread'):
+			self.readThread.join()
 
 	def _send_query(self, state):
 		self._writeQueue.put({
@@ -978,7 +982,8 @@ class Kenwood:
 						raise Exception('Unhandled message type: '+str(wr['msgType']))
 					if cmd is not None:
 						cmd = bytes(cmd + ';', 'ascii')
-						print('Writing ' + str(cmd))
+						if self._verbose:
+							print('Writing ' + str(cmd))
 						self.serial.write(cmd)
 				if self._writeQueue.empty():
 					self.serial.rts = True
@@ -987,7 +992,8 @@ class Kenwood:
 			if self.serial.rts:
 				ret += self.serial.read_until(b';')
 				if ret[-1:] == b';':
-					print("Read: '"+str(ret)+"'")
+					if self._verbose:
+						print("Read: '"+str(ret)+"'")
 					return ret
 				else:
 					if not self._writeQueue.empty():
