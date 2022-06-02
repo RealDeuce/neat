@@ -28,7 +28,7 @@
 #:import meter kenwood.meter
 
 <Neat>:
-	size: 1074, 620
+	size: 1074, 700
 
 	Meter:
 		id: smeter
@@ -85,259 +85,14 @@
 		high_format: '[color=#F00]{0:.0f}[/color]\nCompression'
 		click_selects: int(meter.COMPRESSION)
 
-	BoolToggle:
-		id: antenna1
-		rig_state: 'antenna1'
-		size_hint_max: 50, 25
-		text: 'ANT1'
-		pos: (root.width - (txLamp.pos[0] + txLamp.width - self.pos[0])) / 2, COMPmeter._progress.pos[1] - 30 - self.size[1]
-
-	BoolToggle:
-		id: antenna2
-		rig_state: 'antenna2'
-		size_hint_max: 50, 25
-		text: 'ANT2'
-		pos: antenna1.pos[0], antenna1.pos[1] - self.size[1]
-
-	BoolToggle:
-		id: tunerButton
-		rig_state: 'tuner'
-		pos: antenna1.pos[0] + antenna1.width + 10, antenna1.pos[1]
-		size_hint_max: 50, 25
-		text: 'AT'
-
-	BoolToggle:
-		id: tunerOnInRXbutton
-		rig_state: 'tunerOnInRX'
-		pos: tunerButton.pos[0] + tunerButton.width, tunerButton.pos[1]
-		size_hint_max: 50, 25
-		text: 'ON-RX'
-
-	BoolToggle:
-		rig_state: 'tunerState'
-		id: tuneButton
-		pos: (tunerButton.pos[0] + (tunerOnInRXbutton.pos[0] + tunerOnInRXbutton.width)) / 2 - self.width / 2, tunerButton.pos[1] - self.height
-		size_hint_max: 50, 25
-		text: 'TUNE'
-
-	BoolToggle:
-		id: preAmpButton
-		rig_state: 'mainPreAmp'
-		pos: tunerOnInRXbutton.pos[0] + tunerOnInRXbutton.size[0] + 10, tunerOnInRXbutton.pos[1]
-		size_hint_max: 50, 25
-		text: 'PRE'
-
-	BoolToggle:
-		id: attenuatorButton
-		rig_state: 'attenuator'
-		pos: preAmpButton.pos[0], preAmpButton.pos[1] - self.size[1]
-		size_hint_max: 50, 25
-		text: 'ATT'
-
-	Label:
-		id: rfGainLabel
-		color: 0.8,0.8,0.8,1
-		font_size: 15
-		text_size: 588, 15
-		size_hint_max: self.text_size
-		halign: 'left'
-		text: 'RF Gain'
-		# Meter is actually square...
-		pos: preAmpButton.pos[0] + preAmpButton.size[0] + 10, preAmpButton.pos[1] + preAmpButton.height - self.height
-
-	StateSlider:
-		id: rfGain
-		rig_state: 'RFgain'
-		min: 0
-		max: 255
-		value_track: True
-		size_hint_max: 256, 30
-		pos: rfGainLabel.pos[0], rfGainLabel.pos[1] - self.height
-		step: 1
-
-	Label:
-		id: mainSquelchLabel
-		color: 0.8,0.8,0.8,1
-		font_size: 15
-		text_size: 588, 15
-		size_hint_max: self.text_size
-		halign: 'left'
-		text: 'Squelch'
-		pos: rfGain.pos[0] + rfGain.width + 10, rfGainLabel.pos[1] + rfGainLabel.height - self.height
-
-	StateSlider:
-		id: mainSquelch
-		rig_state: 'mainSquelch'
-		min: 0
-		max: 255
-		value_track: True
-		size_hint_max: 256, 30
-		pos: mainSquelchLabel.pos[0], mainSquelchLabel.pos[1] - self.height
-		step: 1
-
-	StateLamp:
-		id: rxLamp
-		rig_state: 'mainBusy'
-		active_color: 0, 1, 0, 1
-		size_hint_max: 50, 50
-		pos: mainSquelch.pos[0] + mainSquelch.width + 10, mainSquelchLabel.pos[1] + mainSquelchLabel.height - self.height
-		text: 'RX'
-
-	StateLamp:
-		id: txLamp
-		rig_state: 'mainTransmitting'
-		active_color: 1, 0, 0, 1
-		size_hint_max: 50, 50
-		update_meter: smeter
-		meter_on: 'gardengauge/cadran.png'
-		meter_off: 'gardengauge/smeter.png'
-		meter_off_low: 'S[b]{0:.0f}[/b]'
-		meter_off_high: '+[b]{0:.0f}[/b]'
-		meter_on_low: '{0:.0f}'
-		meter_on_high: '{0:.0f}'
-		meter_on_calculation: ''
-		meter_off_calculation: 'SWR'
-		pos: rxLamp.pos[0] + rxLamp.width + 10, rxLamp.pos[1]
-		text: 'TX'
-
-	VFOBox:
-		id: vfoBox
-		pos: (mainFreq.pos[0] - self.width - bandUpButton.width - 10) / 2, (mainFreq.pos[1] * 2 + mainFreq.height - self.height) / 2
-		size_hint_max: 100, 50
-		cols: 2
-		rows: 2
-
-		VFOBoxButton:
-			text: 'VFO A'
-			vfoID: int(tuningMode.VFOA)
-			state: 'down' if self.parent.vfo == int(tuningMode.VFOA) else 'normal'
-
-		VFOBoxButton:
-			text: 'VFO B'
-			vfoID: int(tuningMode.VFOB)
-			state: 'down' if self.parent.vfo == int(tuningMode.VFOB) else 'normal'
-
-		VFOBoxButton:
-			text: 'MEM'
-			vfoID: int(tuningMode.MEMORY)
-			state: 'down' if self.parent.vfo == int(tuningMode.MEMORY) else 'normal'
-
-		VFOBoxButton:
-			text: 'CALL'
-			vfoID: int(tuningMode.CALL)
-			state: 'down' if self.parent.vfo == int(tuningMode.CALL) else 'normal'
-
-	Button:
-		id: bandUpButton
-		size_hint_max: 50, 25
-		text: 'UP'
-		on_press: root.control(bandUp = True)
-		pos: vfoBox.pos[0] + vfoBox.width + 10, mainFreq.pos[1] + mainFreq.height - self.height
-
-	Button:
-		id: bandDownButton
-		size_hint_max: 50, 25
-		text: 'DOWN'
-		on_press: root.control(bandDown = True)
-		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
-
-	BoolToggle:
-		rig_state: 'CWautoTune'
-		size_hint_max: 50, 25
-		text: 'CWA'
-		pos: bandDownButton.pos[0], bandDownButton.pos[1] - self.height
-
-	FreqDisplay:
-		id: mainFreq
-		activeColour: 1.0, 1.0, 1.0, 1.0
-		inactiveColour: 0.45, 0.45, 0.45, 1.0
-		zeroColour: 0.2, 0.2, 0.2, 1.0
-		font_size: 70
-		halign: 'right'
-		valign: 'top'
-		text_size: 588, 70
-		size_hint_min: self.text_size
-		size_hint_max: self.text_size
-		pos: (root.width - self.width) / 2, antenna2.pos[1] - self.size[1] - 30
-		max_lines: 1
-		lines: 1
-		font_name: 'DroidSansMono'
-
-	MemoryDisplay:
-		id: mainMemory
-		markup: True
-		color: 1,1,1,1
-		font_size: 20
-		halign: 'left'
-		valign: 'top'
-		text_size: 588, 24
-		size_hint_min: self.text_size
-		size_hint_max: self.text_size
-		pos: mainFreq.pos[0], mainFreq.pos[1] - 30
-		max_lines: 1
-		lines: 1
-		font_name: 'DroidSansMono'
-
-	OPModeBox:
-		id: opModeBox
-		pos: (root.width + mainFreq.pos[0] + mainFreq.width - self.width) / 2, mainFreq.pos[1] + mainFreq.height - self.height
-		size_hint_max: 200, 50
-		cols: 4
-		rows: 2
-		on_mode: highPassLabel.refresh(); lowPassLabel.refresh(); wideNarrowLabel.refresh(); noiseBlanker.refresh()
-
-		OPModeBoxButton:
-			text: 'USB'
-			modeID: int(mode.USB)
-			state: 'down' if self.parent.mode == int(mode.USB) else 'normal'
-
-		OPModeBoxButton:
-			text: 'CW'
-			modeID: int(mode.CW)
-			state: 'down' if self.parent.mode == int(mode.CW) else 'normal'
-
-		OPModeBoxButton:
-			text: 'AM'
-			modeID: int(mode.AM)
-			state: 'down' if self.parent.mode == int(mode.AM) else 'normal'
-
-		OPModeBoxButton:
-			text: 'FSK'
-			modeID: int(mode.FSK)
-			state: 'down' if self.parent.mode == int(mode.FSK) else 'normal'
-
-		OPModeBoxButton:
-			text: 'LSB'
-			modeID: int(mode.LSB)
-			state: 'down' if self.parent.mode == int(mode.LSB) else 'normal'
-
-		OPModeBoxButton:
-			text: 'CW-R'
-			modeID: int(mode.CW_REVERSED)
-			state: 'down' if self.parent.mode == int(mode.CW_REVERSED) else 'normal'
-
-		OPModeBoxButton:
-			text: 'FM'
-			modeID: int(mode.FM)
-			state: 'down' if self.parent.mode == int(mode.FM) else 'normal'
-
-		OPModeBoxButton:
-			text: 'FSK-R'
-			modeID: int(mode.FSK_REVERSED)
-			state: 'down' if self.parent.mode == int(mode.FSK_REVERSED) else 'normal'
-
-	BoolToggle:
-		rig_state: 'autoMode'
-		size_hint_max: opModeBox.width, 25
-		text: 'Auto Mode'
-		pos: opModeBox.pos[0], opModeBox.pos[1] - self.height
+###
 
 	BoolToggle:
 		id: noiseBlanker
 		rig_state: 'noiseBlanker'
 		size_hint_max: 75, 25
 		text: 'NB'
-		pos: (root.width - (mainAFgain.pos[0] + mainAFgain.width - self.pos[0])) / 2, mainMemory.pos[1] - self.height - 30
+		pos: (root.width - (mainAFgain.pos[0] + mainAFgain.width - self.pos[0])) / 2, COMPmeter._progress.pos[1] - 30 - self.size[1]
 
 	StateSlider:
 		id: noiseBlankerLevel
@@ -372,7 +127,6 @@
 	FilterDisplay:
 		id: filterDisplay
 		size_hint_max: 100, 25
-		pos: 100, 100
 		pos: AGCconstant.pos[0] + AGCconstant.width + 10, AGCconstantLabel.pos[1] + AGCconstantLabel.height - self.height
 
 	HighPassLabel:
@@ -491,6 +245,244 @@
 		pos: mainAFgainLabel.pos[0], mainAFgainLabel.pos[1] - self.height
 		step: 1
 
+###
+
+	VFOBox:
+		id: vfoBox
+		pos: (mainFreq.pos[0] - self.width - bandUpButton.width - 10) / 2, (mainFreq.pos[1] * 2 + mainFreq.height - self.height) / 2
+		size_hint_max: 100, 50
+		cols: 2
+		rows: 2
+
+		VFOBoxButton:
+			text: 'VFO A'
+			vfoID: int(tuningMode.VFOA)
+			state: 'down' if self.parent.vfo == int(tuningMode.VFOA) else 'normal'
+
+		VFOBoxButton:
+			text: 'VFO B'
+			vfoID: int(tuningMode.VFOB)
+			state: 'down' if self.parent.vfo == int(tuningMode.VFOB) else 'normal'
+
+		VFOBoxButton:
+			text: 'MEM'
+			vfoID: int(tuningMode.MEMORY)
+			state: 'down' if self.parent.vfo == int(tuningMode.MEMORY) else 'normal'
+
+		VFOBoxButton:
+			text: 'CALL'
+			vfoID: int(tuningMode.CALL)
+			state: 'down' if self.parent.vfo == int(tuningMode.CALL) else 'normal'
+
+	Button:
+		id: bandUpButton
+		size_hint_max: 50, 25
+		text: 'UP'
+		on_press: root.control(bandUp = True)
+		pos: vfoBox.pos[0] + vfoBox.width + 10, mainFreq.pos[1] + mainFreq.height - self.height
+
+	Button:
+		id: bandDownButton
+		size_hint_max: 50, 25
+		text: 'DOWN'
+		on_press: root.control(bandDown = True)
+		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
+
+	BoolToggle:
+		rig_state: 'CWautoTune'
+		size_hint_max: 50, 25
+		text: 'CWA'
+		pos: bandDownButton.pos[0], bandDownButton.pos[1] - self.height
+
+	FreqDisplay:
+		id: mainFreq
+		activeColour: 1.0, 1.0, 1.0, 1.0
+		inactiveColour: 0.45, 0.45, 0.45, 1.0
+		zeroColour: 0.2, 0.2, 0.2, 1.0
+		font_size: 70
+		halign: 'right'
+		valign: 'top'
+		text_size: 588, 70
+		size_hint_min: self.text_size
+		size_hint_max: self.text_size
+		pos: (root.width - self.width) / 2, noiseBlankerLevel.pos[1] - self.size[1] - 30
+		max_lines: 1
+		lines: 1
+		font_name: 'DroidSansMono'
+
+	MemoryDisplay:
+		id: mainMemory
+		markup: True
+		color: 1,1,1,1
+		font_size: 20
+		halign: 'left'
+		valign: 'top'
+		text_size: 588, 24
+		size_hint_min: self.text_size
+		size_hint_max: self.text_size
+		pos: mainFreq.pos[0], mainFreq.pos[1] - 30
+		max_lines: 1
+		lines: 1
+		font_name: 'DroidSansMono'
+
+	OPModeBox:
+		id: opModeBox
+		pos: (root.width + mainFreq.pos[0] + mainFreq.width - self.width) / 2, mainFreq.pos[1] + mainFreq.height - self.height
+		size_hint_max: 200, 50
+		cols: 4
+		rows: 2
+		on_mode: highPassLabel.refresh(); lowPassLabel.refresh(); wideNarrowLabel.refresh(); noiseBlanker.refresh()
+
+		OPModeBoxButton:
+			text: 'USB'
+			modeID: int(mode.USB)
+			state: 'down' if self.parent.mode == int(mode.USB) else 'normal'
+
+		OPModeBoxButton:
+			text: 'CW'
+			modeID: int(mode.CW)
+			state: 'down' if self.parent.mode == int(mode.CW) else 'normal'
+
+		OPModeBoxButton:
+			text: 'AM'
+			modeID: int(mode.AM)
+			state: 'down' if self.parent.mode == int(mode.AM) else 'normal'
+
+		OPModeBoxButton:
+			text: 'FSK'
+			modeID: int(mode.FSK)
+			state: 'down' if self.parent.mode == int(mode.FSK) else 'normal'
+
+		OPModeBoxButton:
+			text: 'LSB'
+			modeID: int(mode.LSB)
+			state: 'down' if self.parent.mode == int(mode.LSB) else 'normal'
+
+		OPModeBoxButton:
+			text: 'CW-R'
+			modeID: int(mode.CW_REVERSED)
+			state: 'down' if self.parent.mode == int(mode.CW_REVERSED) else 'normal'
+
+		OPModeBoxButton:
+			text: 'FM'
+			modeID: int(mode.FM)
+			state: 'down' if self.parent.mode == int(mode.FM) else 'normal'
+
+		OPModeBoxButton:
+			text: 'FSK-R'
+			modeID: int(mode.FSK_REVERSED)
+			state: 'down' if self.parent.mode == int(mode.FSK_REVERSED) else 'normal'
+
+	BoolToggle:
+		rig_state: 'autoMode'
+		size_hint_max: opModeBox.width, 25
+		text: 'Auto Mode'
+		pos: opModeBox.pos[0], opModeBox.pos[1] - self.height
+
+###
+
+	BoolToggle:
+		id: preAmpButton
+		rig_state: 'mainPreAmp'
+		pos: (root.width - (mainSquelch.pos[0] + mainSquelch.width - self.pos[0])) / 2,  mainMemory.pos[1] - self.height - 30
+		size_hint_max: 50, 25
+		text: 'PRE'
+
+	BoolToggle:
+		id: attenuatorButton
+		rig_state: 'attenuator'
+		pos: preAmpButton.pos[0], preAmpButton.pos[1] - self.size[1]
+		size_hint_max: 50, 25
+		text: 'ATT'
+
+	Label:
+		id: rfGainLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'RF Gain'
+		# Meter is actually square...
+		pos: preAmpButton.pos[0] + preAmpButton.size[0] + 10, preAmpButton.pos[1] + preAmpButton.height - self.height
+
+	StateSlider:
+		id: rfGain
+		rig_state: 'RFgain'
+		min: 0
+		max: 255
+		value_track: True
+		size_hint_max: 256, 30
+		pos: rfGainLabel.pos[0], rfGainLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: mainSquelchLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Squelch'
+		pos: rfGain.pos[0] + rfGain.width + 10, rfGainLabel.pos[1] + rfGainLabel.height - self.height
+
+	StateSlider:
+		id: mainSquelch
+		rig_state: 'mainSquelch'
+		min: 0
+		max: 255
+		value_track: True
+		size_hint_max: 256, 30
+		pos: mainSquelchLabel.pos[0], mainSquelchLabel.pos[1] - self.height
+		step: 1
+
+	StateLamp:
+		id: rxLamp
+		rig_state: 'mainBusy'
+		active_color: 0, 1, 0, 1
+		size_hint_max: 50, 50
+		pos: 10, mainSquelchLabel.pos[1] + mainSquelchLabel.height - self.height
+		text: 'RX'
+
+#####
+
+	BoolToggle:
+		id: antenna1
+		rig_state: 'antenna1'
+		size_hint_max: 50, 25
+		text: 'ANT1'
+		pos: (root.width - (tunerOnInRXbutton.pos[0] + tunerOnInRXbutton.width - self.pos[0])) / 2,  attenuatorButton.pos[1] - self.height - 30
+
+	BoolToggle:
+		id: antenna2
+		rig_state: 'antenna2'
+		size_hint_max: 50, 25
+		text: 'ANT2'
+		pos: antenna1.pos[0], antenna1.pos[1] - self.size[1]
+
+	BoolToggle:
+		id: tunerButton
+		rig_state: 'tuner'
+		pos: antenna1.pos[0] + antenna1.width + 10, antenna1.pos[1]
+		size_hint_max: 50, 25
+		text: 'AT'
+
+	BoolToggle:
+		id: tunerOnInRXbutton
+		rig_state: 'tunerOnInRX'
+		pos: tunerButton.pos[0] + tunerButton.width, tunerButton.pos[1]
+		size_hint_max: 50, 25
+		text: 'ON-RX'
+
+	BoolToggle:
+		rig_state: 'tunerState'
+		id: tuneButton
+		pos: (tunerButton.pos[0] + (tunerOnInRXbutton.pos[0] + tunerOnInRXbutton.width)) / 2 - self.width / 2, tunerButton.pos[1] - self.height
+		size_hint_max: 50, 25
+		text: 'TUNE'
+
+###
+
 	# TODO: RIT (offset?)
 	# TODO: Scan stuff
 	# TODO: CTCSS/DCS RX stuff
@@ -500,6 +492,23 @@
 	# TX Block #
 	############
 
+	StateLamp:
+		id: txLamp
+		rig_state: 'mainTransmitting'
+		active_color: 1, 0, 0, 1
+		size_hint_max: 50, 50
+		update_meter: smeter
+		meter_on: 'gardengauge/cadran.png'
+		meter_off: 'gardengauge/smeter.png'
+		meter_off_low: 'S[b]{0:.0f}[/b]'
+		meter_off_high: '+[b]{0:.0f}[/b]'
+		meter_on_low: '{0:.0f}'
+		meter_on_high: '{0:.0f}'
+		meter_on_calculation: ''
+		meter_off_calculation: 'SWR'
+		pos: 10, antenna2.pos[1] - 50 - self.height
+		text: 'TX'
+
 	Label:
 		id: micGainLabel
 		color: 0.8,0.8,0.8,1
@@ -508,7 +517,7 @@
 		size_hint_max: self.text_size
 		halign: 'left'
 		text: 'Microphone Gain'
-		pos: (root.width - (outputPower.pos[0] + outputPower.width - self.pos[0])) / 2, noiseBlankerLevel.pos[1] - 50 - self.height
+		pos: (root.width - (outputPower.pos[0] + outputPower.width - self.pos[0])) / 2, antenna2.pos[1] - 50 - self.height
 
 	StateSlider:
 		rig_state: 'microphoneGain'
