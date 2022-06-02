@@ -28,7 +28,7 @@
 #:import meter kenwood.meter
 
 <Neat>:
-	size: 1074, 515
+	size: 1074, 620
 
 	Meter:
 		id: smeter
@@ -491,8 +491,139 @@
 		pos: mainAFgainLabel.pos[0], mainAFgainLabel.pos[1] - self.height
 		step: 1
 
+	# TODO: RIT (offset?)
+	# TODO: Scan stuff
+	# TODO: CTCSS/DCS RX stuff
+	# TODO: Store and recall various memory types (Quick, Progammable, CALL, "Regular", Range, etc)
 
-# TODO: RIT (offset?)
-# TODO: Scan stuff
-# TODO: CTCSS/DCS RX stuff
-# TODO: Store and recall various memory types (Quick, Progammable, CALL, "Regular", Range, etc)
+	############
+	# TX Block #
+	############
+
+	Label:
+		id: micGainLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Microphone Gain'
+		pos: (root.width - (outputPower.pos[0] + outputPower.width - self.pos[0])) / 2, noiseBlankerLevel.pos[1] - 50 - self.height
+
+	StateSlider:
+		rig_state: 'microphoneGain'
+		id: microphoneGain
+		min: 0
+		max: 100
+		value_track: True
+		size_hint_max: self.cursor_width + self.max, 30
+		pos: micGainLabel.pos[0], micGainLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: carGainLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Carrier Gain'
+		pos: microphoneGain.pos[0] + microphoneGain.width + 10, micGainLabel.pos[1]
+
+	StateSlider:
+		rig_state: 'carrierGain'
+		id: carrierGain
+		min: 0
+		max: 100
+		value_track: True
+		size_hint_max: self.cursor_width + self.max, 30
+		pos: carGainLabel.pos[0], carGainLabel.pos[1] - self.height
+		step: 1
+
+	BoolToggle:
+		id: speechProcessor
+		rig_state: 'speechProcessor'
+		size_hint_max: 50, 25
+		text: 'PROC'
+		pos: carrierGain.pos[0] + carrierGain.width + 10, (carrierGain.pos[1] + carGainLabel.pos[1] + carGainLabel.height - self.height) / 2
+		on_state: noiseReductionLevel.refresh()
+
+	Label:
+		id: speechProcessorInputLevelLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'PROC Input Level'
+		pos: speechProcessor.pos[0] + speechProcessor.width + 10, carGainLabel.pos[1]
+
+	StateSlider:
+		rig_state: 'speechProcessorInputLevel'
+		id: speechProcessorInputLevel
+		min: 0
+		max: 100
+		value_track: True
+		size_hint_max: self.cursor_width + self.max, 30
+		pos: speechProcessorInputLevelLabel.pos[0], speechProcessorInputLevelLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: speechProcessorOutputLevelLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'PROC Output Level'
+		pos: speechProcessorInputLevel.pos[0] + speechProcessorInputLevel.width + 10, speechProcessorInputLevelLabel.pos[1]
+
+	StateSlider:
+		rig_state: 'speechProcessorOutputLevel'
+		id: speechProcessorOutputLevel
+		min: 0
+		max: 100
+		value_track: True
+		size_hint_max: self.cursor_width + self.max, 30
+		pos: speechProcessorOutputLevelLabel.pos[0], speechProcessorOutputLevelLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: monitorLevelLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Monitor Level'
+		pos: speechProcessorOutputLevel.pos[0] + speechProcessorOutputLevel.width + 10, speechProcessorOutputLevelLabel.pos[1]
+
+	StateSlider:
+		rig_state: 'monitorLevel'
+		id: monitorLevel
+		min: 0
+		max: 9
+		value_track: True
+		size_hint_max: self.cursor_width + self.max * 7, 30
+		pos: monitorLevelLabel.pos[0], monitorLevelLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: outputPowerLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Output Power'
+		pos: monitorLevel.pos[0] + monitorLevel.width + 10, monitorLevelLabel.pos[1]
+
+	StateSlider:
+		rig_state: 'outputPower'
+		id: outputPower
+		min: 5
+		max: 100
+		value_track: True
+		size_hint_max: self.cursor_width + (self.max - self.min), 30
+		pos: outputPowerLabel.pos[0], outputPowerLabel.pos[1] - self.height
+		step: 1
