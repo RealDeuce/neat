@@ -193,7 +193,8 @@ class FreqDisplay(Label):
 		self.markup = True
 		self.bind(freqValue=self._updateFreq)
 		super(FreqDisplay, self).__init__(**kwargs)
-		self.freqValue = int(rig.vfoAFrequency.value)
+		if rig.powerOn.value:
+			self.freqValue = int(rig.vfoAFrequency.value)
 		rig.vfoAFrequency.add_callback(self.newFreq)
 
 	def newFreq(self, freq, *args):
@@ -264,7 +265,8 @@ class MemoryDisplay(Label):
 		self.markup = True
 		self.bind(memoryValue=self._updateChannel)
 		super(MemoryDisplay, self).__init__(**kwargs)
-		self.memoryValue = int(rig.memoryChannel.value)
+		if rig.powerOn.value:
+			self.memoryValue = int(rig.memoryChannel.value)
 		rig.memoryChannel.add_callback(self.newChannel)
 		rig.memoryGroups.add_callback(self.newGroups)
 		rig.memories[self.memoryValue].add_callback(self.updateChannel)
@@ -368,7 +370,8 @@ class VFOBox(GridLayout):
 	def __init__(self, **kwargs):
 		super(VFOBox, self).__init__(**kwargs)
 		self.bind(vfo=self._updateVFO)
-		self.vfo = int(rig.RXtuningMode.value)
+		if rig.powerOn.value:
+			self.vfo = int(rig.RXtuningMode.value)
 		rig.RXtuningMode.add_callback(self.newVFO)
 
 	def newVFO(self, vfo, *args):
@@ -401,7 +404,8 @@ class OPModeBox(GridLayout):
 	def __init__(self, **kwargs):
 		super(OPModeBox, self).__init__(**kwargs)
 		self.bind(mode=self._updateMode)
-		self.mode = int(rig.mode.value)
+		if rig.powerOn.value:
+			self.mode = int(rig.mode.value)
 		self.new_mode = self.mode
 		rig.mode.add_callback(self.newMode)
 
@@ -426,7 +430,7 @@ Adds rig_state string property with the name of the rig state to control
 '''
 class BoolToggle(ToggleButton):
 	rig_state = StringProperty()
-	poll_after = BooleanProperty(default_value=False)
+	poll_after = BooleanProperty(False)
 
 	def __init__(self, **kwargs):
 		super(BoolToggle, self).__init__(**kwargs)
@@ -454,6 +458,7 @@ class BoolToggle(ToggleButton):
 
 	def on_press(self):
 		getattr(rig, self.rig_state).value = (self.state == 'down')
+		print("PollAfter: "+str(self.poll_after))
 		if self.poll_after:
 			# We call this to force the update in case we exceeded
 			# limits
@@ -461,7 +466,7 @@ class BoolToggle(ToggleButton):
 
 class StateSlider(Slider):
 	rig_state = StringProperty()
-	poll_after = BooleanProperty(default_value=False)
+	poll_after = BooleanProperty(False)
 
 	def __init__(self, **kwargs):
 		super(StateSlider, self).__init__(**kwargs)
@@ -588,7 +593,8 @@ class FilterDisplay(Widget):
 		self.lines = Line(points = self.points, width = self.line_width)
 		self.canvas.add(Color(rgba=(1,1,1,1)))
 		self.canvas.add(self.lines)
-		self.points = rig.filterDisplayPattern.value
+		if rig.powerOn.value:
+			self.points = rig.filterDisplayPattern.value
 		rig.filterDisplayPattern.add_callback(self.newValue)
 
 	def on_pos(self, *args):

@@ -29,6 +29,7 @@ import copy
 import re
 import serial
 import sys
+import time
 import threading
 import enum
 
@@ -294,6 +295,7 @@ def parse(fmt, args):
 class StateValue():
 	def __init__(self, rig, **kwargs):
 		self._rig = rig
+		self._works_powered_off = kwargs.get('works_powered_off')
 		self._set_format = kwargs.get('set_format')
 		self._set_method = kwargs.get('set_method')
 		if self._set_format is not None and self._set_method is not None:
@@ -323,8 +325,11 @@ class StateValue():
 
 	@property
 	def value(self):
+		if self._works_powered_off != True and not self._rig.powerOn.value:
+			self._cached = None
+			return None
 		if self._validity_check is not None and not self._validity_check():
-			self.cached = None
+			self._cached = None
 			return None
 		if self._cached is None:
 			if self._query_method is not None:
@@ -338,6 +343,9 @@ class StateValue():
 
 	@value.setter
 	def value(self, value):
+		if self._works_powered_off != True and not self._rig.powerOn.value:
+			self._cached = None
+			return None
 		if self._range_check is not None and not self._range_check(value):
 			return
 		if self._validity_check is not None and not self._validity_check():
@@ -670,7 +678,7 @@ class Kenwood:
 		self.split =                        StateValue(self)
 		self.filterWidth =                  StateValue(self, query_command = 'FW',  set_format = 'FW{:04d}', validity_check = self._mainReceiverOnly)
 		self.AGCconstant =                  StateValue(self, query_command = 'GT',  set_format = 'GT{:03d}')
-		self.ID =                           StateValue(self, query_command = 'ID')
+		self.ID =                           StateValue(self, query_command = 'ID',  works_powered_off = True)
 		self.currentReceiverTransmitting =  StateValue(self, query_command = 'IF')
 		self.currentFrequency =             StateValue(self, query_command = 'IF')
 		self.frequencyStep =                StateValue(self, query_command = 'IF')
@@ -717,7 +725,7 @@ class Kenwood:
 		self.speechProcessorOutputLevel =   StateValue(self, query_command = 'PL',  set_method = self._set_speechProcessorOutputLevel)
 		self.programmableMemoryChannel =    StateValue(self, query_command = 'PM',  set_format = 'PM{:01d}')
 		self.speechProcessor =              StateValue(self, query_command = 'PR',  set_format = 'PR{:01d}')
-		self.powerOn =                      StateValue(self, query_command = 'PS',  set_format = 'PS{:01d}')
+		self.powerOn =                      StateValue(self, query_command = 'PS',  set_format = 'PS{:01d}', works_powered_off = True)
 		self.DCScode =                      StateValue(self, query_command = 'QC',  set_format = 'QC{:03d}')
 		self.storeAsQuickMemory =           StateValue(self,                        set_format = 'QC')
 		self.quickMemory =                  StateValue(self, query_command = 'QR',  set_method = self._set_quickMemory)
@@ -789,15 +797,16 @@ class Kenwood:
 		for i in range(len(self.memories)):
 			self.memories[i] = StateValue(self, query_command = 'MR0{:03d}'.format(i))
 
-		# Initialization
-		self.autoInformation.value = 2
 
 		# Populate values used in parser callbacks:
-		self.controlMain      # used for currentFrequency
-		self.RXtuningMode     # used for split
-		self.TXtuningMode     # used for split
-		self.mainTransmitting # Derived value
-		self.subTransmitting  # Derived value
+		if self.powerOn.value:
+			# Initialization
+			self.autoInformation.value = 2
+			self._write(self.controlMain._query_command)
+			self._write(self.RXtuningMode._query_command)     # used for split
+			self._write(self.TXtuningMode._query_command)     # used for split
+			self._write(self.TXmain._query_command)
+			self._write(self.currentReceiverTransmitting._query_command)
 
 	def __init__(self, port = "/dev/ttyU0", speed = 4800, stopbits = 2):
 		self.init_done = False
@@ -805,10 +814,10 @@ class Kenwood:
 		self.serial = serial.Serial(port = port, baudrate = speed, stopbits = stopbits, rtscts = True, timeout = 0.1, inter_byte_timeout = 0.5)
 		self.error_count = 0
 		# We assume all rigs support the ID command (for no apparent reason)
-		self.ID = StateValue(self, query_command = 'ID')
+		self.ID = StateValue(self, query_command = 'ID', works_powered_off = True)
 		self.command = dict()
 		self.command = {b'ID': self._update_ID}
-		self.readThread = threading.Thread(target = self.__readThread, name = "Read Thread")
+		self.readThread = threading.Thread(target = self._readThread, name = "Read Thread")
 		self.readThread.start()
 		self.last_command = None
 		resp = self.ID.value
@@ -843,7 +852,7 @@ class Kenwood:
 	def _write(self, cmd):
 		self.last_command = cmd
 		wr = bytes(self.last_command + ';', 'ascii')
-		#print("Writing: " + str(wr))
+		#print("Write: "+str(wr))
 		self.serial.write(wr)
 
 	def _read(self):
@@ -854,10 +863,11 @@ class Kenwood:
 				#print("Read: '"+str(ret)+"'")
 				return ret
 
-	def __readThread(self):
+	def _readThread(self):
 		while not self._terminate:
 			cmdline = self._read()
 			if cmdline is not None:
+				re.sub(b'[\x00-\x1f\x7f-\xff]', b'', cmdline)
 				m = re.match(b"^([?A-Z]{1,2})([\x00-\x3a\x3c-\x7f]*);$", cmdline)
 				if m:
 					cmd = m.group(1)
@@ -1239,6 +1249,13 @@ class Kenwood:
 	def _update_PS(self, args):
 		split = parse('1d', args)
 		self.powerOn._cached = bool(split[0])
+		if split[0]:
+			self._write(self.autoInformation._set_format.format(2))
+			self._write(self.controlMain._query_command)
+			self._write(self.RXtuningMode._query_command)     # used for split
+			self._write(self.TXtuningMode._query_command)     # used for split
+			self._write(self.TXmain._query_command)
+			self._write(self.currentReceiverTransmitting._query_command)
 
 	def _update_QC(self, args):
 		split = parse('3d', args)
