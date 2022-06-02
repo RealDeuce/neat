@@ -519,6 +519,7 @@ class StateLamp(Label):
 		self.canvas.before.add(self.rect)
 		if self.rig_state != '':
 			self.on_rig_state(self, self, self.rig_state)
+		self._old_rig_state = self.rig_state
 
 	def on_active_color(self, widget, value):
 		if self.rig_state != '':
@@ -529,6 +530,9 @@ class StateLamp(Label):
 			self.col.rgba = self.active_color if getattr(rig, self.rig_state).value else self.inactive_color
 
 	def on_rig_state(self, widget, value):
+		if hasattr(rig, self._old_rig_state):
+			getattr(rig, self._old_rig_state).remove_callback(self.newValue)
+		self._old_rig_state = self.rig_state
 		st = getattr(rig, self.rig_state).value
 		self.col.rgba = self.active_color if st else self.inactive_color
 		getattr(rig, self.rig_state).add_callback(self.newValue)
@@ -559,7 +563,6 @@ class StateLamp(Label):
 				self.update_meter.low_format = self.meter_off_low
 				self.update_meter.high_format = self.meter_off_high
 				self.update_meter.calculation = self.meter_off_calculation
-		getattr(rig, self.rig_state).add_callback(self.newValue)
 
 class FilterDisplay(Widget):
 	lr_offset = NumericProperty(default_value = 0)
@@ -829,7 +832,7 @@ class LowPassLabel(Label):
 			val = self.prefix + val + self.suffix
 		elif rig.mode.value in self.cwModes:
 			val = self.prefix + str(rig.IFshift.value) + self.suffix
-		self.text = self.prefix + val + self.suffix
+		self.text = val
 
 class WideNarrowLabel(Label):
 	prefix = StringProperty()
