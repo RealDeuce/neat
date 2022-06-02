@@ -840,7 +840,7 @@ class Kenwood:
 	def _write(self, cmd):
 		self.last_command = cmd
 		wr = bytes(self.last_command + ';', 'ascii')
-		print("Writing: " + str(wr))
+		#print("Writing: " + str(wr))
 		self.serial.write(wr)
 
 	def _read(self):
@@ -848,7 +848,7 @@ class Kenwood:
 		while not self._terminate:
 			ret += self.serial.read_until(b';')
 			if ret[-1:] == b';':
-				print("Read: '"+str(ret)+"'")
+				#print("Read: '"+str(ret)+"'")
 				return ret
 
 	def __readThread(self):
