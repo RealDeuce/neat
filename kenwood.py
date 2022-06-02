@@ -324,37 +324,36 @@ class StateValue():
 		for cb in self._wait_callbacks:
 			cb(self, value)
 
+	def query_string(self):
+		if not self.valid():
+			self._cached = None
+			return None
+		if self._query_method is not None:
+			return self._query_method()
+		elif self._query_command is not None:
+			return self._query_command
+		raise Exception('Attempt to query value without a query command or method')
+
 	@property
 	def value(self):
-		if self._works_powered_off != True and not self._rig.powerOn.value:
-			self._cached = None
-			return None
-		if self._validity_check is not None and not self._validity_check():
-			self._cached = None
-			return None
 		if self._cached is None:
-			if self._query_method is not None:
-				self._query_method()
-			elif self._query_command is not None:
-				self._rig._query(self)
-			else:
-				raise Exception('Attempt to set value without a setter')
+			self._rig._query(self)
 		# We just deepcopy it as an easy hack
 		return copy.deepcopy(self._cached)
 
-	@value.setter
-	def value(self, value):
-		if self._works_powered_off != True and not self._rig.powerOn.value:
+	def set_string(self, value):
+		if not self.range_check(value):
 			self._cached = None
 			return None
-		if self._range_check is not None and not self._range_check(value):
-			return
-		if self._validity_check is not None and not self._validity_check():
-			return
 		if self._set_format is not None:
-			self._rig._write(self._set_format.format(value))
-		else:
-			self._set_method(value)
+			return self._set_format.format(value)
+		elif self._set_method is not None:
+			return self._set_method(value)
+		raise Exception('Attempt to set value without a set command or method')
+
+	@value.setter
+	def value(self, value):
+		self._rig._set(self, value)
 
 	@property
 	def uncached_value(self):
@@ -362,11 +361,15 @@ class StateValue():
 		return self.value
 
 	def valid(self):
+		if self._works_powered_off != True and not self._rig.powerOn.value:
+			return False
 		if self._validity_check is not None:
 			return self._validity_check()
 		return True
 
 	def range_check(self, value):
+		if not self.valid():
+			return False
 		if self._range_check is not None:
 			return self._range_check(value)
 		return True
@@ -385,90 +388,111 @@ class StateValue():
 
 class Kenwood:
 	def _update_mainTransmitting(self):
-		self.mainTransmitting._cached = self.TXmain.value and self.currentReceiverTransmitting.value
+		self.mainTransmitting._cached = self.TXmain._cached and self.currentReceiverTransmitting._cached
 
 	def _update_subTransmitting(self):
-		self.subTransmitting._cached = (not self.TXmain.value) and self.currentReceiverTransmitting.value
+		self.subTransmitting._cached = (not self.TXmain._cached) and self.currentReceiverTransmitting._cached
 
 	def _noiseBlankerValid(self):
-		return self.mode.value != mode.FM
+		if self.mode._cached is None:
+			return False
+		return self.mode._cached != mode.FM
 
 	def _set_manualBeatCanceller(self, value):
-		self._write('BC{:01d}'.format(BeatCanceller.MANUAL if value else BeatCanceller.OFF))
+		return 'BC{:01d}'.format(BeatCanceller.MANUAL if value else BeatCanceller.OFF)
 
 	def _set_frequencyLock(self, value):
-		rc = self.rc2000Lock.uncached_value
-		self._write('LK{:01d}{:01d}'.format(value, rc))
+		rc = self.rc2000Lock._cached
+		if rc is None:
+			return None
+		return 'LK{:01d}{:01d}'.format(value, rc)
 
 	def _set_allLock(self, value):
-		rc = self.rc2000Lock.uncached_value
-		self._write('LK{:01d}{:01d}'.format(2 if value else 0, rc))
+		rc = self.rc2000Lock._cached
+		if rc is None:
+			return None
+		return 'LK{:01d}{:01d}'.format(2 if value else 0, rc)
 
 	def _set_rigLock(self, value):
-		rc = self.rc2000Lock.uncached_value
-		self._write('LK{:01d}{:01d}'.format(value, rc))
+		rc = self.rc2000Lock._cached
+		if rc is None:
+			return None
+		return 'LK{:01d}{:01d}'.format(value, rc)
 
 	def _set_rc2000Lock(self, value):
-		fa = self.rigLock.uncached_value
-		self._write('LK{:01d}{:01d}'.format(fa, value))
+		fa = self.rigLock._cached
+		if fa is None:
+			return None
+		return 'LK{:01d}{:01d}'.format(fa, value)
 
 	def _set_memoryGroups(self, value):
-		self._write('MU{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}'.format(value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7], value[8], value[9]))
-		self._write('MU')
+		return 'MU{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d}{:1d};MU'.format(value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7], value[8], value[9])
 
 	def _set_noiseReduction2(self, value):
-		self._write('NR{:01d}'.format(noiseReduction.NR2 if value else noiseReduction.OFF))
+		return 'NR{:01d}'.format(noiseReduction.NR2 if value else noiseReduction.OFF)
 
 	def _set_speechProcessorInputLevel(self, value):
-		ol = self.speechProcessorOutputLevel.uncached_value
-		self._write('PL{:03d}{:03d}'.format(value, ol))
+		ol = self.speechProcessorOutputLevel._cached
+		if ol is None:
+			return None
+		return 'PL{:03d}{:03d}'.format(value, ol)
 
 	def _set_speechProcessorOutputLevel(self, value):
-		ol = self.speechProcessorInputLevel.uncached_value
-		self._write('PL{:03d}{:03d}'.format(ol, value))
+		ol = self.speechProcessorInputLevel._cached
+		if ol is None:
+			return None
+		return 'PL{:03d}{:03d}'.format(ol, value)
 
 	def _set_quickMemory(self, value):
-		qm = self.quickMemoryChannel.uncached_value
-		self._write('QR{:01d}{:01d}'.format(value, qm))
+		qm = self.quickMemoryChannel._cached
+		if qm is None:
+			return None
+		return 'QR{:01d}{:01d}'.format(value, qm)
 
 	def _set_quickMemoryChannel(self, value):
-		qm = self.quickMemory.uncached_value
-		self._write('QR{:01d}{:01d}'.format(qm, value))
+		qm = self.quickMemory._cached
+		if qm is None:
+			return None
+		return 'QR{:01d}{:01d}'.format(qm, value)
 
 	def _RITupDownValid(self):
-		return self.scanMode.value == scanMode.OFF
+		return self.scanMode._cached == scanMode.OFF
 
 	def _scanSpeedUpDownValid(self):
-		return self.scanMode.value != scanMode.OFF
+		if self.scanMode._cached is None:
+			return False
+		return self.scanMode._cached != scanMode.OFF
 
 	def _noiseReductionLevelValid(self):
-		return self.noiseReduction.value != noiseReduction.OFF
+		if self.noiseReduction._cached is None:
+			return False
+		return self.noiseReduction._cached != noiseReduction.OFF
 
 	def _mainReceiverOnly(self):
-		return self.controlMain.value
+		return self.controlMain._cached
 
 	def _voiceCutoffValid(self):
-		if not self.controlMain.value:
+		if not self.controlMain._cached:
 			return False
-		return self.mode.value in (mode.AM, mode.FM, mode.LSB, mode.USB)
+		return self.mode._cached in (mode.AM, mode.FM, mode.LSB, mode.USB)
 
 	def _inMemoryMode(self):
-		return self.tuningMode.value == tuningMode.MEMORY
+		return self.tuningMode._cached == tuningMode.MEMORY
 
 	def _set_mainTransmitting(self, value):
 		if value:
-			self._write('TX0')
+			return 'TX0'
 		else:
-			self._write('RX0')
+			return 'RX0'
 
 	def _set_subTransmitting(self, value):
 		if value:
-			self._write('TX1')
+			return 'TX1'
 		else:
-			self._write('RX1')
+			return 'RX1'
 
 	def _checkMeterValue(self, value):
-		if meter(value) == meter.COMPRESSION and not self.speechProcessor.value:
+		if meter(value) == meter.COMPRESSION and not self.speechProcessor._cached:
 			return False
 		return True
 
@@ -494,7 +518,9 @@ class Kenwood:
 		return False
 
 	def _antennaRangeCheck(self, value):
-		if self.currentFrequency.value <= 60000000 and (value == 1 or value == 2):
+		if self.currentFrequency._cached is None:
+			return False
+		if self.currentFrequency._cached <= 60000000 and (value == 1 or value == 2):
 			return True
 		return False
 
@@ -505,13 +531,13 @@ class Kenwood:
 		return self._antennaRangeCheck(2)
 
 	def _setAntenna1(self, value):
-		self._write('AN' + '1' if value else '2')
+		return ('AN' + '1' if value else '2')
 
 	def _setAntenna2(self, value):
-		self._write('AN' + '2' if value else '1')
+		return ('AN' + '2' if value else '1')
 
 	def _cwAutoTuneRange(self, value):
-		if not self.mode.value in (mode.CW, mode.CW_REVERSED, ):
+		if not self.mode._cached in (mode.CW, mode.CW_REVERSED, ):
 			return False
 		if value:
 			return True
@@ -520,7 +546,7 @@ class Kenwood:
 		return False
 
 	def _cwAutoTuneValid(self):
-		if self.mode.value in (mode.CW, mode.CW_REVERSED, ):
+		if self.mode._cached in (mode.CW, mode.CW_REVERSED, ):
 			return True
 		return False
 
@@ -530,9 +556,9 @@ class Kenwood:
 		return True
 
 	def _filterWidthValid(self):
-		if not self.controlMain.value:
+		if not self.controlMain._cached:
 			return False
-		if self.mode.value in (mode.LSB, mode.USB,):
+		if self.mode._cached in (mode.LSB, mode.USB,):
 			return False
 		return True
 
@@ -806,16 +832,16 @@ class Kenwood:
 		for i in range(len(self.memories)):
 			self.memories[i] = StateValue(self, query_command = 'MR0{:03d}'.format(i))
 
-
 		# Populate values used in parser callbacks:
 		if self.powerOn.value:
 			# Initialization
 			self.autoInformation.value = 2
-			self._write(self.controlMain._query_command)
-			self._write(self.RXtuningMode._query_command)     # used for split
-			self._write(self.TXtuningMode._query_command)     # used for split
-			self._write(self.TXmain._query_command)
-			self._write(self.currentReceiverTransmitting._query_command)
+			self._send_query(self.controlMain)
+			self._send_query(self.controlMain)
+			self._send_query(self.RXtuningMode)     # used for split
+			self._send_query(self.TXtuningMode)     # used for split
+			self._send_query(self.TXmain)
+			self._send_query(self.currentReceiverTransmitting)
 
 	def __init__(self, port = "/dev/ttyU0", speed = 4800, stopbits = 2):
 		self.init_done = False
@@ -852,17 +878,16 @@ class Kenwood:
 		nxt = None
 		while len(self._fill_cache_state['todo']) > 0:
 			nxt = self._fill_cache_state['todo'].pop(0)
-			if nxt[0]._validity_check is not None:
-				if not nxt[0]._validity_check():
-					self._fill_cache_state['matched_count'] += 1
-					nxt = None
-					continue
-				else:
-					break
+			if not nxt[0].valid():
+				self._fill_cache_state['matched_count'] += 1
+				nxt = None
+				continue
+			else:
+				break
 			break
 		if nxt is not None:
 			nxt[0]._add_wait_callback(nxt[1])
-			self._write(nxt[0]._query_command)
+			self._send_query(nxt[0])
 
 		if prop is not None:
 			self._fill_cache_state['matched_count'] += 1
@@ -897,14 +922,18 @@ class Kenwood:
 		self._fill_cache_cb(None, None)
 
 	def __del__(self):
-		self._write('AI0')
+		self.terminate()
+
+	def terminate(self):
+		self.autoInformation.value = 0
 		self._terminate = True
 		self.readThread.join()
 
-	def terminate(self):
-		self._write('AI0')
-		self._terminate = True
-		self.readThread.join()
+	def _send_query(self, state):
+		self._writeQueue.put({
+			'msgType': 'query',
+			'stateValue': state,
+		})
 
 	def _query(self, state):
 		if threading.get_ident() == self.readThread.ident:
@@ -914,19 +943,17 @@ class Kenwood:
 		cb = lambda x, y: ev.set()
 		state._add_wait_callback(cb)
 		while True:
-			self._write(state._query_command)
+			self._send_query(state)
 			if ev.wait(1):
 				break
 		state._remove_wait_callback(cb)
 
-	def _write(self, cmd, keepErrors = False):
-		if not keepErrors:
-			self.error_count = 0
-		if isinstance(cmd, bytes):
-			wr = cmd
-		else:
-			wr = bytes(cmd + ';', 'ascii')
-		self._writeQueue.put(wr)
+	def _set(self, state, value):
+		self._writeQueue.put({
+			'msgType': 'set',
+			'stateValue': state,
+			'value': value,
+		})
 
 	def _read(self):
 		ret = b'';
@@ -936,12 +963,23 @@ class Kenwood:
 				# this is stupid, but it works.
 				if not self._writeQueue.empty():
 					self.serial.write(b'\x00')
+			if not self._writeQueue.empty():
+				if self.serial.cts:
+					self.serial.rts = False
 			if self.serial.cts:
 				if not self._writeQueue.empty():
 					wr = self._writeQueue.get()
 					self.last_command = wr
-					#print('Writing ' + str(wr))
-					self.serial.write(wr)
+					if wr['msgType'] == 'set':
+						cmd = wr['stateValue'].set_string(wr['value'])
+					elif wr['msgType'] == 'query':
+						cmd = wr['stateValue'].query_string()
+					else:
+						raise Exception('Unhandled message type: '+str(wr['msgType']))
+					if cmd is not None:
+						cmd = bytes(cmd + ';', 'ascii')
+						print('Writing ' + str(cmd))
+						self.serial.write(cmd)
 				if self._writeQueue.empty():
 					self.serial.rts = True
 			else:
@@ -949,14 +987,11 @@ class Kenwood:
 			if self.serial.rts:
 				ret += self.serial.read_until(b';')
 				if ret[-1:] == b';':
-					#print("Read: '"+str(ret)+"'")
+					print("Read: '"+str(ret)+"'")
 					return ret
 				else:
 					if not self._writeQueue.empty():
 						self.serial.rts = False
-			if not self._writeQueue.empty():
-				if self.serial.cts:
-					self.serial.rts = False
 
 	def _readThread(self):
 		while not self._terminate:
@@ -1347,7 +1382,7 @@ class Kenwood:
 		self.powerOn._cached = bool(split[0])
 		self._last_power_state = bool(split[0])
 		if split[0] and old == False:
-			self._write(self.autoInformation._set_format.format(2))
+			self._set(self.autoInformation, 2)
 			self._fill_cache()
 
 	def _update_QC(self, args):
@@ -1515,7 +1550,7 @@ class Kenwood:
 		self.error_count += 1
 		if self.error_count < 10:
 			print('Resending: '+str(self.last_command), file=sys.stderr)
-			self._write(self.last_command, True)
+			self._writeQueue.put(self.last_command)
 		else:
 			raise Exception('Error count exceeded')
 
@@ -1523,7 +1558,7 @@ class Kenwood:
 		self.error_count += 1
 		if self.error_count < 10:
 			print('Resending: '+str(self.last_command), file=sys.stderr)
-			self._write(self.last_command, True)
+			self._writeQueue.put(self.last_command)
 		else:
 			raise Exception('Error count exceeded')
 
@@ -1531,6 +1566,6 @@ class Kenwood:
 		self.error_count += 1
 		if self.error_count < 10:
 			print('Resending: '+str(self.last_command), file=sys.stderr)
-			self._write(self.last_command, True)
+			self._writeQueue.put(self.last_command)
 		else:
 			raise Exception('Error count exceeded')
