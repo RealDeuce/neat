@@ -1271,8 +1271,8 @@ class Kenwood:
 		self.meterType._cached = meter(split[0])
 		self.meterValue._cached = split[1]
 		self.SWRmeter._cached = split[1] if split[0] == 1 else 0
-		self.SWRmeter._cached = split[1] if split[0] == 2 else 0
-		self.SWRmeter._cached = split[1] if split[0] == 3 else 0
+		self.compressionMeter._cached = split[1] if split[0] == 2 else 0
+		self.ALCmeter._cached = split[1] if split[0] == 3 else 0
 
 	# Note: Can only set RM2 when COMP is on
 
