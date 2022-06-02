@@ -87,47 +87,10 @@
 
 ###
 
-	BoolToggle:
-		id: noiseBlanker
-		rig_state: 'noiseBlanker'
-		size_hint_max: 75, 25
-		text: 'NB'
-		pos: (root.width - (mainAFgain.pos[0] + mainAFgain.width - self.pos[0])) / 2, COMPmeter._progress.pos[1] - 30 - self.size[1]
-
-	StateSlider:
-		id: noiseBlankerLevel
-		rig_state: 'noiseBlankerLevel'
-		min: 1
-		max: 10
-		value_track: True
-		size_hint_max: noiseBlanker.size
-		pos: noiseBlanker.pos[0], noiseBlanker.pos[1] - self.height - 3
-		step: 1
-
-	Label:
-		id: AGCconstantLabel
-		color: 0.8,0.8,0.8,1
-		font_size: 15
-		text_size: 588, 15
-		size_hint_max: self.text_size
-		halign: 'left'
-		text: 'AGC Constant'
-		pos: noiseBlanker.pos[0] + noiseBlanker.width + 10, noiseBlanker.pos[1] + noiseBlanker.height - self.height
-
-	StateSlider:
-		id: AGCconstant
-		rig_state: 'AGCconstant'
-		min: 0
-		max: 20
-		value_track: True
-		size_hint_max: self.cursor_width + self.max * 4, 30
-		pos: AGCconstantLabel.pos[0], AGCconstantLabel.pos[1] - self.height
-		step: 1
-
 	FilterDisplay:
 		id: filterDisplay
 		size_hint_max: 100, 25
-		pos: AGCconstant.pos[0] + AGCconstant.width + 10, AGCconstantLabel.pos[1] + AGCconstantLabel.height - self.height
+		pos: (root.width - (mainAFgain.pos[0] + mainAFgain.width - self.pos[0])) / 2, COMPmeter._progress.pos[1] - 30 - self.size[1]
 
 	HighPassLabel:
 		id: highPassLabel
@@ -305,7 +268,7 @@
 		text_size: 588, 70
 		size_hint_min: self.text_size
 		size_hint_max: self.text_size
-		pos: (root.width - self.width) / 2, noiseBlankerLevel.pos[1] - self.size[1] - 30
+		pos: (root.width - self.width) / 2, autoNotchLevel.pos[1] - self.size[1] - 30
 		max_lines: 1
 		lines: 1
 		font_name: 'DroidSansMono'
@@ -382,18 +345,18 @@
 ###
 
 	BoolToggle:
-		id: preAmpButton
-		rig_state: 'mainPreAmp'
-		pos: (root.width - (mainSquelch.pos[0] + mainSquelch.width - self.pos[0])) / 2,  mainMemory.pos[1] - self.height - 30
-		size_hint_max: 50, 25
-		text: 'PRE'
-
-	BoolToggle:
 		id: attenuatorButton
 		rig_state: 'attenuator'
-		pos: preAmpButton.pos[0], preAmpButton.pos[1] - self.size[1]
+		pos: (root.width - (mainSquelch.pos[0] + mainSquelch.width - self.pos[0])) / 2,  mainMemory.pos[1] - self.height - 30
 		size_hint_max: 50, 25
 		text: 'ATT'
+
+	BoolToggle:
+		id: preAmpButton
+		rig_state: 'mainPreAmp'
+		pos: attenuatorButton.pos[0], attenuatorButton.pos[1] - self.size[1]
+		size_hint_max: 50, 25
+		text: 'PRE'
 
 	Label:
 		id: rfGainLabel
@@ -404,7 +367,7 @@
 		halign: 'left'
 		text: 'RF Gain'
 		# Meter is actually square...
-		pos: preAmpButton.pos[0] + preAmpButton.size[0] + 10, preAmpButton.pos[1] + preAmpButton.height - self.height
+		pos: attenuatorButton.pos[0] + attenuatorButton.size[0] + 10, attenuatorButton.pos[1] + attenuatorButton.height - self.height
 
 	StateSlider:
 		id: rfGain
@@ -416,6 +379,43 @@
 		pos: rfGainLabel.pos[0], rfGainLabel.pos[1] - self.height
 		step: 1
 
+	BoolToggle:
+		id: noiseBlanker
+		rig_state: 'noiseBlanker'
+		size_hint_max: 75, 25
+		text: 'NB'
+		pos: rfGain.pos[0] + rfGain.width + 10, rfGainLabel.pos[1] + rfGainLabel.height - self.height
+
+	StateSlider:
+		id: noiseBlankerLevel
+		rig_state: 'noiseBlankerLevel'
+		min: 1
+		max: 10
+		value_track: True
+		size_hint_max: noiseBlanker.size
+		pos: noiseBlanker.pos[0], noiseBlanker.pos[1] - self.height - 3
+		step: 1
+
+	Label:
+		id: AGCconstantLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'AGC Constant'
+		pos: noiseBlanker.pos[0] + noiseBlanker.width + 10, noiseBlanker.pos[1] + noiseBlanker.height - self.height
+
+	StateSlider:
+		id: AGCconstant
+		rig_state: 'AGCconstant'
+		min: 0
+		max: 20
+		value_track: True
+		size_hint_max: self.cursor_width + self.max * 4, 30
+		pos: AGCconstantLabel.pos[0], AGCconstantLabel.pos[1] - self.height
+		step: 1
+
 	Label:
 		id: mainSquelchLabel
 		color: 0.8,0.8,0.8,1
@@ -424,7 +424,7 @@
 		size_hint_max: self.text_size
 		halign: 'left'
 		text: 'Squelch'
-		pos: rfGain.pos[0] + rfGain.width + 10, rfGainLabel.pos[1] + rfGainLabel.height - self.height
+		pos: AGCconstant.pos[0] + AGCconstant.width + 10, AGCconstantLabel.pos[1] + AGCconstantLabel.height - self.height
 
 	StateSlider:
 		id: mainSquelch
@@ -461,7 +461,7 @@
 		rig_state: 'antenna1'
 		size_hint_max: 50, 25
 		text: 'ANT1'
-		pos: (root.width - (tunerOnInRXbutton.pos[0] + tunerOnInRXbutton.width - self.pos[0])) / 2,  attenuatorButton.pos[1] - self.height - 30
+		pos: (root.width - (tunerOnInRXbutton.pos[0] + tunerOnInRXbutton.width - self.pos[0])) / 2,  noiseBlankerLevel.pos[1] - self.height - 30
 
 	BoolToggle:
 		id: antenna2
@@ -564,7 +564,7 @@
 		rig_state: 'speechProcessor'
 		size_hint_max: 50, 25
 		text: 'PROC'
-		pos: carrierGain.pos[0] + carrierGain.width + 10, (carrierGain.pos[1] + carGainLabel.pos[1] + carGainLabel.height - self.height) / 2
+		pos: carrierGain.pos[0] + carrierGain.width + 10 + speechProcessorInputLevel.width + 5 - self.width / 2, carGainLabel.pos[1] + carGainLabel.height - self.height
 		on_state: noiseReductionLevel.refresh()
 
 	Label:
@@ -574,8 +574,8 @@
 		text_size: 588, 15
 		size_hint_max: self.text_size
 		halign: 'left'
-		text: 'PROC Input Level'
-		pos: speechProcessor.pos[0] + speechProcessor.width + 10, carGainLabel.pos[1]
+		text: 'Input Level'
+		pos: carrierGain.pos[0] + carrierGain.width + 10, speechProcessor.pos[1]
 
 	StateSlider:
 		rig_state: 'speechProcessorInputLevel'
@@ -591,10 +591,10 @@
 		id: speechProcessorOutputLevelLabel
 		color: 0.8,0.8,0.8,1
 		font_size: 15
-		text_size: 588, 15
+		text_size: speechProcessorOutputLevel.width, 15
 		size_hint_max: self.text_size
-		halign: 'left'
-		text: 'PROC Output Level'
+		halign: 'right'
+		text: 'Output Level'
 		pos: speechProcessorInputLevel.pos[0] + speechProcessorInputLevel.width + 10, speechProcessorInputLevelLabel.pos[1]
 
 	StateSlider:
@@ -615,7 +615,7 @@
 		size_hint_max: self.text_size
 		halign: 'left'
 		text: 'Monitor Level'
-		pos: speechProcessorOutputLevel.pos[0] + speechProcessorOutputLevel.width + 10, speechProcessorOutputLevelLabel.pos[1]
+		pos: speechProcessorOutputLevel.pos[0] + speechProcessorOutputLevel.width + 10, carGainLabel.pos[1]
 
 	StateSlider:
 		rig_state: 'monitorLevel'
