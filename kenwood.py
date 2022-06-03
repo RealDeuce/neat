@@ -336,7 +336,7 @@ class StateValue():
 
 	@property
 	def value(self):
-		if self._cached is None:
+		if self._cached is None and not self._rig._killing_cache:
 			self._rig._query(self)
 		# We just deepcopy it as an easy hack
 		return copy.deepcopy(self._cached)
@@ -389,9 +389,11 @@ class StateValue():
 class Kenwood:
 	def _update_mainTransmitting(self):
 		self.mainTransmitting._cached = self.TXmain._cached and self.currentReceiverTransmitting._cached
+		return ''
 
 	def _update_subTransmitting(self):
 		self.subTransmitting._cached = (not self.TXmain._cached) and self.currentReceiverTransmitting._cached
+		return ''
 
 	def _noiseBlankerValid(self):
 		if self.mode._cached is None:
@@ -848,11 +850,13 @@ class Kenwood:
 		self._terminate = False
 		self._writeQueue = queue.Queue(maxsize = 0)
 		self._verbose = verbose
+		self._killing_cache = False
 		self.serial = serial.Serial(baudrate = speed, stopbits = stopbits, rtscts = False, timeout = 0.01, inter_byte_timeout = 0.5)
 		self.serial.rts = True
 		self.serial.port = port
 		self.serial.open()
 		self.error_count = 0
+		self._last_hack = time.time()
 		# We assume all rigs support the ID command (for no apparent reason)
 		self.ID = StateValue(self, query_command = 'ID', works_powered_off = True)
 		self.command = dict()
@@ -909,7 +913,7 @@ class Kenwood:
 		# 3) Method queries
 		for a, p in self.__dict__.items():
 			if isinstance(p, StateValue):
-				if p._query_command == None:
+				if p._query_command is None:
 					if p._query_method is not None:
 						self._fill_cache_state['call_after'] += (p._query_method,)
 				else:
@@ -921,6 +925,15 @@ class Kenwood:
 						else:
 							self._fill_cache_state['todo'].insert(0, (p, self._fill_cache_cb,))
 		self._fill_cache_cb(None, None)
+
+	def _kill_cache(self):
+		self._killing_cache = True
+		for a, p in self.__dict__.items():
+			if isinstance(p, StateValue):
+				if p._query_command in ('PS', 'ID'):
+					continue
+				p._cached = None
+		self._killing_cache = False
 
 	def __del__(self):
 		self.terminate()
@@ -940,8 +953,6 @@ class Kenwood:
 		})
 
 	def _query(self, state):
-		if threading.get_ident() == self.readThread.ident:
-			raise Exception('_query() called from read thread')
 		self.error_count = 0
 		ev = threading.Event()
 		cb = lambda x, y: ev.set()
@@ -962,11 +973,6 @@ class Kenwood:
 	def _read(self):
 		ret = b'';
 		while not self._terminate:
-			if not self.serial.rts and not self.serial.cts:
-				# Nobody is allowed to send, bust the pileup
-				# this is stupid, but it works.
-				if not self._writeQueue.empty():
-					self.serial.write(b'\x00')
 			if not self._writeQueue.empty():
 				if self.serial.cts:
 					self.serial.rts = False
@@ -980,11 +986,19 @@ class Kenwood:
 						cmd = wr['stateValue'].query_string()
 					else:
 						raise Exception('Unhandled message type: '+str(wr['msgType']))
-					if cmd is not None:
-						cmd = bytes(cmd + ';', 'ascii')
-						if self._verbose:
-							print('Writing ' + str(cmd))
-						self.serial.write(cmd)
+					if cmd is None:
+						if wr['msgType'] == 'query':
+							wr['stateValue']._cached = None
+					else:
+						if cmd != '':
+							cmd = bytes(cmd + ';', 'ascii')
+							if self._verbose:
+								print('Writing ' + str(cmd))
+							self.serial.write(cmd)
+							# Another power-related hack...
+							if cmd == b'PS0;':
+								return cmd
+							self.last_hack = time.time()
 				if self._writeQueue.empty():
 					self.serial.rts = True
 			else:
@@ -998,6 +1012,19 @@ class Kenwood:
 				else:
 					if not self._writeQueue.empty():
 						self.serial.rts = False
+			# The final piece of the puzzle...
+			# It looks like when the rig is powered off, it takes a byte being
+			# sent to wake it up.  It then stays awake for some period of time
+			# before going back to sleep.  That period of time appears to be
+			# longer than a second, so we send a power state request at least
+			# every second of idle time when the rig is powered off.
+			#
+			# This has the side benefit of letting us know if/when the power state
+			# change occured (as long as we know when we turned the rig off, see PS0 above)
+			if (not hasattr(self, 'powerOn')) or self.powerOn._cached == False:
+				if time.time() - self._last_hack > 1:
+					self.serial.write(b'PS;')
+					self._last_hack = time.time()
 
 	def _readThread(self):
 		while not self._terminate:
@@ -1154,7 +1181,7 @@ class Kenwood:
 		if self.TXtuningMode._cached_value is not None:
 			if self.TXtuningMode != tuningMode(split[0]):
 				self.split._cached = True
-		if not self.mainTransmitting:
+		if not self.mainTransmitting._cached:
 			self.tuningMode._cached = tuningMode(split[0])
 		self.RXtuningMode._cached = tuningMode(split[0])
 
@@ -1168,7 +1195,7 @@ class Kenwood:
 		if self.RXtuningMode._cached_value is not None:
 			if self.RXtuningMode != tuningMode(split[0]):
 				self.split._cached = True
-		if self.mainTransmitting:
+		if self.mainTransmitting._cached:
 			self.tuningMode._cached = tuningMode(split[0])
 		self.TXtuningMode._cached = tuningMode(split[0])
 
@@ -1390,6 +1417,8 @@ class Kenwood:
 		if split[0] and old == False:
 			self._set(self.autoInformation, 2)
 			self._fill_cache()
+		elif (not split[0]) and old == True:
+			self._kill_cache()
 
 	def _update_QC(self, args):
 		split = parse('3d', args)

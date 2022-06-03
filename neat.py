@@ -27,7 +27,6 @@ import sys
 
 opts, args = getopt.getopt(sys.argv[1:], "d", ["debug"])
 verbose = False
-print('Opts: '+str(opts))
 for o, a in opts:
 	if o in ('-d', '--debug'):
 		verbose = True
@@ -161,7 +160,8 @@ class Meter(Gauge):
 		self.schedule()
 
 	def stateUpdate(self, value):
-		self.lastval = value
+		if value is None:
+			self.lastval = self.min_value
 		Clock.schedule_once(lambda dt: self._stateUpdate(), 0)
 
 	def _stateUpdate(self):
@@ -208,7 +208,8 @@ class FreqDisplay(Label):
 		rig.vfoAFrequency.add_callback(self.newFreq)
 
 	def newFreq(self, freq, *args):
-		self.freqValue = int(freq)
+		if freq is not None:
+			self.freqValue = int(freq)
 
 	def _updateFreq(self, *args):
 		new = '{:014,.3f}'.format(self.freqValue/1000)
@@ -285,11 +286,13 @@ class MemoryDisplay(Label):
 		#rig.memories[300].add_callback(self.updateChannel)
 
 	def newChannel(self, channel, *args):
-		rig.memories[self.memoryValue].remove_callback(self.updateChannel)
-		if self.memoryValue == channel and channel == 300:
-			self._updateChannel()
-		self.memoryValue = int(channel)
-		rig.memories[self.memoryValue].add_callback(self.updateChannel)
+		if self.memoryValue is not None:
+			rig.memories[self.memoryValue].remove_callback(self.updateChannel)
+			if self.memoryValue == channel and channel == 300:
+				self._updateChannel()
+		if channel is not None:
+			self.memoryValue = int(channel)
+			rig.memories[self.memoryValue].add_callback(self.updateChannel)
 
 	def newGroups(self, groups, *args):
 		self._updateChannel()
@@ -317,16 +320,17 @@ class MemoryDisplay(Label):
 				ids.mainFreq.freqValue = memData['Frequency']
 		new = 'Memory: {:1d}-{:03d} {:8s} {:10s}'.format(memData['MemoryGroup'], memData['Channel'], memData['MemoryName'], 'Locked Out ' if memData['LockedOut'] else ' ')
 		memGroups = rig.memoryGroups.value
-		for i in range(len(memGroups)):
-			if memGroups[i]:
-				new += '[u]'
-			new += '[ref='+str(i)+']' + str(i) + '[/ref]'
-			if memGroups[i]:
-				new += '[/u]'
-		if ids is not None:
-			if ids.vfoBox.vfo == call:
-				new = 'Calling Frequency'
-		self.text = new
+		if memGroups is not None:
+			for i in range(len(memGroups)):
+				if memGroups[i]:
+					new += '[u]'
+				new += '[ref='+str(i)+']' + str(i) + '[/ref]'
+				if memGroups[i]:
+					new += '[/u]'
+			if ids is not None:
+				if ids.vfoBox.vfo == call:
+					new = 'Calling Frequency'
+			self.text = new
 
 	#def on_touch_down(self, touch):
 	#	# TODO: Deal with clicks...
@@ -369,6 +373,10 @@ class VFOBoxButton(ToggleButton):
 		self.group = 'VFOBoxButton'
 		self.allow_no_selection = False
 
+	def on_parent(self, *args):
+		if self.parent.vfo == -1:
+			self.disabled = True
+
 	def on_state(self, widget, value):
 		if value == 'down':
 			if self.vfoID != self.parent.vfo:
@@ -377,23 +385,37 @@ class VFOBoxButton(ToggleButton):
 class VFOBox(GridLayout):
 	vfo = NumericProperty(-1)
 
+	def disable_children(self):
+		for c in self.children:
+			c.disabled = True
+
 	def __init__(self, **kwargs):
 		super(VFOBox, self).__init__(**kwargs)
 		self.bind(vfo=self._updateVFO)
-		if rig.powerOn.value:
+		if rig.RXtuningMode.value is None:
+			self.disable_children()
+		else:
 			self.vfo = int(rig.RXtuningMode.value)
 		rig.RXtuningMode.add_callback(self.newVFO)
 
 	def newVFO(self, vfo, *args):
-		self.vfo = int(vfo)
+		if vfo is None:
+			self.vfo = -1
+			self.disable_children()
+		else:
+			self.vfo = int(vfo)
 
 	def _updateVFO(self, *args):
 		Clock.schedule_once(lambda dt: setMemoryVisibility(), 0)
 		Clock.schedule_once(lambda dt: setVFOCallback(), 0)
 		for c in self.children:
-			if c.vfoID == self.vfo:
-				if c.state != 'down':
-					c.dispatch('on_press')
+			if self.vfo == -1:
+				c.disabled = True
+			else:
+				c.disabled = False
+				if c.vfoID == self.vfo:
+					if c.state != 'down':
+						c.dispatch('on_press')
 
 class OPModeBoxButton(ToggleButton):
 	modeID = NumericProperty(-1)
@@ -402,6 +424,10 @@ class OPModeBoxButton(ToggleButton):
 		super(OPModeBoxButton, self).__init__(**kwargs)
 		self.group = 'OPModeBoxButton'
 		self.allow_no_selection = False
+
+	def on_parent(self, *args):
+		if self.parent.mode == 0:
+			self.disabled = True
 
 	def on_state(self, widget, value):
 		if value == 'down':
@@ -414,13 +440,22 @@ class OPModeBox(GridLayout):
 	def __init__(self, **kwargs):
 		super(OPModeBox, self).__init__(**kwargs)
 		self.bind(mode=self._updateMode)
-		if rig.powerOn.value:
-			self.mode = int(rig.mode.value)
+		rm = rig.mode.value
+		if rm is not None:
+			self.mode = int(rm)
 		self.new_mode = self.mode
 		rig.mode.add_callback(self.newMode)
 
+	def disable_children(self):
+		for c in self.children:
+			c.disabled = True
+
 	def newMode(self, mode, *args):
-		self.new_mode = mode
+		if mode is None:
+			self.new_mode = 0
+			self.disable_children
+		else:
+			self.new_mode = mode
 		Clock.schedule_once(lambda dt: self._newMode(), 0)
 
 	def _newMode(self):
@@ -430,9 +465,13 @@ class OPModeBox(GridLayout):
 		# TODO: Update all the stuff that varies by mode here...
 		# ie: Clock.schedule_once(lambda dt: setVFOCallback(), 0)
 		for c in self.children:
-			if c.modeID == self.mode:
-				if c.state != 'down':
-					c.dispatch('on_press')
+			if self.mode == 0:
+				c.disabled = True
+			else:
+				c.disabled = False
+				if c.modeID == self.mode:
+					if c.state != 'down':
+						c.dispatch('on_press')
 
 '''
 Handles bool rig properties
@@ -440,7 +479,7 @@ Adds rig_state string property with the name of the rig state to control
 '''
 class BoolToggle(ToggleButton):
 	rig_state = StringProperty()
-	poll_after = BooleanProperty(False)
+	poll_after = NumericProperty(0)
 
 	def __init__(self, **kwargs):
 		super(BoolToggle, self).__init__(**kwargs)
@@ -471,11 +510,11 @@ class BoolToggle(ToggleButton):
 		if self.poll_after:
 			# We call this to force the update in case we exceeded
 			# limits
-			Clock.schedule_once(lambda dt: getattr(rig, self.rig_state).uncached_value, 0)
+			Clock.schedule_once(lambda dt: getattr(rig, self.rig_state).uncached_value, self.poll_after)
 
 class StateSlider(Slider):
 	rig_state = StringProperty()
-	poll_after = BooleanProperty(False)
+	poll_after = NumericProperty(0)
 
 	def __init__(self, **kwargs):
 		super(StateSlider, self).__init__(**kwargs)
@@ -507,7 +546,7 @@ class StateSlider(Slider):
 	def on_value(self, *args):
 		getattr(rig, self.rig_state).value = int(self.value)
 		if self.poll_after:
-			Clock.schedule_once(lambda dt: getattr(rig, self.rig_state).uncached_value, 0)
+			Clock.schedule_once(lambda dt: getattr(rig, self.rig_state).uncached_value, self.poll_after)
 
 class StateLamp(Label):
 	background_color = ColorProperty(defaultvalue=[0, 0, 0, 0])
@@ -563,7 +602,10 @@ class StateLamp(Label):
 
 	def _newValue(self, dt):
 		self.col.rgba = self.background_color
-		st = getattr(rig, self.rig_state).value
+		sv = getattr(rig, self.rig_state)
+		st = sv.value
+		if st is None:
+			return
 		self.col.rgba = self.active_color if st else self.inactive_color
 		if st:
 			if self.meter_on != '' and self.update_meter is not None:
@@ -632,7 +674,8 @@ class FilterDisplay(Widget):
 		#self.canvas.ask_update()
 
 	def newValue(self, value, *args):
-		self.points = value
+		if value is not None:
+			self.points = value
 
 	def _get_max(self):
 		# TODO: Packet Filter (Menu No. 50A) changes behaviour in ??? mode
@@ -764,7 +807,7 @@ class HighPassLabel(Label):
 			elif value == 11:
 				val = '1000'
 			val = self.prefix + val + self.suffix
-		else:
+		elif mode is not None:
 			val = str(value)
 			val = self.prefix + val + self.suffix
 
@@ -808,7 +851,10 @@ class LowPassLabel(Label):
 
 	def newValue(self, value, *args):
 		val = ''
-		mode = int(rig.mode.value)
+		if rig.mode.value is None:
+			mode = 0
+		else:
+			mode = int(rig.mode.value)
 		if mode == int(kenwood.mode.AM):
 			if value == 0:
 				val = '2500'
