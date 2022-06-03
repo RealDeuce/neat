@@ -38,7 +38,7 @@
 		size_text: 20
 		rig_state: 'mainSMeter'
 		file_gauge: 'gardengauge/smeter.png'
-		pos: (root.width - 256 * 4 - 10 * 3) / 2, root.size[1] - 256 - 10
+		pos: (root.width - self.size_gauge * 4 - 10 * 3) / 2, root.size[1] - self.size_gauge - 10
 		low_format: 'S[b]{0:.0f}[/b]'
 		high_format: '+[b]{0:.0f}[/b]'
 		calculation: 'S-Level'
@@ -53,7 +53,7 @@
 		peak_hold: 0
 		accel_down_initial: -3
 		file_gauge: 'gardengauge/SWR.png'
-		pos: smeter.pos[0] + 256 + 10, smeter.pos[1]
+		pos: smeter.pos[0] + self.size_gauge + 10, smeter.pos[1]
 		click_selects: int(meter.SWR)
 		low_format: '\nSWR'
 		high_format: '\nSWR'
@@ -66,7 +66,7 @@
 		size_text: 20
 		rig_state: 'ALCmeter'
 		file_gauge: 'gardengauge/ALC.png'
-		pos: SWRmeter.pos[0] + 256 + 10, SWRmeter.pos[1]
+		pos: SWRmeter.pos[0] + self.size_gauge + 10, SWRmeter.pos[1]
 		low_format: '\nALC'
 		high_format: '[color=#F00][b]Over[/b][/color]'
 		click_selects: int(meter.ALC)
@@ -79,7 +79,7 @@
 		size_text: 20
 		rig_state: 'compressionMeter'
 		file_gauge: 'gardengauge/comp.png'
-		pos: ALCmeter.pos[0] + 256 + 10, ALCmeter.pos[1]
+		pos: ALCmeter.pos[0] + self.size_gauge + 10, ALCmeter.pos[1]
 		low_cutoff: 11
 		low_format: '{0:.0f}\nCompression'
 		high_format: '[color=#F00]{0:.0f}[/color]\nCompression'
