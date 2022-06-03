@@ -162,6 +162,8 @@ class Meter(Gauge):
 	def stateUpdate(self, value):
 		if value is None:
 			self.lastval = self.min_value
+		else:
+			self.lastval = value
 		Clock.schedule_once(lambda dt: self._stateUpdate(), 0)
 
 	def _stateUpdate(self):
