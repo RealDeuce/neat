@@ -32,9 +32,11 @@ for o, a in opts:
 		verbose = True
 
 import kenwood
+import rigctld
 import math
 import re
 import time
+import threading
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.window import Window
@@ -51,6 +53,9 @@ import kivy.utils
 from gardengauge import Gauge
 
 rig = kenwood.Kenwood("/dev/ttyU1", 57600, 1, verbose = verbose)
+rigctld = rigctld.rigctld(rig)
+rigctldThread = threading.Thread(target = rigctld.rigctldThread, name = 'rigctld')
+rigctldThread.start()
 vfoa = int(kenwood.tuningMode.VFOA)
 vfob = int(kenwood.tuningMode.VFOB)
 mem = int(kenwood.tuningMode.MEMORY)
@@ -944,3 +949,4 @@ class NeatApp(App):
 if __name__ == '__main__':
 	NeatApp().run()
 	rig.terminate()
+	rigctldThread.join()

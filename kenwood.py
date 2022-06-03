@@ -543,7 +543,7 @@ class Kenwood:
 			return False
 		if value:
 			return True
-		if self.CWautoTune:
+		if self.CWautoTune.value:
 			return True
 		return False
 
@@ -1147,23 +1147,23 @@ class Kenwood:
 
 	def _update_FA(self, args):
 		split = parse('11d', args)
-		if self.tuningMode == tuningMode.VFOA:
+		if self.tuningMode._cached == tuningMode.VFOA:
 			self.currentFrequency._cached = split[0]
 		self.vfoAFrequency._cached = split[0]
 
 	def _update_FB(self, args):
 		split = parse('11d', args)
-		if self.tuningMode == tuningMode.VFOB:
+		if self.tuningMode._cached == tuningMode.VFOB:
 			self.currentFrequency._cached = split[0]
 		self.vfoBFrequency._cached = split[0]
 
 	def _update_FC(self, args):
 		split = parse('11d', args)
-		if not self.controlMain:
-			if not self.subTransmitting:
+		if not self.controlMain._cached:
+			if not self.subTransmitting._cached:
 				self.currentFrequency._cached = split[0]
-		elif not self.TXmain:
-			if self.subTransmitting:
+		elif not self.TXmain._cached:
+			if self.subTransmitting._cached:
 				self.currentFrequency._cached = split[0]
 		self.subReceiverFrequency._cached = split[0]
 
@@ -1179,7 +1179,7 @@ class Kenwood:
 		split = parse('1d', args)
 		self.currentFrequency._cached = None
 		if self.TXtuningMode._cached_value is not None:
-			if self.TXtuningMode != tuningMode(split[0]):
+			if self.TXtuningMode._cached != tuningMode(split[0]):
 				self.split._cached = True
 		if not self.mainTransmitting._cached:
 			self.tuningMode._cached = tuningMode(split[0])
@@ -1193,7 +1193,7 @@ class Kenwood:
 		split = parse('1d', args)
 		self.currentFrequency._cached = None
 		if self.RXtuningMode._cached_value is not None:
-			if self.RXtuningMode != tuningMode(split[0]):
+			if self.RXtuningMode._cached != tuningMode(split[0]):
 				self.split._cached = True
 		if self.mainTransmitting._cached:
 			self.tuningMode._cached = tuningMode(split[0])
@@ -1393,7 +1393,7 @@ class Kenwood:
 			comments: split[2],
 			time: split[3]
 		}
-		self.lastSpot.value = spot
+		self.lastSpot._cached = spot
 
 	def _update_PL(self, args):
 		split = parse('3d3d', args)
