@@ -528,6 +528,7 @@ class StateSlider(Slider):
 		super(StateSlider, self).__init__(**kwargs)
 		if (self.rig_state != ''):
 			self.on_rig_state(self, self.rig_state)
+		self._latest = None
 
 	def refresh(self):
 		Clock.schedule_once(lambda dt: self._refresh(), 0)
@@ -549,10 +550,12 @@ class StateSlider(Slider):
 			self.disabled = True
 		else:
 			self.disabled = False
+			self._latest = value
 			self.value = value
 
 	def on_value(self, *args):
-		getattr(rig, self.rig_state).value = int(self.value)
+		if self._latest != self.value:
+			getattr(rig, self.rig_state).value = int(self.value)
 		if self.poll_after:
 			Clock.schedule_once(lambda dt: getattr(rig, self.rig_state).uncached_value, self.poll_after)
 

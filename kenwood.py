@@ -1051,6 +1051,27 @@ class Kenwood:
 				break
 		state._remove_wait_callback(cb)
 
+	# This attenpts to synchronize the queue and the rig.
+	# Unfortunately, the rig will process commands out of order, so
+	# sending FB00007072000;ID; responds with ID019;FB00007072000;
+	# (Unless you're already on the 70.720 of course)
+	#
+	# As a result, the guarantee you get from calling this is that
+	# all commands have been sent to the rig, and the rig has started
+	# processing them.  This does not guarantee that processing is
+	# complete.  Worst case, a command will hit a transient failure
+	# and retry much later since retries go to the back of the queue
+	# 
+	# Actually, that's not the worst case since the command that gets
+	# retried is the *last* command that was sent, in the example
+	# above, if the FB failed after the ID was sent, the ID would
+	# be retried, and the VFOB frequency would never actually get
+	# updated.
+	#
+	# It *may* be possible to serialize these by relying on the
+	# echoed property and adding a query of the modified data after
+	# each command, but that's getting pretty insane and would
+	# impose a large performance penalty that I don't want to face.
 	def sync(self):
 		self._sync_lock.acquire()
 		self._query(self.ID)
