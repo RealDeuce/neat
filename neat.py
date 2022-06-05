@@ -52,7 +52,7 @@ from kivy.uix.widget import Widget
 import kivy.utils
 from gardengauge import Gauge
 
-rig = kenwood.Kenwood("/dev/ttyU1", 57600, 1, verbose = verbose)
+rig = kenwood.Kenwood("/dev/ttyU0", 57600, 1, verbose = verbose)
 rigctld = rigctld.rigctld(rig, verbose = verbose)
 rigctldThread = threading.Thread(target = rigctld.rigctldThread, name = 'rigctld')
 rigctldThread.start()

@@ -621,7 +621,6 @@ class rigctld_connection:
 		self.rxVFO = self.currVFO
 
 	def synchronize_vfo(self):
-		self._rigctld.rig.sync()
 		if not self._rigctld.rig.controlMain.value:
 			self.bd_split = False
 			self.currVFO = vfo.VFOC
@@ -741,11 +740,11 @@ class rigctld_connection:
 		# wsjtx/hamlib does set/get/set so this needs to be uncached. :(
 		rmode = self._rigctld.rig.RXtuningMode.value
 		if command['vfo'] == vfo.VFOA:
-			self.append(bytes(str(self._rigctld.rig.vfoAFrequency.uncached_value)+'\n', 'ascii'))
+			self.append(bytes(str(self._rigctld.rig.vfoAFrequency.value)+'\n', 'ascii'))
 		elif command['vfo'] == vfo.VFOB:
-			self.append(bytes(str(self._rigctld.rig.vfoBFrequency.uncached_value)+'\n', 'ascii'))
+			self.append(bytes(str(self._rigctld.rig.vfoBFrequency.value)+'\n', 'ascii'))
 		elif command['vfo'] == vfo.VFOC:
-			self.append(bytes(str(self._rigctld.rig.subReceiverFrequency.uncached_value)+'\n', 'ascii'))
+			self.append(bytes(str(self._rigctld.rig.subReceiverFrequency.value)+'\n', 'ascii'))
 		else:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 
@@ -1000,15 +999,15 @@ class rigctld_connection:
 
 	def isCurrentVFO(self, rvfo):
 		if rvfo == vfo.VFOA:
-			if self._rigctld.rig.controlMain.uncached_value == True:
+			if self._rigctld.rig.controlMain.value == True:
 				if self._rigctld.rig.tuningMode.value == kenwood.tuningMode.VFOA:
 					return True
 		elif rvfo == vfo.VFOB:
-			if self._rigctld.rig.controlMain.uncached_value == True:
+			if self._rigctld.rig.controlMain.value == True:
 				if self._rigctld.rig.tuningMode.value == kenwood.tuningMode.VFOB:
 					return True
 		elif rvfo == vfo.VFOC:
-			if self._rigctld.rig.controlMain.uncached_value == False:
+			if self._rigctld.rig.controlMain.value == False:
 				if self._rigctld.rig.tuningMode.value == kenwood.tuningMode.VFOA:
 					return True
 		return False
@@ -1071,16 +1070,18 @@ class rigctld_connection:
 	def parse_command_line(self, cmd):
 		ret = {}
 		offset = 0
-		if not cmd[0:1] in self.commands:
+		while cmd[offset:offset+1] == b' ':
+			offset += 1
+		if not cmd[offset:offset+1] in self.commands:
 			return {
 				'error': error.RIG_EPROTO,
 				'message': 'No such command'
 			}
-		command = self.commands[cmd[0:1]]
+		command = self.commands[cmd[offset:offset+1]]
 		ret['cmd'] = command
 		offset += 1
 
-		cmdVFO = vfo.currVFO
+		cmdVFO = self.grokVFO(vfo.currVFO)
 		if command['noVFO'] != True:
 			# This guesses the remote features...
 			# If it sends a VFO after a command, we assume it supports
@@ -1113,7 +1114,6 @@ class rigctld_connection:
 					'error': error.RIG_EINVAL,
 					'message': 'Missing full line ' + command['in_args'][0] + ' argument.'
 				}
-			offset += 1
 			ret['argv'].append(cmd[offset:].decode('ascii'))
 		else:
 			for a in range(len(command['in_args'])):
@@ -1124,13 +1124,12 @@ class rigctld_connection:
 						'message': 'Missing ' + command['in_args'][0] + ' argument.'
 					}
 				ret['argv'].append(arg.decode('ascii'))
-			offset += 1
 		ret['endoffset'] = offset
 		return ret
 
 	def handle(self, cmd):
+		cmd = self.shorten(cmd)
 		while len(cmd):
-			cmd = self.shorten(cmd)
 			if self._rigctld.verbose:
 				print('Raw command: '+str(cmd), file=sys.stderr)
 			self.synchronize_vfo()
