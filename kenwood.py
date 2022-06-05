@@ -1477,7 +1477,7 @@ class Kenwood:
 		else:
 			self.CWautoTune._cached = False
 		if self.controlMain._cached == True:
-			self.mainMode = mode(split[0])
+			self.mainMode._cached = mode(split[0])
 			if self.mainRXtuningMode._cached == tuningMode.VFOA:
 				self.VFOAmode._cached = mode(split[0])
 			elif self.mainRXtuningMode._cached == tuningMode.VFOB:
