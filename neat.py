@@ -53,7 +53,7 @@ import kivy.utils
 from gardengauge import Gauge
 
 rig = kenwood.Kenwood("/dev/ttyU1", 57600, 1, verbose = verbose)
-rigctld = rigctld.rigctld(rig)
+rigctld = rigctld.rigctld(rig, verbose = verbose)
 rigctldThread = threading.Thread(target = rigctld.rigctldThread, name = 'rigctld')
 rigctldThread.start()
 vfoa = int(kenwood.tuningMode.VFOA)
@@ -206,6 +206,7 @@ class FreqDisplay(Label):
 	inactiveColour = ColorProperty(defaultvalue=[0.45, 0.45, 0.45, 1.0])
 	zeroColour = ColorProperty(defaultvalue=[0.2, 0.2, 0.2, 1.0])
 
+	# TODO: Change frequency if appropriate when TXing
 	def __init__(self, **kwargs):
 		self.markup = True
 		self.bind(freqValue=self._updateFreq)

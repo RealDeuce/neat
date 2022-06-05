@@ -140,6 +140,7 @@ class CTCSStone(enum.IntEnum):
 	CTCSS_233_6 = 36
 	CTCSS_241_8 = 37
 	CTCSS_250_3 = 38
+	TONE_1750 = 39
 
 class rigLock(enum.IntEnum):
 	OFF = 0
@@ -295,6 +296,8 @@ def parse(fmt, args):
 # TODO: Should we record if the command is ACKed in AI2?
 class StateValue():
 	def __init__(self, rig, **kwargs):
+		self.name = None
+		self._read_only = kwargs.get('read_only')
 		self._rig = rig
 		self._works_powered_off = kwargs.get('works_powered_off')
 		self._set_format = kwargs.get('set_format')
@@ -305,6 +308,7 @@ class StateValue():
 		self._range_check = kwargs.get('range_check')
 		self._query_command = kwargs.get('query_command')
 		self._query_method = kwargs.get('query_method')
+		self._echoed = kwargs.get('echoed')
 		if  self._query_command is not None and self._query_method is not None:
 			raise Exception('Only one of query_command or query_method may be specified')
 		self._cached_value = None
@@ -332,7 +336,8 @@ class StateValue():
 			return self._query_method()
 		elif self._query_command is not None:
 			return self._query_command
-		raise Exception('Attempt to query value without a query command or method')
+		print('Attempt to query value "'+self.name+'" without a query command or method', file=sys.stderr)
+		return None
 
 	@property
 	def value(self):
@@ -349,15 +354,17 @@ class StateValue():
 			return self._set_format.format(value)
 		elif self._set_method is not None:
 			return self._set_method(value)
-		raise Exception('Attempt to set value without a set command or method')
+		print('Attempt to set value "'+self.name+'" without a set command or method', file=sys.stderr)
 
 	@value.setter
 	def value(self, value):
-		self._rig._set(self, value)
+		if not self._read_only:
+			self._rig._set(self, value)
 
 	@property
 	def uncached_value(self):
-		self._cached_value = None
+		if not self._read_only:
+			self._cached_value = None
 		return self.value
 
 	def valid(self):
@@ -483,15 +490,21 @@ class Kenwood:
 
 	def _set_mainTransmitting(self, value):
 		if value:
-			return 'TX0'
+			return 'TX'
 		else:
-			return 'RX0'
+			return 'RX'
 
 	def _set_subTransmitting(self, value):
 		if value:
-			return 'TX1'
+			return 'TX'
 		else:
-			return 'RX1'
+			return 'RX'
+
+	def _set_currentTransmitting(self, value):
+		if value:
+			return 'TX'
+		else:
+			return 'RX'
 
 	def _checkMeterValue(self, value):
 		if meter(value) == meter.COMPRESSION and not self.speechProcessor._cached:
@@ -564,7 +577,72 @@ class Kenwood:
 			return False
 		return True
 
-	def init_19(self):
+	def _query_VFOmode(self, cm, m, sv):
+		if cm == self.controlMain._cached and (m is None or m == self.RXtuningMode._cached):
+			sv._cached = self.mode._cached
+			return
+		old_cm = None
+		if not self.controlMain._cached == cm:
+			old_cm = self.controlMain._cached
+			self.controlMain.value = cm
+		old_tm = None
+		if m is not None:
+			if not self.RXtuningMode._cached == m:
+				old_tm = self.RXtuningMode._cached
+				self.RXtuningMode.value = m
+		if old_tm is not None:
+			self.RXtuningMode.value = old_tm
+		if old_cm is not None:
+			self.controlMain.value = old_cm
+
+	def _query_VFOAmode(self):
+		self._query_VFOmode(True, tuningMode.VFOA, self.VFOAmode)
+
+	def _query_VFOBmode(self):
+		self._query_VFOmode(True, tuningMode.VFOB, self.VFOBmode)
+
+	def _query_subMode(self):
+		self._query_VFOmode(False, tuningMode.VFOA, self.subMode)
+
+	def _query_mainMode(self):
+		self._query_VFOmode(True, None, self.mainMode)
+
+	def _set_controlMain(self, value):
+		if self.TXmain._cached is None:
+			return None
+		return 'DC{:1d}{:1d}'.format(not self.TXmain._cached, not value)
+
+	def _set_TXmain(self, value):
+		if self.controlMain._cached is None:
+			return None
+		return 'DC{:1d}{:1d}'.format(not value, not self.controlMain._cached)
+
+	def _mainTransmittingValid(self, value):
+		if self.TXmain._cached:
+			return self.mainTransmitting._cached != value
+		return False
+
+	def _subTransmittingValid(self, value):
+		if self.TXmain._cached:
+			return False
+		return self.subTransmitting._cached != value
+
+	def _currentTransmittingValid(self, value):
+		return self.currentReceiverTransmitting._cached != value
+
+	def _check_transmitSet(self, value):
+		if not value:
+			return True
+		return self.split._cached
+
+	def _never(self):
+		return False
+
+	def _check_notSimplex(self):
+		if self.offsetFrequency.value == 0:
+			return True
+
+	def _init_19(self):
 		# Errors
 		self.command = {
 			b'?': self._update_Error,
@@ -656,7 +734,7 @@ class Kenwood:
 			b'TI': self._update_TI,
 			b'TN': self._update_TN,
 			b'TO': self._update_TO,
-			# TODO: TS - Weird docs
+			b'TS': self._update_TS,
 			b'TX': self._update_TX,
 			b'TY': self._update_TY,
 			b'UL': self._update_UL,
@@ -667,123 +745,125 @@ class Kenwood:
 		}
 
 		# State objects
-		self.tuner =                        StateValue(self, query_command = 'AC',  set_format = 'AC1{:1d}0')
+		self.tuner =                        StateValue(self, echoed = True,  query_command = 'AC',  set_format = 'AC1{:1d}0')
 		self.tunerRX =                      StateValue(self, query_command = 'AC')
 		self.tunerTX =                      StateValue(self, query_command = 'AC')
-		self.tunerState =                   StateValue(self, query_command = 'AC',  set_format = 'AC11{:1d}')
-		self.mainAFgain =                   StateValue(self, query_command = 'AG0', set_format = 'AG0{:03d}')
-		self.subAFgain =                    StateValue(self, query_command = 'AG1', set_format = 'AG1{:03d}')
-		self.autoInformation =              StateValue(self, query_command = 'AI',  set_format = 'AI{:01d}')
-		self.autoNotchLevel =               StateValue(self, query_command = 'AL',  set_format = 'AL{:03d}')
-		self.autoMode =                     StateValue(self, query_command = 'AM',  set_format = 'AM{:01d}')
-		self.antennaConnector =             StateValue(self, query_command = 'AN',  set_format = 'AN{:01d}', range_check = self._antennaRangeCheck)
-		self.antenna1 =                     StateValue(self, query_command = 'AN',  set_method = self._setAntenna1, validity_check = self._antenna1Valid)
-		self.antenna2 =                     StateValue(self, query_command = 'AN',  set_method = self._setAntenna2, validity_check = self._antenna2Valid)
-		self.mainAutoSimplexOn =            StateValue(self, query_command = 'AR0', set_format = 'AR0{:01d}1')
-		self.mainSimplexPossible =          StateValue(self, query_command = 'AR0')
-		self.subAutoSimplexOn =             StateValue(self, query_command = 'AR1', set_format = 'AR1{:01d}1')
-		self.subSimplexPossible =           StateValue(self, query_command = 'AR1')
-		self.beatCanceller =                StateValue(self, query_command = 'BC',  set_format = 'BC{:01}')
-		self.autoBeatCanceller =            StateValue(self, query_command = 'BC',  set_format = 'BC{:01}')
-		self.manualBeatCanceller =          StateValue(self, query_command = 'BC',  set_method = self._set_manualBeatCanceller)
-		self.bandDown =                     StateValue(self,                        set_format = 'BD')
-		self.manualBeatCancellerFrequency = StateValue(self, query_command = 'BP',  set_format = 'BP{:03d}')
-		self.bandUp =                       StateValue(self,                        set_format = 'BU')
+		self.tunerState =                   StateValue(self, echoed = True,  query_command = 'AC',  set_format = 'AC11{:1d}')
+		self.mainAFgain =                   StateValue(self, echoed = False, query_command = 'AG0', set_format = 'AG0{:03d}')
+		self.subAFgain =                    StateValue(self, echoed = False, query_command = 'AG1', set_format = 'AG1{:03d}')
+		self.autoInformation =              StateValue(self, echoed = True,  query_command = 'AI',  set_format = 'AI{:01d}')
+		self.autoNotchLevel =               StateValue(self, echoed = False, query_command = 'AL',  set_format = 'AL{:03d}')
+		self.autoMode =                     StateValue(self, echoed = True,  query_command = 'AM',  set_format = 'AM{:01d}')
+		self.antennaConnector =             StateValue(self, echoed = True,  query_command = 'AN',  set_format = 'AN{:01d}', range_check = self._antennaRangeCheck)
+		self.antenna1 =                     StateValue(self, echoed = True,  query_command = 'AN',  set_method = self._setAntenna1, validity_check = self._antenna1Valid)
+		self.antenna2 =                     StateValue(self, echoed = True,  query_command = 'AN',  set_method = self._setAntenna2, validity_check = self._antenna2Valid)
+		self.mainAutoSimplexOn =            StateValue(self, echoed = True,  query_command = 'AR0', set_format = 'AR0{:01d}1')
+		self.mainSimplexPossible =          StateValue(self, echoed = True,  query_command = 'AR0')
+		self.subAutoSimplexOn =             StateValue(self, echoed = True,  query_command = 'AR1', set_format = 'AR1{:01d}1')
+		self.subSimplexPossible =           StateValue(self, echoed = True,  query_command = 'AR1')
+		self.beatCanceller =                StateValue(self, echoed = True,  query_command = 'BC',  set_format = 'BC{:01}')
+		self.autoBeatCanceller =            StateValue(self, echoed = True,  query_command = 'BC',  set_format = 'BC{:01}')
+		self.manualBeatCanceller =          StateValue(self, echoed = True,  query_command = 'BC',  set_method = self._set_manualBeatCanceller)
+		self.bandDown =                     StateValue(self, echoed = True,                         set_format = 'BD')
+		self.manualBeatCancellerFrequency = StateValue(self, echoed = False, query_command = 'BP',  set_format = 'BP{:03d}')
+		self.bandUp =                       StateValue(self, echoed = True,                         set_format = 'BU')
 		self.mainBusy =                     StateValue(self, query_command = 'BY')
 		self.subBusy =                      StateValue(self, query_command = 'BY')
-		self.CWautoTune =                   StateValue(self, query_command = 'CA',  set_format = 'CA{:01d}', validity_check = self._cwAutoTuneValid, range_check = self._cwAutoTuneRange)
-		self.carrierGain =                  StateValue(self, query_command = 'CG',  set_format = 'CG{:03d}')
+		self.CWautoTune =                   StateValue(self, echoed = True,  query_command = 'CA',  set_format = 'CA{:01d}', validity_check = self._cwAutoTuneValid, range_check = self._cwAutoTuneRange)
+		self.carrierGain =                  StateValue(self, echoed = False, query_command = 'CG',  set_format = 'CG{:03d}')
 		# False turns it up, True turns it down (derp derp)
-		self.turnMultiChControlDown =       StateValue(self,                        set_format = 'CH{:01d}')
+		self.turnMultiChControlDown =       StateValue(self, echoed = True,                         set_format = 'CH{:01d}')
 		# Sets the current frequency to be the CALL frequency for the band
-		self.storeAsCallFrequency =         StateValue(self,                        set_format = 'CI')
-		self.packetClusterTune =            StateValue(self, query_command = 'CM',  set_format = 'CM{:01d}')
-		self.CTCSStone =                    StateValue(self, query_command = 'CN',  set_format = 'CN{:02d}')
-		self.CTCSS =                        StateValue(self, query_command = 'CT',  set_format = 'CT{:01d}')
-		self.TXmain =                       StateValue(self, query_command = 'DC')
-		self.controlMain =                  StateValue(self, query_command = 'DC')
-		self.down =                         StateValue(self,                        set_format = 'DN')
-		self.DCS =                          StateValue(self, query_command = 'DQ',  set_format = 'DQ{:01d}')
-		self.vfoAFrequency =                StateValue(self, query_command = 'FA',  set_format = 'FA{:011d}', range_check = self._checkMainFrequencyValid)
-		self.vfoBFrequency =                StateValue(self, query_command = 'FB',  set_format = 'FB{:011d}', range_check = self._checkMainFrequencyValid)
-		self.subReceiverFrequency =         StateValue(self, query_command = 'FC',  set_format = 'FC{:011d}', range_check = self._checkSubFrequencyValid)
+		self.storeAsCallFrequency =         StateValue(self, echoed = True,                         set_format = 'CI')
+		self.packetClusterTune =            StateValue(self, echoed = True,  query_command = 'CM',  set_format = 'CM{:01d}')
+		self.CTCSStone =                    StateValue(self, echoed = True,  query_command = 'CN',  set_format = 'CN{:02d}')
+		self.CTCSS =                        StateValue(self, echoed = True,  query_command = 'CT',  set_format = 'CT{:01d}')
+		self.TXmain =                       StateValue(self, echoed = True,  query_command = 'DC',  set_method = self._set_TXmain)
+		self.controlMain =                  StateValue(self, echoed = True,  query_command = 'DC',  set_method = self._set_controlMain)
+		self.down =                         StateValue(self, echoed = True,                         set_format = 'DN')
+		self.DCS =                          StateValue(self, echoed = True,  query_command = 'DQ',  set_format = 'DQ{:01d}')
+		self.vfoAFrequency =                StateValue(self, echoed = True,  query_command = 'FA',  set_format = 'FA{:011d}', range_check = self._checkMainFrequencyValid)
+		self.vfoBFrequency =                StateValue(self, echoed = True,  query_command = 'FB',  set_format = 'FB{:011d}', range_check = self._checkMainFrequencyValid)
+		self.subReceiverFrequency =         StateValue(self, echoed = True,  query_command = 'FC',  set_format = 'FC{:011d}', range_check = self._checkSubFrequencyValid)
 		self.filterDisplayPattern =         StateValue(self, query_command = 'FD')
-		self.RXtuningMode =                 StateValue(self, query_command = 'FR',  set_format = 'FR{:01d}')
-		self.fineTuning =                   StateValue(self, query_command = 'FS',  set_format = 'FS{:01d}')
-		self.TXtuningMode =                 StateValue(self, query_command = 'FT',  set_format = 'FT{:01d}')
-		self.split =                        StateValue(self)
-		self.filterWidth =                  StateValue(self, query_command = 'FW',  set_format = 'FW{:04d}', validity_check = self._filterWidthValid)
-		self.AGCconstant =                  StateValue(self, query_command = 'GT',  set_format = 'GT{:03d}')
-		self.ID =                           StateValue(self, query_command = 'ID',  works_powered_off = True)
-		self.currentReceiverTransmitting =  StateValue(self, query_command = 'IF')
+		# NOTE: FR changes FT, but FT doesn't change FR **and** doesn't notify
+		# that FT was changed.  This is handled in update_FR
+		self.RXtuningMode =                 StateValue(self, echoed = True,  query_command = 'FR',  set_format = 'FR{:01d}')
+		self.fineTuning =                   StateValue(self, echoed = True,  query_command = 'FS',  set_format = 'FS{:01d}')
+		self.TXtuningMode =                 StateValue(self, echoed = True,  query_command = 'FT',  set_format = 'FT{:01d}')
+		self.filterWidth =                  StateValue(self, echoed = True,  query_command = 'FW',  set_format = 'FW{:04d}', validity_check = self._filterWidthValid)
+		self.filterWidth =                  StateValue(self, echoed = True,  query_command = 'FW',  set_format = 'FW{:04d}', validity_check = self._filterWidthValid)
+		self.AGCconstant =                  StateValue(self, echoed = True,  query_command = 'GT',  set_format = 'GT{:03d}')
+		self.ID =                           StateValue(self, echoed = True,  query_command = 'ID',  works_powered_off = True,  read_only = True)
+		self.currentReceiverTransmitting =  StateValue(self, query_command = 'IF', set_method = self._set_mainTransmitting, range_check = self._currentTransmittingValid)
 		self.currentFrequency =             StateValue(self, query_command = 'IF')
 		self.frequencyStep =                StateValue(self, query_command = 'IF')
 		self.RIT_XITfrequency =             StateValue(self, query_command = 'IF')
 		self.channelBank =                  StateValue(self, query_command = 'IF')
-		self.splitMode =                    StateValue(self, query_command = 'IF')
+		self.split =                        StateValue(self, query_command = 'IF')
 		self.shiftStatus =                  StateValue(self, query_command = 'IF')
 		self.tuningMode =                   StateValue(self, query_command = 'IF')
-		self.IFshift =                      StateValue(self, query_command = 'IS',  set_format = 'IS {:04d}')
-		self.keyerSpeed =                   StateValue(self, query_command = 'KS',  set_format = 'KS{:03d}')
+		self.IFshift =                      StateValue(self, echoed = True,  query_command = 'IS',  set_format = 'IS {:04d}')
+		self.keyerSpeed =                   StateValue(self, echoed = False, query_command = 'KS',  set_format = 'KS{:03d}')
 		self.keyerBufferFull =              StateValue(self, query_command = 'KY')
-		self.keyerBuffer =                  StateValue(self,                        set_format = 'KY {:24}')
-		self.frequencyLock =                StateValue(self, query_command = 'LK',  set_method = self._set_frequencyLock)
-		self.allLock =                      StateValue(self, query_command = 'LK',  set_method = self._set_allLock)
-		self.rc2000Lock =                   StateValue(self, query_command = 'LK',  set_method = self._set_rc2000Lock)
-		self.rigLock =                      StateValue(self, query_command = 'LK',  set_method = self._set_rigLock)
-		self.recordingChannel =             StateValue(self, query_command = 'LM',  set_format = 'LM{:01d}')
-		self.autoLockTuning =               StateValue(self, query_command = 'LT',  set_format = 'LT{:01d}')
-		self.memoryChannel =                StateValue(self, query_command = 'MC',  set_format = 'MC{:03d}')
-		self.mode =                         StateValue(self, query_command = 'MD',  set_format = 'MD{:01d}')
-		self.menuAB =                       StateValue(self, query_command = 'MF',  set_format = 'MF{:1}')
-		self.microphoneGain =               StateValue(self, query_command = 'MG',  set_format = 'MG{:03d}')
-		self.monitorLevel =                 StateValue(self, query_command = 'ML',  set_format = 'ML{:03d}')
+		self.keyerBuffer =                  StateValue(self, echoed = True,                         set_format = 'KY {:24}')
+		self.frequencyLock =                StateValue(self, echoed = True,  query_command = 'LK',  set_method = self._set_frequencyLock)
+		self.allLock =                      StateValue(self, echoed = True,  query_command = 'LK',  set_method = self._set_allLock)
+		self.rc2000Lock =                   StateValue(self, echoed = True,  query_command = 'LK',  set_method = self._set_rc2000Lock)
+		self.rigLock =                      StateValue(self, echoed = True,  query_command = 'LK',  set_method = self._set_rigLock)
+		self.recordingChannel =             StateValue(self, echoed = True,  query_command = 'LM',  set_format = 'LM{:01d}')
+		self.autoLockTuning =               StateValue(self, echoed = True,  query_command = 'LT',  set_format = 'LT{:01d}')
+		self.memoryChannel =                StateValue(self, echoed = True,  query_command = 'MC',  set_format = 'MC{:03d}')
+		self.mode =                         StateValue(self, echoed = True,  query_command = 'MD',  set_format = 'MD{:01d}')
+		self.menuAB =                       StateValue(self, echoed = True,  query_command = 'MF',  set_format = 'MF{:1}')
+		self.microphoneGain =               StateValue(self, echoed = False, query_command = 'MG',  set_format = 'MG{:03d}')
+		self.monitorLevel =                 StateValue(self, echoed = False, query_command = 'ML',  set_format = 'ML{:03d}')
 		# MO; fails, and I dont' see a way to check if Sky Command is ON
 		#self.skyCommandMonitor =            StateValue(self, query_command = 'MO',  set_format = 'MO{:01d}')
 		# TODO: Modernize MR (memory read)
 		# TODO: Modernize MW (memory write)
-		self.memoryGroups =                 StateValue(self, query_command = 'MU',  set_method = self._set_memoryGroups, range_check = self._memoryGroupRange)
-		self.noiseBlanker =                 StateValue(self, query_command = 'NB',  set_format = 'NB{:01d}', validity_check = self._noiseBlankerValid)
-		self.noiseBlankerLevel =            StateValue(self, query_command = 'NL',  set_format = 'NL{:03d}')
-		self.noiseReduction =               StateValue(self, query_command = 'NR',  set_format = 'NR{:01d}')
-		self.noiseReduction1 =              StateValue(self, query_command = 'NR',  set_format = 'NR{:01d}')
-		self.noiseReduction2 =              StateValue(self, query_command = 'NR',  set_method = self._set_noiseReduction2)
-		self.autoNotch =                    StateValue(self, query_command = 'NT',  set_format = 'NT{:01d}')
-		self.offsetFrequency =              StateValue(self, query_command = 'OF',  set_format = 'OF{:09d}')
+		self.memoryGroups =                 StateValue(self, echoed = False, query_command = 'MU',  set_method = self._set_memoryGroups, range_check = self._memoryGroupRange)
+		self.noiseBlanker =                 StateValue(self, echoed = True,  query_command = 'NB',  set_format = 'NB{:01d}', validity_check = self._noiseBlankerValid)
+		self.noiseBlankerLevel =            StateValue(self, echoed = False, query_command = 'NL',  set_format = 'NL{:03d}')
+		self.noiseReduction =               StateValue(self, echoed = True,  query_command = 'NR',  set_format = 'NR{:01d}')
+		self.noiseReduction1 =              StateValue(self, echoed = True,  query_command = 'NR',  set_format = 'NR{:01d}')
+		self.noiseReduction2 =              StateValue(self, echoed = True,  query_command = 'NR',  set_method = self._set_noiseReduction2)
+		self.autoNotch =                    StateValue(self, echoed = True,  query_command = 'NT',  set_format = 'NT{:01d}')
+		self.offsetFrequency =              StateValue(self, echoed = True,  query_command = 'OF',  set_format = 'OF{:09d}')
 		# TODO: OI appears to be IF for the non-active receiver... not sure if that's PTT or CTRL
-		self.offsetType =                   StateValue(self, query_command = 'OS',  set_format = 'OS{:01d}')
-		self.mainPreAmp =                   StateValue(self, query_command = 'PA',  set_format = 'PA{:01d}')
+		self.offsetType =                   StateValue(self, echoed = True,  query_command = 'OS',  set_format = 'OS{:01d}')
+		self.mainPreAmp =                   StateValue(self, echoed = True,  query_command = 'PA',  set_format = 'PA{:01d}')
 		self.subPreAmp =                    StateValue(self, query_command = 'PA')
-		self.playbackChannel =              StateValue(self, query_command = 'PB',  set_format = 'PB{:01d}')
-		self.outputPower =                  StateValue(self, query_command = 'PC',  set_format = 'PC{:03d}')
-		self.storeAsProgrammableMemory =    StateValue(self,                        set_format = 'PI{:01d}')
+		self.playbackChannel =              StateValue(self, echoed = True,  query_command = 'PB',  set_format = 'PB{:01d}')
+		self.outputPower =                  StateValue(self, echoed = False, query_command = 'PC',  set_format = 'PC{:03d}')
+		self.storeAsProgrammableMemory =    StateValue(self, echoed = True,                         set_format = 'PI{:01d}')
 		self.lastSpot =                     StateValue(self)
-		self.speechProcessorInputLevel =    StateValue(self, query_command = 'PL',  set_method = self._set_speechProcessorInputLevel)
-		self.speechProcessorOutputLevel =   StateValue(self, query_command = 'PL',  set_method = self._set_speechProcessorOutputLevel)
-		self.programmableMemoryChannel =    StateValue(self, query_command = 'PM',  set_format = 'PM{:01d}')
-		self.speechProcessor =              StateValue(self, query_command = 'PR',  set_format = 'PR{:01d}')
-		self.powerOn =                      StateValue(self, query_command = 'PS',  set_format = 'PS{:01d}', works_powered_off = True)
-		self.DCScode =                      StateValue(self, query_command = 'QC',  set_format = 'QC{:03d}')
-		self.storeAsQuickMemory =           StateValue(self,                        set_format = 'QC')
-		self.quickMemory =                  StateValue(self, query_command = 'QR',  set_method = self._set_quickMemory)
-		self.quickMemoryChannel =           StateValue(self, query_command = 'QR',  set_method = self._set_quickMemoryChannel)
-		self.attenuator =                   StateValue(self, query_command = 'RA',  set_format = 'RA{:02d}')
-		self.clearRIT =                     StateValue(self,                        set_format = 'RC')
-		self.RITdown =                      StateValue(self,                        set_format = 'RD{:04d}', validity_check = self._RITupDownValid)
-		self.scanSpeed =                    StateValue(self, query_command = 'RD',  validity_check = self._scanSpeedUpDownValid)
-		self.scanSpeedDown =                StateValue(self,                        set_format = 'RD{:04d}', validity_check = self._scanSpeedUpDownValid)
-		self.RFgain =                       StateValue(self, query_command = 'RG',  set_format = 'RG{:03d}')
-		self.noiseReductionLevel =          StateValue(self, query_command = 'RL',  set_format = 'RL{:02d}', validity_check = self._noiseReductionLevelValid)
-		self.meterType =                    StateValue(self, query_command = 'RM',  set_format = 'RM{:01d}', range_check = self._checkMeterValue)
+		self.speechProcessorInputLevel =    StateValue(self, echoed = False, query_command = 'PL',  set_method = self._set_speechProcessorInputLevel)
+		self.speechProcessorOutputLevel =   StateValue(self, echoed = False, query_command = 'PL',  set_method = self._set_speechProcessorOutputLevel)
+		self.programmableMemoryChannel =    StateValue(self, echoed = True,  query_command = 'PM',  set_format = 'PM{:01d}')
+		self.speechProcessor =              StateValue(self, echoed = True,  query_command = 'PR',  set_format = 'PR{:01d}')
+		self.powerOn =                      StateValue(self, echoed = True,  query_command = 'PS',  set_format = 'PS{:01d}', works_powered_off = True)
+		self.DCScode =                      StateValue(self, echoed = True,  query_command = 'QC',  set_format = 'QC{:03d}')
+		self.storeAsQuickMemory =           StateValue(self, echoed = True,                         set_format = 'QC')
+		self.quickMemory =                  StateValue(self, echoed = True,  query_command = 'QR',  set_method = self._set_quickMemory)
+		self.quickMemoryChannel =           StateValue(self, echoed = True,  query_command = 'QR',  set_method = self._set_quickMemoryChannel)
+		self.attenuator =                   StateValue(self, echoed = True,  query_command = 'RA',  set_format = 'RA{:02d}')
+		self.clearRIT =                     StateValue(self, echoed = True,                         set_format = 'RC')
+		self.RITdown =                      StateValue(self, echoed = True,                         set_format = 'RD{:04d}', validity_check = self._RITupDownValid)
+		self.scanSpeed =                    StateValue(self, echoed = True,  query_command = 'RD',  validity_check = self._scanSpeedUpDownValid)
+		self.scanSpeedDown =                StateValue(self, echoed = True,                         set_format = 'RD{:04d}', validity_check = self._scanSpeedUpDownValid)
+		self.RFgain =                       StateValue(self, echoed = False, query_command = 'RG',  set_format = 'RG{:03d}')
+		self.noiseReductionLevel =          StateValue(self, echoed = False, query_command = 'RL',  set_format = 'RL{:02d}', validity_check = self._noiseReductionLevelValid)
+		self.meterType =                    StateValue(self, echoed = True,  query_command = 'RM',  set_format = 'RM{:01d}', range_check = self._checkMeterValue)
 		self.meterValue =                   StateValue(self, query_command = 'RM')
 		self.SWRmeter =                     StateValue(self, query_command = 'RM')
 		self.compressionMeter =             StateValue(self, query_command = 'RM')
 		self.ALCmeter =                     StateValue(self, query_command = 'RM')
-		self.RIT =                          StateValue(self, query_command = 'RT',  set_format = 'RT{:01d}')
-		self.RITup =                        StateValue(self,                        set_format = 'RU{:04d}', validity_check = self._RITupDownValid)
-		self.scanSpeedUp =                  StateValue(self,                        set_format = 'RU{:04d}', validity_check = self._scanSpeedUpDownValid)
-		self.mainTransmitting =             StateValue(self, query_method = self._update_mainTransmitting, set_method = self._set_mainTransmitting) # RX, TX
-		self.subTransmitting =              StateValue(self, query_method = self._update_subTransmitting, set_method = self._set_subTransmitting) # RX, TX
+		self.RIT =                          StateValue(self, echoed = True,  query_command = 'RT',  set_format = 'RT{:01d}')
+		self.RITup =                        StateValue(self, echoed = True,                         set_format = 'RU{:04d}', validity_check = self._RITupDownValid)
+		self.scanSpeedUp =                  StateValue(self, echoed = True,                         set_format = 'RU{:04d}', validity_check = self._scanSpeedUpDownValid)
+		self.mainTransmitting =             StateValue(self, echoed = True,  query_method = self._update_mainTransmitting, set_method = self._set_mainTransmitting, range_check = self._mainTransmittingValid) # RX, TX
+		self.subTransmitting =              StateValue(self, echoed = True,  query_method = self._update_subTransmitting, set_method = self._set_subTransmitting, range_check = self._subTransmittingValid) # RX, TX
 		# TODO: Setters for SA command
 		self.satelliteMode =                StateValue(self, query_command = 'SA')
 		self.satelliteMemoryChannel =       StateValue(self, query_command = 'SA')
@@ -793,57 +873,64 @@ class Kenwood:
 		self.satelliteTraceReverse =        StateValue(self, query_command = 'SA')
 		self.satelliteMultiKnobVFO =        StateValue(self, query_command = 'SA')
 		self.satelliteChannelName =         StateValue(self, query_command = 'SA')
-		self.subReceiver =                  StateValue(self, query_command = 'SB',  set_format = 'SB{:01d}')
-		self.scanMode =                     StateValue(self, query_command = 'SB',  set_format = 'SB{:01d}')
-		self.cwBreakInTimeDelay =           StateValue(self, query_command = 'SD',  set_format = 'SD{:04d}')
-		self.voiceLowPassCutoff =           StateValue(self, query_command = 'SH',  set_format = 'SH{:02d}', validity_check = self._voiceCutoffValid)
+		self.subReceiver =                  StateValue(self, echoed = True,  query_command = 'SB',  set_format = 'SB{:01d}')
+		self.scanMode =                     StateValue(self, echoed = True,  query_command = 'SB',  set_format = 'SB{:01d}')
+		self.cwBreakInTimeDelay =           StateValue(self, echoed = True,  query_command = 'SD',  set_format = 'SD{:04d}')
+		self.voiceLowPassCutoff =           StateValue(self, echoed = True,  query_command = 'SH',  set_format = 'SH{:02d}', validity_check = self._voiceCutoffValid)
 		# TODO: SI - Satellite memory name
-		self.voiceHighPassCutoff =          StateValue(self, query_command = 'SL',  set_format = 'SL{:02d}', validity_check = self._voiceCutoffValid)
+		self.voiceHighPassCutoff =          StateValue(self, echoed = True,  query_command = 'SL',  set_format = 'SL{:02d}', validity_check = self._voiceCutoffValid)
 		self.mainSMeter =                   StateValue(self, query_command = 'SM0')
 		self.subSMeter =                    StateValue(self, query_command = 'SM1')
 		self.mainSMeterLevel =              StateValue(self, query_command = 'SM2')
 		self.subSMeterLevel =               StateValue(self, query_command = 'SM3')
-		self.mainSquelch =                  StateValue(self, query_command = 'SQ0', set_format = 'SQ0{:03d}')
-		self.subSquelch =                   StateValue(self, query_command = 'SQ1', set_format = 'SQ1{:03d}')
+		self.mainSquelch =                  StateValue(self, echoed = False,  query_command = 'SQ0', set_format = 'SQ0{:03d}')
+		self.subSquelch =                   StateValue(self, echoed = False,  query_command = 'SQ1', set_format = 'SQ1{:03d}')
 		# TODO?: SR1, SR2... reset transceiver
 		# TODO: SS set/read Program Scan pause frequency
-		self.multiChFrequencySteps =        StateValue(self, query_command = 'ST',  set_format = 'ST{:02d}')
+		self.multiChFrequencySteps =        StateValue(self, echoed = True,  query_command = 'ST',  set_format = 'ST{:02d}')
 		# TODO: SU - program scan pause frequency
-		self.memoryToVFO =                  StateValue(self,                        set_format = 'SV', validity_check = self._inMemoryMode)
-		self.PCcontrolCommandMode =         StateValue(self, query_command = 'TC',  set_format = 'TC {:01d}')
-		self.sendDTMFmemoryData =           StateValue(self,                        set_format = 'TD {:02d}')
+		self.memoryToVFO =                  StateValue(self, echoed = True,                         set_format = 'SV', validity_check = self._inMemoryMode)
+		self.PCcontrolCommandMode =         StateValue(self, echoed = True,  query_command = 'TC',  set_format = 'TC {:01d}')
+		self.sendDTMFmemoryData =           StateValue(self, echoed = True,                         set_format = 'TD {:02d}')
 		self.tnc96kLED =                    StateValue(self, query_command = 'TI')
 		self.tncSTALED =                    StateValue(self, query_command = 'TI')
 		self.tncCONLED =                    StateValue(self, query_command = 'TI')
-		self.subToneFrequency =             StateValue(self, query_command = 'TN',  set_format = 'TN{:02d}')
-		self.toneFunction =                 StateValue(self, query_command = 'TO',  set_format = 'TO{:01d}')
-		# TODO: TS
+		self.subToneFrequency =             StateValue(self, echoed = False, query_command = 'TN',  set_format = 'TN{:02d}')
+		self.toneFunction =                 StateValue(self, echoed = False, query_command = 'TO',  set_format = 'TO{:01d}')
+		self.transmitSet =                  StateValue(self, echoed = True,  query_command = 'TS',  set_format = 'TS{:01d}', validity_check = self._check_notSimplex, range_check = self._check_transmitSet)
+		# TODO: TS (simplex)
 		self.firmwareType =                 StateValue(self, query_command = 'TY')
 		# TODO: UL? (PLL Unlock)
-		self.up =                           StateValue(self,                        set_format = 'UP')
-		self.VOXdelayTime =                 StateValue(self, query_command = 'VD',  set_format = 'VD{:04d}')
-		self.VOXgain =                      StateValue(self, query_command = 'VG',  set_format = 'VG{:03d}')
-		self.voice1 =                       StateValue(self,                        set_format = 'VR0')
-		self.voice2 =                       StateValue(self,                        set_format = 'VR1')
-		self.VOX =                          StateValue(self, query_command = 'VX',  set_format = 'VX{:01d}')
-		self.XIT =                          StateValue(self, query_command = 'XT',  set_format = 'XT{:01d}')
-		self.tunerOnInRX =                  StateValue(self, query_command = 'EX0270000',  set_format = 'EX0270000{:01d}')
+		self.up =                           StateValue(self, echoed = True,                         set_format = 'UP')
+		self.VOXdelayTime =                 StateValue(self, echoed = False, query_command = 'VD',  set_format = 'VD{:04d}')
+		self.VOXgain =                      StateValue(self, echoed = False, query_command = 'VG',  set_format = 'VG{:03d}')
+		self.voice1 =                       StateValue(self, echoed = True,                         set_format = 'VR0')
+		self.voice2 =                       StateValue(self, echoed = True,                         set_format = 'VR1')
+		self.VOX =                          StateValue(self, echoed = False, query_command = 'VX',  set_format = 'VX{:01d}')
+		self.XIT =                          StateValue(self, echoed = False, query_command = 'XT',  set_format = 'XT{:01d}')
+		self.tunerOnInRX =                  StateValue(self, echoed = False, query_command = 'EX0270000',  set_format = 'EX0270000{:01d}')
+		self.currentMainFrequency =         StateValue(self)
+		self.currentSubFrequency =          StateValue(self)
+		self.currentTXfrequency =           StateValue(self)
+		self.mainRXtuningMode =             StateValue(self)
+		self.mainTXtuningMode =             StateValue(self)
+		self.subTuningMode =                StateValue(self)
+		self.VFOAmode =                     StateValue(self, query_method = self._query_VFOAmode)
+		self.VFOBmode =                     StateValue(self, query_method = self._query_VFOBmode)
+		self.mainMode =                     StateValue(self, query_method = self._query_mainMode)
+		self.subMode =                      StateValue(self, query_method = self._query_subMode)
+		self.TXmode =                       StateValue(self)
+		# Now plug the names in...
+		for a, p in self.__dict__.items():
+			if isinstance(p, StateValue):
+				p.name = a
 
 		# Memories
 		self.memories = [None] * 301
 		for i in range(len(self.memories)):
 			self.memories[i] = StateValue(self, query_command = 'MR0{:03d}'.format(i))
-
-		# Populate values used in parser callbacks:
-		if self.powerOn.value:
-			# Initialization
-			self.autoInformation.value = 2
-			self._send_query(self.controlMain)
-			self._send_query(self.controlMain)
-			self._send_query(self.RXtuningMode)     # used for split
-			self._send_query(self.TXtuningMode)     # used for split
-			self._send_query(self.TXmain)
-			self._send_query(self.currentReceiverTransmitting)
+		self._fill_cache()
+		self.autoInformation.value = 2
 
 	def __init__(self, port = "/dev/ttyU0", speed = 4800, stopbits = 2, verbose = False):
 		self.init_done = False
@@ -872,12 +959,13 @@ class Kenwood:
 		self._last_power_state = None
 		self._fill_cache_state = {}
 		resp = self.ID.value
-		initFunction = 'init_' + str(resp)
+		initFunction = '_init_' + str(resp)
 		if callable(getattr(self, initFunction, None)):
 			getattr(self, initFunction, None)()
 		else:
 			raise Exception("Unsupported rig (%d)!" % (resp))
 		self.init_done = True
+		self._sync_lock = threading.Lock()
 
 	def _fill_cache_cb(self, prop, *args):
 		nxt = None
@@ -963,6 +1051,11 @@ class Kenwood:
 				break
 		state._remove_wait_callback(cb)
 
+	def sync(self):
+		self._sync_lock.acquire()
+		self._query(self.ID)
+		self._sync_lock.release()
+
 	def _set(self, state, value):
 		self._writeQueue.put({
 			'msgType': 'set',
@@ -973,6 +1066,16 @@ class Kenwood:
 	def _read(self):
 		ret = b'';
 		while not self._terminate:
+			# Always read first if possible.
+			if self.serial.rts:
+				ret += self.serial.read_until(b';')
+				if ret[-1:] == b';':
+					if self._verbose:
+						print("Read: '"+str(ret)+"'")
+					return ret
+				else:
+					if not self._writeQueue.empty():
+						self.serial.rts = False
 			if not self._writeQueue.empty():
 				if self.serial.cts:
 					self.serial.rts = False
@@ -998,20 +1101,16 @@ class Kenwood:
 							# Another power-related hack...
 							if cmd == b'PS0;':
 								return cmd
+							if wr['msgType'] == 'set' and (not wr['stateValue']._echoed):
+								cmd = wr['stateValue'].query_string()
+								if cmd is not None:
+									cmd = bytes(cmd + ';', 'ascii')
+									self.serial.write(cmd)
 							self.last_hack = time.time()
 				if self._writeQueue.empty():
 					self.serial.rts = True
 			else:
 				self.serial.rts = True
-			if self.serial.rts:
-				ret += self.serial.read_until(b';')
-				if ret[-1:] == b';':
-					if self._verbose:
-						print("Read: '"+str(ret)+"'")
-					return ret
-				else:
-					if not self._writeQueue.empty():
-						self.serial.rts = False
 			# The final piece of the puzzle...
 			# It looks like when the rig is powered off, it takes a byte being
 			# sent to wake it up.  It then stays awake for some period of time
@@ -1147,25 +1246,35 @@ class Kenwood:
 
 	def _update_FA(self, args):
 		split = parse('11d', args)
-		if self.tuningMode._cached == tuningMode.VFOA:
-			self.currentFrequency._cached = split[0]
 		self.vfoAFrequency._cached = split[0]
+		if self.mainRXtuningMode._cached == tuningMode.VFOA:
+			self.currentMainFrequency._cached = split[0]
+			if self.controlMain._cached == True:
+				self.currentFrequency._cached = split[0]
+		if self.mainTXtuningMode._cached == tuningMode.VFOB:
+			if self.TXmain._cached == True:
+				self.currentTXfrequency._cached = split[0]
+				
 
 	def _update_FB(self, args):
 		split = parse('11d', args)
-		if self.tuningMode._cached == tuningMode.VFOB:
-			self.currentFrequency._cached = split[0]
 		self.vfoBFrequency._cached = split[0]
+		if self.mainRXtuningMode._cached == tuningMode.VFOB:
+			self.currentMainFrequency._cached = split[0]
+			if self.controlMain._cached == True:
+				self.currentFrequency._cached = split[0]
+		if self.mainTXtuningMode._cached == tuningMode.VFOB:
+			if self.TXmain._cached == True:
+				self.currentTXfrequency._cached = split[0]
 
 	def _update_FC(self, args):
 		split = parse('11d', args)
-		if not self.controlMain._cached:
-			if not self.subTransmitting._cached:
-				self.currentFrequency._cached = split[0]
-		elif not self.TXmain._cached:
-			if self.subTransmitting._cached:
-				self.currentFrequency._cached = split[0]
 		self.subReceiverFrequency._cached = split[0]
+		if not self.controlMain._cached:
+			if self.subTuningMode._cached == tuningMode.VFOA:
+				self.currentFrequency._cached = split[0]
+		if self.TXmain._cached == False:
+			self.currentTXfrequency._cached = split[0]
 
 	def _update_FD(self, args):
 		split = parse('8x', args)
@@ -1175,15 +1284,27 @@ class Kenwood:
 		split = parse('4d', args)
 		self.filterWidth._cached = split[0]
 
+	# TODO: Toggle tuningMode when transmitting?  Check the IF command...
+	# NOTE: FR changes FT, but FT doesn't change FR **and** doesn't notify
+	# that FT was changed.
 	def _update_FR(self, args):
 		split = parse('1d', args)
 		self.currentFrequency._cached = None
+		if self.controlMain._cached == True:
+			self.currentMainFrequency._cached = None
+		else:
+			self.currentSubFrequency._cached = None
 		if self.TXtuningMode._cached_value is not None:
 			if self.TXtuningMode._cached != tuningMode(split[0]):
 				self.split._cached = True
-		if not self.mainTransmitting._cached:
-			self.tuningMode._cached = tuningMode(split[0])
+			else:
+				self.split._cached = False
 		self.RXtuningMode._cached = tuningMode(split[0])
+		if self.controlMain._cached == True:
+			self.mainRXtuningMode._cached = tuningMode(split[0])
+		else:
+			self.subTuningMode._cached = tuningMode(split[0])
+		self._send_query(self.TXtuningMode)
 
 	def _update_FS(self, args):
 		split = parse('1d', args)
@@ -1192,12 +1313,29 @@ class Kenwood:
 	def _update_FT(self, args):
 		split = parse('1d', args)
 		self.currentFrequency._cached = None
+		self.currentTXfrequency._cached = None
 		if self.RXtuningMode._cached_value is not None:
 			if self.RXtuningMode._cached != tuningMode(split[0]):
 				self.split._cached = True
-		if self.mainTransmitting._cached:
-			self.tuningMode._cached = tuningMode(split[0])
+			else:
+				self.split._cached = False
 		self.TXtuningMode._cached = tuningMode(split[0])
+		if self.TXmain._cached == True:
+			self.mainTXtuningMode._cached = tuningMode(split[0])
+		else:
+			self.subTuningMode._cached = tuningMode(split[0])
+		if self.TXmain:
+			# I assume that FR has already been updated. :(
+			# It *looks* like this is always true.
+			if self.TXtuningMode._cached == tuningMode.CALL:
+				self.TXmode._cached = self.mainMode._cached
+			if self.TXtuningMode._cached == tuningMode.MEMORY:
+				# Glah!  We'll just assume this is the same for now... TODO
+				self.TXmode._cached = self.mainMode._cached
+			if self.TXtuningMode._cached == tuningMode.VFOA:
+				self.TXmode._cached = self.VFOAmode._cached
+			if self.TXtuningMode._cached == tuningMode.VFOB:
+				self.TXmode._cached = self.VFOBmode._cached
 
 	def _update_GT(self, args):
 		if args == '   ':
@@ -1216,7 +1354,16 @@ class Kenwood:
 		#'00003810000' '    ' ' 00000' '0' '0' '101' '0' '1' '0' '0' '0' '0' '08' '0'
 		#     3810000,     0,       1,  0,  1,    0,  1,  0,  0,  0,  0,  0,   8,  0
 		split = parse('11d4d6d1d1d3d1d1d1d1d1d1d2d1d', args)
-		self.currentFrequency._cached = split[0]
+
+		if split[6]:
+			self.currentTXfrequency._cached = split[0]
+		else:
+			self.currentFrequency._cached = split[0]
+		if self.controlMain._cached == True:
+			if not split[6]:
+				self.currentMainFrequency._cached = split[0]
+		else:
+			self.currentSubFrequency._cached = split[0]
 		self.frequencyStep._cached = split[1]
 		self.RIT_XITfrequency._cached = split[2]
 		self.RIT._cached = bool(split[3])
@@ -1224,10 +1371,22 @@ class Kenwood:
 		self.channelBank._cached = split[5]
 		self.currentReceiverTransmitting._cached = bool(split[6])
 		self._update_MD(str(split[7]))
-		self.tuningMode._cached = tuningMode(split[8])
+		if split[6]:
+			self.TXtuningMode._cached = tuningMode(split[8])
+			if self.controlMain._cached:
+				self.mainTXtuningMode._cached = tuningMode(split[8])
+			else:
+				self.subTuningMode._cached = tuningMode(split[8])
+		else:
+			self.RXtuningMode._cached = tuningMode(split[8])
+			self.tuningMode._cached = tuningMode(split[8])
+			if self.controlMain._cached:
+				self.mainRXtuningMode._cached = tuningMode(split[8])
+			else:
+				self.subTuningMode._cached = tuningMode(split[8])
 		self.scanMode._cached = scanMode(split[9])
 		# TODO: Split is undocumented and full-duplex may be here?
-		self.splitMode._cached = bool(split[10])
+		self.split._cached = bool(split[10])
 		# TODO: TONE/CTCSS/DCS squished together here in split[11]
 		# TODO: Tone frequency
 		self.shiftStatus._cached = offset(split[13])
@@ -1282,6 +1441,12 @@ class Kenwood:
 		if split[0] == 300:
 			self.memories[300]._cached_value = None
 		self.memoryChannel._cached = split[0]
+		# This also invalidates the current frequency
+		self.currentFrequency._cached = None
+		if self.controlMain._cached:
+			self.currentMainFrequency._cached = None
+		else:
+			self.currentSubFrequency._cached = None
 
 	def _update_MD(self, args):
 		split = parse('1d', args)
@@ -1290,6 +1455,14 @@ class Kenwood:
 			self.CWautoTune._cached = None
 		else:
 			self.CWautoTune._cached = False
+		if self.controlMain._cached == True:
+			self.mainMode = mode(split[0])
+			if self.mainRXtuningMode._cached == tuningMode.VFOA:
+				self.VFOAmode._cached = mode(split[0])
+			elif self.mainRXtuningMode._cached == tuningMode.VFOB:
+				self.VFOBmode._cached = mode(split[0])
+		else:
+			self.subMode._cached = mode(split[0])
 
 	def _update_MF(self, args):
 		split = parse('1d', args)
@@ -1310,9 +1483,11 @@ class Kenwood:
 		split = parse('1d', args)
 		self.skyCommandMonitor._cached = bool(split[0])
 
-	# TODO: We actually need to merge these because the TX and RX memory is completely different
+	# TODO: We actually need to merge these because we need two reads
+	# to get the RX/TX frequencies and modes
 	def _update_MR(self, args):
 		split = parse('1d3d11d1d1d1d2d2d3d1d1d9d2d1d0l', args)
+		idx = 0
 		newVal = {
 			'Channel': split[1],
 			'Frequency': split[2],
@@ -1320,9 +1495,9 @@ class Kenwood:
 			'LockedOut': bool(split[4]),
 			'ToneType': toneType(split[5]),
 			# TODO: Tone Number mapping?
-			'ToneNumber': split[6],
-			'CTCSStoneNumber': split[7],
-			'DCScode': split[8],
+			'ToneNumber': CTCSStone(split[6]),
+			'CTCSStoneNumber': CTCSStone(split[7]),
+			'DCScode': DCScode(split[8]),
 			'Reverse': bool(split[9]),
 			'OffsetType': offset(split[10]),
 			'OffsetFrequency': split[11],
@@ -1467,6 +1642,10 @@ class Kenwood:
 
 	def _update_RX(self, args):
 		split = parse('1d', args)
+		if self.TXmain._cached == True and split[0] == 0:
+			self.currentReceiverTransmitting._cached = False
+		elif self.RXmain._cached == True and split[0] == 1:
+			self.currentReceiverTransmitting._cached = False
 		if split[0] == 0:
 			self.mainTransmitting._cached = False
 		if split[0] == 1:
@@ -1547,9 +1726,19 @@ class Kenwood:
 		split = parse('1d', args)
 		self.toneFunction._cached = bool(split[0])
 
+	def _update_TS(self, args):
+		split = parse('1d', args)
+		self.transmitSet._cached = bool(split[0])
+
 	def _update_TX(self, args):
 		split = parse('1d', args)
 		self.currentFrequency._cached = None
+		if self.TXmain._cached == True and split[0] == 0:
+			self.currentReceiverTransmitting._cached = True
+		elif self.RXmain._cached == True and split[0] == 1:
+			self.currentReceiverTransmitting._cached = True
+		else:
+			print('TX triggered for wrong receiver!', file=sys.stderr)
 		if split[0] == 0:
 			self.mainTransmitting._cached = True
 		if split[0] == 1:
