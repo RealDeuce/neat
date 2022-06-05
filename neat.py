@@ -39,6 +39,7 @@ import time
 import threading
 from kivy.app import App
 from kivy.clock import Clock
+from kivy.config import ConfigParser
 from kivy.core.window import Window
 from kivy.graphics import Color, Line, Rectangle
 from kivy.properties import BooleanProperty, BoundedNumericProperty, ColorProperty, ListProperty, NumericProperty, ObjectProperty, StringProperty
@@ -52,10 +53,9 @@ from kivy.uix.widget import Widget
 import kivy.utils
 from gardengauge import Gauge
 
-rig = kenwood.Kenwood("/dev/ttyU0", 57600, 1, verbose = verbose)
-rigctld = rigctld.rigctld(rig, verbose = verbose)
-rigctldThread = threading.Thread(target = rigctld.rigctldThread, name = 'rigctld')
-rigctldThread.start()
+rig = None
+rigctldThread = None
+rigctl = None
 vfoa = int(kenwood.tuningMode.VFOA)
 vfob = int(kenwood.tuningMode.VFOB)
 mem = int(kenwood.tuningMode.MEMORY)
@@ -215,6 +215,25 @@ class FreqDisplay(Label):
 			self.freqValue = int(rig.vfoAFrequency.value)
 		rig.vfoAFrequency.add_callback(self.newFreq)
 
+	def setVFOCallback(self):
+		rig.vfoAFrequency.remove_callback(self.newFreq)
+		rig.vfoBFrequency.remove_callback(self.newFreq)
+		if ids is not None:
+			if ids.vfoBox.vfo == vfoa:
+				self.freqValue = rig.vfoAFrequency.value
+				self._updateFreq(self)
+				rig.vfoAFrequency.add_callback(self.newFreq)
+			elif ids.vfoBox.vfo == vfob:
+				self.freqValue = rig.vfoBFrequency.value
+				self._updateFreq(self)
+				rig.vfoBFrequency.add_callback(self.newFreq)
+			elif ids.vfoBox.vfo == mem:
+				ids.mainMemory.memoryValue = rig.memoryChannel.value
+				ids.mainMemory._updateChannel(ids.mainMemory)
+			elif ids.vfoBox.vfo == call:
+				ids.mainMemory.memoryValue = 300
+				ids.mainMemory._updateChannel(ids.mainMemory)
+
 	def newFreq(self, freq, *args):
 		if freq is not None:
 			self.freqValue = int(freq)
@@ -344,25 +363,6 @@ class MemoryDisplay(Label):
 	#	# TODO: Deal with clicks...
 	#	return False
 
-def setVFOCallback():
-	rig.vfoAFrequency.remove_callback(ids.mainFreq.newFreq)
-	rig.vfoBFrequency.remove_callback(ids.mainFreq.newFreq)
-	if ids is not None:
-		if ids.vfoBox.vfo == vfoa:
-			ids.mainFreq.freqValue = rig.vfoAFrequency.value
-			ids.mainFreq._updateFreq(ids.mainFreq)
-			rig.vfoAFrequency.add_callback(ids.mainFreq.newFreq)
-		elif ids.vfoBox.vfo == vfob:
-			ids.mainFreq.freqValue = rig.vfoBFrequency.value
-			ids.mainFreq._updateFreq(ids.mainFreq)
-			rig.vfoBFrequency.add_callback(ids.mainFreq.newFreq)
-		elif ids.vfoBox.vfo == mem:
-			ids.mainMemory.memoryValue = rig.memoryChannel.value
-			ids.mainMemory._updateChannel(ids.mainMemory)
-		elif ids.vfoBox.vfo == call:
-			ids.mainMemory.memoryValue = 300
-			ids.mainMemory._updateChannel(ids.mainMemory)
-
 def setMemoryVisibility():
 	if ids is not None:
 		if ids.vfoBox.vfo == mem or ids.vfoBox.vfo == call:
@@ -415,7 +415,7 @@ class VFOBox(GridLayout):
 
 	def _updateVFO(self, *args):
 		Clock.schedule_once(lambda dt: setMemoryVisibility(), 0)
-		Clock.schedule_once(lambda dt: setVFOCallback(), 0)
+		Clock.schedule_once(lambda dt: ids.mainFreq.setVFOCallback(), 0)
 		for c in self.children:
 			if self.vfo == -1:
 				c.disabled = True
@@ -940,17 +940,95 @@ class WideNarrowLabel(Label):
 			self.text = self.prefix + val + self.suffix
 
 class NeatApp(App):
+	def build_config(self, config):
+		config.setdefaults('SerialPort', {
+			'device': '/dev/ttyU0',
+			'speed': 57600,
+			'stopBits': 1,
+		})
+		config.setdefaults('Neat', {
+			'verbose': 0,
+			'rigctld': 1,
+			'rigctld_address': 'localhost',
+			'rigctld_port': 4532
+		})
+	def build_settings(self, settings):
+		jsondata = """
+			[
+				{ "type": "title",
+				  "title": "Program Options" },
+				
+				{ "type": "bool",
+				  "title": "Verbose Output",
+				  "section": "Neat",
+				  "key": "verbose" },
+				
+				{ "type": "bool",
+				  "title": "Run rigctld emulator",
+				  "section": "Neat",
+				  "key": "rigctld" },
+				
+				{ "type": "numeric",
+				  "title": "rigctld listen address",
+				  "section": "Neat",
+				  "key": "rigctld_address" },
+				
+				{ "type": "numeric",
+				  "title": "rigctld port",
+				  "section": "Neat",
+				  "key": "rigctld_port" },
+				
+				{ "type": "title",
+				  "title": "Serial Port" },
+				
+				{ "type": "path",
+				  "title": "Device Path",
+				  "section": "SerialPort",
+				  "key": "device" },
+				
+				{ "type": "options",
+				  "title": "Speed",
+				  "desc": "Serial port speed, must match menu 56",
+				  "section": "SerialPort",
+				  "key": "speed",
+				  "options": ["4800", "9600", "19200", "38400", "57600"] },
+				
+				{ "type": "options",
+				  "title": "Stop Bits",
+				  "desc": "Serial port speed, must match menu 56",
+				  "section": "SerialPort",
+				  "key": "stopBits",
+				  "options": ["1", "2"] }
+			]
+		"""
+		settings.add_json_panel('Neat', self.config, data = jsondata)
+
 	def build(self):
-		global ids
+		global ids, rig, rigctl
+		self.config = ConfigParser()
+		self.build_config(self.config)
+		self.config.read('neat.ini')
+		rig = kenwood.Kenwood(self.config.get('SerialPort', 'device'), self.config.getint('SerialPort', 'speed'), self.config.getint('SerialPort', 'stopBits'), verbose = self.config.getboolean('Neat', 'verbose'))
+		if self.config.getboolean('Neat', 'rigctld'):
+			rigctl = rigctld.rigctld(rig, address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port'), verbose = self.config.getboolean('Neat', 'verbose'))
+			rigctldThread = threading.Thread(target = rigctl.rigctldThread, name = 'rigctld')
+			rigctldThread.start()
 		ui = Neat()
 		Window.size = ui.size
 		if ids is not None:
 			raise Exception("Only one instance of NeatApp allowed!")
 		ids = ui.ids
-		setVFOCallback()
+		ids.mainFreq.setVFOCallback()
 		return ui
+
+	def on_config_change(self, config, section, key, value):
+		if config is self.config:
+			if ('Neat', 'verbose') == (section, key):
+				rig._verbose = bool(int(value))
+				rigctl.verbose = bool(int(value))
 
 if __name__ == '__main__':
 	NeatApp().run()
 	rig.terminate()
-	rigctldThread.join()
+	if rigctldThread is not None:
+		rigctldThread.join()

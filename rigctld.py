@@ -1183,10 +1183,12 @@ class rigctld_connection:
 			self._rigctld.sel.modify(self._conn, self.mask, data = self)
 
 class rigctld:
-	def __init__(self, rig, verbose = False):
+	def __init__(self, rig, address = 'localhost', port = 4532, verbose = False):
 		self.rig = rig
 		self.verbose = verbose
 		self.sel = selectors.DefaultSelector()
+		self._address = address
+		self._port = port
 
 	def accept(self, sock):
 		conn, addr = sock.accept()
@@ -1196,7 +1198,7 @@ class rigctld:
 
 	def rigctldThread(self):
 		sock = socket.socket()
-		sock.bind(('localhost', 4532))
+		sock.bind((self._address, self._port))
 		sock.listen(100)
 		sock.setblocking(False)
 		self.sel.register(sock, selectors.EVENT_READ)
