@@ -62,6 +62,12 @@ mem = int(kenwood.tuningMode.MEMORY)
 call = int(kenwood.tuningMode.CALL)
 ids = None
 
+# See https://new.reddit.com/r/kivy/comments/v5joow/labeltext_can_no_longer_be_updated_after_f1/
+def label_hack(label, text):
+	label.text = text
+	label._label.text = text
+	label._trigger_texture_update()
+
 class Neat(FloatLayout):
 	def control(self, **kwargs):
 		for k in kwargs.keys():
@@ -191,14 +197,18 @@ class Meter(Gauge):
 		self._needle.rotation = 90 - ((self.value - self.min_value) * self.unit)
 		if self.value < self.low_cutoff:
 			if self.calculation == 'S-Level':
-				self._glab.text = self.low_format.format(self.value*9/15)
+				#self._glab.text = self.low_format.format(self.value*9/15)
+				label_hack(self._glab, self.low_format.format(self.value*9/15))
 			else:
-				self._glab.text = self.low_format.format(self.value)
+				#self._glab.text = self.low_format.format(self.value)
+				label_hack(self._glab, self.low_format.format(self.value))
 		else:
 			if self.calculation == 'S-Level':
-				self._glab.text = self.high_format.format((self.value-15)*60/15)
+				#self._glab.text = self.high_format.format((self.value-15)*60/15)
+				label_hack(self._glab, self.high_format.format((self.value-15)*60/15))
 			else:
-				self._glab.text = self.high_format.format(self.value)
+				#self._glab.text = self.high_format.format(self.value)
+				label_hack(self._glab, self.high_format.format(self.value))
 
 class FreqDisplay(Label):
 	freqValue = BoundedNumericProperty(0, min=0, max=99999999999, errorvalue=0)
@@ -249,7 +259,8 @@ class FreqDisplay(Label):
 			new = '[b][color=' + kivy.utils.get_hex_from_color(self.zeroColour) + ']' + new[0:e] + '[/color]' + colour + new[e:] + '[/color][/b]'
 		else:
 			new = '[b]' + colour + new + '[/color][/b]'
-		self.text = new
+		#self.text = new
+		label_hack(self, new)
 
 	def on_touch_down(self, touch):
 		if not 'button' in touch.profile:
@@ -357,7 +368,8 @@ class MemoryDisplay(Label):
 			if ids is not None:
 				if ids.vfoBox.vfo == call:
 					new = 'Calling Frequency'
-			self.text = new
+			#self.text = new
+			label_hack(self, new)
 
 	#def on_touch_down(self, touch):
 	#	# TODO: Deal with clicks...
@@ -822,7 +834,8 @@ class HighPassLabel(Label):
 			val = str(value)
 			val = self.prefix + val + self.suffix
 
-		self.text = val
+		#self.text = val
+		label_hack(self, val)
 
 class LowPassLabel(Label):
 	prefix = StringProperty()
@@ -858,7 +871,8 @@ class LowPassLabel(Label):
 		elif rig.mode.value in self.cwModes:
 			self.newValue(rig.IFshift.value)
 		else:
-			self.text = ''
+			#self.text = ''
+			label_hack(self, '')
 
 	def newValue(self, value, *args):
 		val = ''
@@ -904,7 +918,8 @@ class LowPassLabel(Label):
 			val = self.prefix + val + self.suffix
 		elif rig.mode.value in self.cwModes:
 			val = self.prefix + str(rig.IFshift.value) + self.suffix
-		self.text = val
+		#self.text = val
+		label_hack(self, val)
 
 class WideNarrowLabel(Label):
 	prefix = StringProperty()
@@ -932,12 +947,14 @@ class WideNarrowLabel(Label):
 		if rig.mode.value in self.supportedModes:
 			self.newValue(rig.filterWidth.value)
 		else:
-			self.text = ''
+			#self.text = ''
+			label_hack(self, '')
 
 	def newValue(self, value, *args):
 		if rig.mode.value in self.supportedModes:
 			val = 'Narrow' if value == 0 else 'Wide'
-			self.text = self.prefix + val + self.suffix
+			#self.text = self.prefix + val + self.suffix
+			label_hack(self, self.prefix + val + self.suffix)
 
 class NeatApp(App):
 	def build_config(self, config):
