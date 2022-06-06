@@ -609,7 +609,7 @@ class rigctld_connection:
 		# Instead, it just changes the current VFO that commands will be applied to.
 		# When not in braindead mode though, it's expected to change both the RX and TX VFOs.
 		# currVFO is always the "you know what I mean" VFO, even if you don't.
-		self.bd_split = self._rigctld.rig.split.value
+		self.bd_split = self._rigctld.rig.split
 		self.currVFO = vfo.VFOA # Bah.
 		if self._rigctld.rig.controlMain:
 			if self._rigctld.rig.RXtuningMode == kenwood.tuningMode.VFOB:
@@ -621,27 +621,27 @@ class rigctld_connection:
 		self.rxVFO = self.currVFO
 
 	def synchronize_vfo(self):
-		if not self._rigctld.rig.controlMain.value:
+		if not self._rigctld.rig.controlMain:
 			self.bd_split = False
 			self.currVFO = vfo.VFOC
 			self.rxVFO = vfo.VFOC
-		elif self._rigctld.rig.split.value:
+		elif self._rigctld.rig.split:
 			self.bd_split = True
 			rigRX = vfo.VFOA
-			if self._rigctld.rig.RXtuningMode.value != kenwood.tuningMode.VFOA:
+			if self._rigctld.rig.RXtuningMode != kenwood.tuningMode.VFOA:
 				rigRX = vfo.VFOB
 			rigTX = vfo.VFOB
-			if self._rigctld.rig.TXtuningMode.value != kenwood.tuningMode.VFOB:
+			if self._rigctld.rig.TXtuningMode != kenwood.tuningMode.VFOB:
 				rigTX = vfo.VFOA
 			self.currVFO = rigRX
-			if self._rigctld.rig.transmitSet.value:
+			if self._rigctld.rig.transmitSet:
 				tmpTX = rigTX
 				rigTX = rigRX
 				rigRX = tmpTX
 			self.rxVFO = rigRX
 		else:
 			self.bd_split = False
-			if self._rigctld.rig.RXtuningMode.value != kenwood.tuningMode.VFOB:
+			if self._rigctld.rig.RXtuningMode != kenwood.tuningMode.VFOB:
 				self.rxVFO = vfo.VFOA
 				self.currVFO = vfo.VFOA
 			else:
@@ -700,25 +700,25 @@ class rigctld_connection:
 			if not vfo in (vfo.VFOA, vfo.VFOB):
 				self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 			self.currVFO = vfo
-			self._rigctld.rig.transmitSet.value = (vfo != self.rxVFO)
+			self._rigctld.rig.transmitSet = (vfo != self.rxVFO)
 			self.append(bytes('RPRT 0\n', 'ascii'))
 			return
 
 		if vfo == vfo.VFOA:
-			self._rigctld.rig.controlMain.value = True
-			self._rigctld.rig.TXmain.value = True
-			self._rigctld.rig.RXtuningMode.value = kenwood.tuningMode.VFOA
-			self._rigctld.rig.TXtuningMode.value = kenwood.tuningMode.VFOA
+			self._rigctld.rig.controlMain = True
+			self._rigctld.rig.TXmain = True
+			self._rigctld.rig.RXtuningMode = kenwood.tuningMode.VFOA
+			self._rigctld.rig.TXtuningMode = kenwood.tuningMode.VFOA
 		elif vfo == vfo.VFOB:
-			self._rigctld.rig.controlMain.value = True
-			self._rigctld.rig.TXmain.value = True
-			self._rigctld.rig.RXtuningMode.value = kenwood.tuningMode.VFOB
-			self._rigctld.rig.TXtuningMode.value = kenwood.tuningMode.VFOB
+			self._rigctld.rig.controlMain = True
+			self._rigctld.rig.TXmain = True
+			self._rigctld.rig.RXtuningMode = kenwood.tuningMode.VFOB
+			self._rigctld.rig.TXtuningMode = kenwood.tuningMode.VFOB
 		elif vfo == vfo.VFOC:
-			self._rigctld.rig.controlMain.value = False
-			self._rigctld.rig.TXmain.value = False
-			self._rigctld.rig.RXtuningMode.value = kenwood.tuningMode.VFOA
-			self._rigctld.rig.TXtuningMode.value = kenwood.tuningMode.VFOA
+			self._rigctld.rig.controlMain = False
+			self._rigctld.rig.TXmain = False
+			self._rigctld.rig.RXtuningMode = kenwood.tuningMode.VFOA
+			self._rigctld.rig.TXtuningMode = kenwood.tuningMode.VFOA
 		else:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 			return
@@ -738,23 +738,23 @@ class rigctld_connection:
 
 	def _get_freq(self, command):
 		# wsjtx/hamlib does set/get/set so this needs to be uncached. :(
-		rmode = self._rigctld.rig.RXtuningMode.value
+		rmode = self._rigctld.rig.RXtuningMode
 		if command['vfo'] == vfo.VFOA:
-			self.append(bytes(str(self._rigctld.rig.vfoAFrequency.value)+'\n', 'ascii'))
+			self.append(bytes(str(self._rigctld.rig.vfoAFrequency)+'\n', 'ascii'))
 		elif command['vfo'] == vfo.VFOB:
-			self.append(bytes(str(self._rigctld.rig.vfoBFrequency.value)+'\n', 'ascii'))
+			self.append(bytes(str(self._rigctld.rig.vfoBFrequency)+'\n', 'ascii'))
 		elif command['vfo'] == vfo.VFOC:
-			self.append(bytes(str(self._rigctld.rig.subReceiverFrequency.value)+'\n', 'ascii'))
+			self.append(bytes(str(self._rigctld.rig.subReceiverFrequency)+'\n', 'ascii'))
 		else:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 
 	def _get_mode(self, command):
 		if command['vfo'] == vfo.VFOA:
-			mode = self._rigctld.rig.VFOAmode.value
+			mode = self._rigctld.rig.VFOAmode
 		elif command['vfo'] == vfo.VFOB:
-			mode = self._rigctld.rig.VFOBmode.value
+			mode = self._rigctld.rig.VFOBmode
 		elif command['vfo'] == vfo.VFOC:
-			mode = self._rigctld.rig.subMode.value
+			mode = self._rigctld.rig.subMode
 		else:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL, 'ascii')))
 			return
@@ -769,14 +769,14 @@ class rigctld_connection:
 			self.append(bytes(str(2800) + '\n', 'ascii'))
 		else:
 			if mode in (kenwood.mode.CW, kenwood.mode.CW_REVERSED, kenwood.mode.FSK, kenwood.mode.FSK_REVERSED):
-				self.append(bytes(str(self._rigctld.rig.filterWidth.value) + '\n', 'ascii'))
+				self.append(bytes(str(self._rigctld.rig.filterWidth) + '\n', 'ascii'))
 			elif mode in (kenwood.mode.FM, kenwood.mode.LSB, kenwood.mode.USB):
-				highfreq = [1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800, 3000, 3400, 4000, 5000][self._rigctld.rig.voiceLowPassCutoff.value]
-				lowfreq = [10, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000][self._rigctld.rig.voiceHighPassCutoff.value]
+				highfreq = [1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800, 3000, 3400, 4000, 5000][self._rigctld.rig.voiceLowPassCutoff]
+				lowfreq = [10, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000][self._rigctld.rig.voiceHighPassCutoff]
 				self.append(bytes(str(highfreq - lowfreq) + '\n', 'ascii'))
 			elif mode == kenwood.mode.AM:
-				highfreq = [2500, 3000, 4000, 5000][self._rigctld.rig.voiceLowPassCutoff.value]
-				lowfreq = [10, 100, 200, 500][self._rigctld.rig.voiceHighPassCutoff.value]
+				highfreq = [2500, 3000, 4000, 5000][self._rigctld.rig.voiceLowPassCutoff]
+				lowfreq = [10, 100, 200, 500][self._rigctld.rig.voiceHighPassCutoff]
 				self.append(bytes(str(highfreq - lowfreq) + '\n', 'ascii'))
 
 	def send_supported_modes(self):
@@ -814,13 +814,13 @@ class rigctld_connection:
 		if mode is None:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 			return
-		self._rigctld.rig.mode.value = mode
+		self._rigctld.rig.mode = mode
 		# TODO: Passband...
 		self.append(bytes('RPRT 0\n', 'ascii'))
 
 	def _get_level(self, command):
 		if command['argv'][0] == 'STRENGTH':
-			sm = self._rigctld.rig.mainSMeter.value
+			sm = self._rigctld.rig.mainSMeter
 			tbl = [[0, -54], [3, -48], [6, -36], [9, -24], [12, -12], [15, 0], [20, 20], [25, 40], [30, 60]]
 			for j in range(len(tbl)):
 				if sm < tbl[j][0]:
@@ -835,7 +835,7 @@ class rigctld_connection:
 					val = tbl[j][1] - interp
 			self.append(bytes(str(int(val))+'\n', 'ascii'))
 		elif command['argv'][0] == 'RAWSTR':
-			self.append(bytes(str(self._rigctld.rig.mainSMeter.value)+'\n', 'ascii'))
+			self.append(bytes(str(self._rigctld.rig.mainSMeter)+'\n', 'ascii'))
 		elif command['argv'][0] in ('PREAMP', 'ATT', 'VOX', 'AF', 'RF', 'SQL', 'IF', 'NR', 'CWPITCH', 'RFPOWER', 'MICGAIN', 'KEYSPD', 'NOTCHF', 'COMP', 'AGC', 'BKINDL', 'METER', 'VOXGAIN', 'ANTIVOX', 'SLOPE_LOW', 'SLOPE_HIGH', 'BKIN_DLYMS', 'SQLSTAT', 'SWR', 'ALC'):
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_ENIMPL), 'ascii'))
 		else:
@@ -857,29 +857,29 @@ class rigctld_connection:
 			rxvfo = vfo.VFOB
 		else:
 			rxvfo = vfo.VFOA
-		self._rigctld.rig.controlMain.value = True
+		self._rigctld.rig.controlMain = True
 		if command['argv'][0] == '0':
 			self.currVFO = rxvfo
 			self.rxVFO = rxvfo
-			self._rigctld.rig.transmitSet.value = False
+			self._rigctld.rig.transmitSet = False
 			if rxvfo == vfo.VFOA:
-				self._rigctld.rig.RXtuningMode.value = kenwood.tuningMode.VFOA
-				self._rigctld.rig.TXtuningMode.value = kenwood.tuningMode.VFOA
+				self._rigctld.rig.RXtuningMode = kenwood.tuningMode.VFOA
+				self._rigctld.rig.TXtuningMode = kenwood.tuningMode.VFOA
 			elif rxvfo == vfo.VFOB:
-				self._rigctld.rig.RXtuningMode.value = kenwood.tuningMode.VFOB
-				self._rigctld.rig.TXtuningMode.value = kenwood.tuningMode.VFOB
+				self._rigctld.rig.RXtuningMode = kenwood.tuningMode.VFOB
+				self._rigctld.rig.TXtuningMode = kenwood.tuningMode.VFOB
 		elif command['argv'][0] == '1':
 			self.currVFO = rxvfo
 			self.rxVFO = rxvfo
-			self._rigctld.rig.transmitSet.value = False
+			self._rigctld.rig.transmitSet = False
 			if rxvfo == vfo.VFOA:
-				self._rigctld.rig.RXtuningMode.value = kenwood.tuningMode.VFOA
+				self._rigctld.rig.RXtuningMode = kenwood.tuningMode.VFOA
 			elif rxvfo == vfo.VFOB:
-				self._rigctld.rig.RXtuningMode.value = kenwood.tuningMode.VFOB
+				self._rigctld.rig.RXtuningMode = kenwood.tuningMode.VFOB
 			if txvfo == vfo.VFOA:
-				self._rigctld.rig.TXtuningMode.value = kenwood.tuningMode.VFOA
+				self._rigctld.rig.TXtuningMode = kenwood.tuningMode.VFOA
 			elif txvfo == vfo.VFOB:
-				self._rigctld.rig.TXtuningMode.value = kenwood.tuningMode.VFOB
+				self._rigctld.rig.TXtuningMode = kenwood.tuningMode.VFOB
 		else:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 			return
@@ -904,10 +904,10 @@ class rigctld_connection:
 
 	def _set_ptt(self, command):
 		vfo = command['vfo']
-		if vfo in (vfo.VFOA, vfo.VFOB) and self._rigctld.rig.TXmain.value:
-			self._rigctld.rig.currentReceiverTransmitting.value = bool(int(command['argv'][0]))
-		elif vfo == vfo.VFOC and (not self._rigctld.rig.TXmain.value):
-			self._rigctld.rig.currentReceiverTransmitting.value = bool(int(command['argv'][0]))
+		if vfo in (vfo.VFOA, vfo.VFOB) and self._rigctld.rig.TXmain:
+			self._rigctld.rig.currentReceiverTransmitting = bool(int(command['argv'][0]))
+		elif vfo == vfo.VFOC and (not self._rigctld.rig.TXmain):
+			self._rigctld.rig.currentReceiverTransmitting = bool(int(command['argv'][0]))
 		else:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 			return
@@ -916,14 +916,14 @@ class rigctld_connection:
 	def _get_ptt(self, command):
 		vfo = command['vfo']
 		val = 0
-		if vfo == vfo.VFOA and self._rigctld.rig.TXmain.value and self._rigctld.rig.TXtuningMode.value == kenwood.tuningMode.VFOA:
-			if self._rigctld.rig.mainTransmitting.value:
+		if vfo == vfo.VFOA and self._rigctld.rig.TXmain and self._rigctld.rig.TXtuningMode == kenwood.tuningMode.VFOA:
+			if self._rigctld.rig.mainTransmitting:
 				val = 1
-		elif vfo == vfo.VFOB and self._rigctld.rig.TXmain.value and self._rigctld.rig.TXtuningMode.value == kenwood.tuningMode.VFOB:
-			if self._rigctld.rig.mainTransmitting.value:
+		elif vfo == vfo.VFOB and self._rigctld.rig.TXmain and self._rigctld.rig.TXtuningMode == kenwood.tuningMode.VFOB:
+			if self._rigctld.rig.mainTransmitting:
 				val = 1
-		elif vfo == vfo.VFOC and (not self._rigctld.rig.TXmain.value) and self._rigctld.rig.TXtuningMode.value == kenwood.tuningMode.VFOA:
-			if self._rigctld.rig.subTransmitting.value:
+		elif vfo == vfo.VFOC and (not self._rigctld.rig.TXmain) and self._rigctld.rig.TXtuningMode == kenwood.tuningMode.VFOA:
+			if self._rigctld.rig.subTransmitting:
 				val = 1
 		self.append(bytes('{:d}\n'.format(val), 'ascii'))
 
@@ -933,13 +933,13 @@ class rigctld_connection:
 		# wsjtx (Hamlib?) sends this with six decimal places...
 		freq = int(float(command['argv'][0]))
 		if vfo == vfo.VFOA:
-			self._rigctld.rig.vfoAFrequency.value = freq
+			self._rigctld.rig.vfoAFrequency = freq
 			rprt = 0
 		if vfo == vfo.VFOB:
-			self._rigctld.rig.vfoBFrequency.value = freq
+			self._rigctld.rig.vfoBFrequency = freq
 			rprt = 0
 		if vfo == vfo.VFOC:
-			self._rigctld.rig.subReceiverFrequency.value = freq
+			self._rigctld.rig.subReceiverFrequency = freq
 			rprt = 0
 		self.append(bytes('RPRT {:d}\n'.format(rprt), 'ascii'))
 
@@ -953,11 +953,11 @@ class rigctld_connection:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 			return
 		# Start with the not current one...
-		oldts = self._rigctld.rig.transmitSet.value
-		self._rigctld.rig.transmitSet.value = (not oldts)
-		self._rigctld.rig.mode.value = mode
-		self._rigctld.rig.transmitSet.value = (oldts)
-		self._rigctld.rig.mode.value = mode
+		oldts = self._rigctld.rig.transmitSet
+		self._rigctld.rig.transmitSet = (not oldts)
+		self._rigctld.rig.mode = mode
+		self._rigctld.rig.transmitSet = (oldts)
+		self._rigctld.rig.mode = mode
 		self.append(bytes('RPRT 0\n', 'ascii'))
 
 	'''
@@ -978,12 +978,12 @@ class rigctld_connection:
 		elif rvfo == vfo.VFO_MAIN:
 			if self.bd_split:
 				return self.rxVFO
-			if self._rigctld.rig.mainRXtuningMode.value == kenwood.tuningMode.VFOA:
+			if self._rigctld.rig.mainRXtuningMode == kenwood.tuningMode.VFOA:
 				return vfo.VFOA
-			elif self._rigctld.rig.mainRXtuningMode.value == kenwood.tuningMode.VFOB:
+			elif self._rigctld.rig.mainRXtuningMode == kenwood.tuningMode.VFOB:
 				return vfo.VFOB
 		elif rvfo == vfo.VFO_SUB:
-			if self._rigctld.rig.subTuningMode.value == kenwood.tuningMode.VFOA:
+			if self._rigctld.rig.subTuningMode == kenwood.tuningMode.VFOA:
 				return vfo.VFOC
 		elif rvfo == vfo.VFO_RX:
 			return self.rxVFO
@@ -999,16 +999,16 @@ class rigctld_connection:
 
 	def isCurrentVFO(self, rvfo):
 		if rvfo == vfo.VFOA:
-			if self._rigctld.rig.controlMain.value == True:
-				if self._rigctld.rig.tuningMode.value == kenwood.tuningMode.VFOA:
+			if self._rigctld.rig.controlMain == True:
+				if self._rigctld.rig.tuningMode == kenwood.tuningMode.VFOA:
 					return True
 		elif rvfo == vfo.VFOB:
-			if self._rigctld.rig.controlMain.value == True:
-				if self._rigctld.rig.tuningMode.value == kenwood.tuningMode.VFOB:
+			if self._rigctld.rig.controlMain == True:
+				if self._rigctld.rig.tuningMode == kenwood.tuningMode.VFOB:
 					return True
 		elif rvfo == vfo.VFOC:
-			if self._rigctld.rig.controlMain.value == False:
-				if self._rigctld.rig.tuningMode.value == kenwood.tuningMode.VFOA:
+			if self._rigctld.rig.controlMain == False:
+				if self._rigctld.rig.tuningMode == kenwood.tuningMode.VFOA:
 					return True
 		return False
 
