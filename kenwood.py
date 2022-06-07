@@ -678,6 +678,8 @@ class Kenwood:
 		return 'FT{:01d}'.format(int(value))
 
 	def _check_mainRXtuningMode(self, value):
+		if self._state['controlMain']._cached is None:
+			return True
 		if not self._state['controlMain']._cached:
 			return False
 		return True
@@ -692,6 +694,8 @@ class Kenwood:
 		return True
 
 	def _notInTransmitSet(self):
+		if self._state['transmitSet']._cached is None:
+			return True
 		return self._state['transmitSet']._cached == False
 
 	def _init_19(self):
@@ -1424,9 +1428,9 @@ class Kenwood:
 			if self._state['TXtuningMode']._cached == tuningMode.CALL:
 				self._state['TXmode']._cached = self._state['mainMode']._cached
 			elif self._state['TXtuningMode']._cached == tuningMode.MEMORY:
-				self._state['currentTXfrequency']._cached = self.memories.memories[self._state['memoryChannel']._cached]._cached['TXFrequency']
+				self._state['currentTXfrequency']._cached = self.memories.memories[self._state['memoryChannel']._cached]._cached['TXfrequency']
 				# Glah!  We'll just assume this is the same for now... TODO
-				self._state['TXmode']._cached = self._state['mainMode'].self.memories.memories[self._state['memoryChannel']._cached]._cached['TXMode']
+				self._state['TXmode']._cached = self.memories.memories[self._state['memoryChannel']._cached]._cached['TXmode']
 			elif self._state['TXtuningMode']._cached == tuningMode.VFOA:
 				self._state['currentTXfrequency']._cached = self._state['vfoAFrequency']._cached
 				self._state['TXmode']._cached = self._state['VFOAmode']._cached

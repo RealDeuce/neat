@@ -401,7 +401,7 @@ class MemoryDisplay(Label):
 		memData = rig.memories[self.memoryValue]
 		if self.vfo_box is not None and self.freq_display is not None:
 			if self.vfo_box.vfo == mem or self.vfo_box.vfo == call:
-				if self.is_tx:
+				if self.is_tx and ('TXfrequency' in memData):
 					self.freq_display.freqValue = memData['TXfrequency']
 				else:
 					self.freq_display.freqValue = memData['Frequency']
