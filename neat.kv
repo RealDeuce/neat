@@ -28,7 +28,7 @@
 #:import meter kenwood.meter
 
 <Neat>:
-	size: 1074, 700
+	size: 1074, 920
 
 	Meter:
 		id: smeter
@@ -91,6 +91,7 @@
 		id: filterDisplay
 		size_hint_max: 100, 25
 		pos: (root.width - (mainAFgain.pos[0] + mainAFgain.width - self.pos[0])) / 2, COMPmeter._progress.pos[1] - 30 - self.size[1]
+		op_mode_box: opModeBox
 
 	HighPassLabel:
 		id: highPassLabel
@@ -216,6 +217,8 @@
 		size_hint_max: 100, 50
 		cols: 2
 		rows: 2
+		rig_state: 'RXtuningMode'
+		freq_display: mainFreq
 
 		VFOBoxButton:
 			text: 'VFO A'
@@ -272,6 +275,10 @@
 		max_lines: 1
 		lines: 1
 		font_name: 'DroidSansMono'
+		freq_display: mainFreq
+		op_mode_box: opModeBox
+		vfo_box: vfoBox
+		memory_display: mainMemory
 
 	MemoryDisplay:
 		id: mainMemory
@@ -287,6 +294,8 @@
 		max_lines: 1
 		lines: 1
 		font_name: 'DroidSansMono'
+		freq_display: mainFreq
+		vfo_box: vfoBox
 
 	OPModeBox:
 		id: opModeBox
@@ -295,6 +304,7 @@
 		cols: 4
 		rows: 2
 		on_mode: highPassLabel.refresh(); lowPassLabel.refresh(); wideNarrowLabel.refresh(); noiseBlanker.refresh()
+		rig_state: 'mode'
 
 		OPModeBoxButton:
 			text: 'USB'
@@ -519,6 +529,180 @@
 		text: 'TX'
 
 	Label:
+		id: outputPowerLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Output Power'
+		pos: (root.width - (outputPower.pos[0] + outputPower.width - self.pos[0])) / 2, antenna2.pos[1] - 50 - self.height
+
+	StateSlider:
+		rig_state: 'outputPower'
+		id: outputPower
+		min: 5
+		max: 100
+		value_track: True
+		size_hint_max: self.cursor_width + (self.max - self.min), 30
+		pos: outputPowerLabel.pos[0], outputPowerLabel.pos[1] - self.height
+		step: 1
+
+
+###
+
+
+	VFOBox:
+		id: TXvfoBox
+		#pos: (mainTXFreq.pos[0] - self.width - bandUpButton.width - 10) / 2, (mainTXFreq.pos[1] * 2 + mainTXFreq.height - self.height) / 2
+		pos: (mainTXFreq.pos[0] - self.width - 10) / 2, (mainTXFreq.pos[1] * 2 + mainTXFreq.height - self.height) / 2
+		size_hint_max: 100, 50
+		cols: 2
+		rows: 2
+		rig_state: 'mainTXtuningMode'
+		freq_display: mainTXFreq
+
+		VFOBoxButton:
+			text: 'VFO A'
+			vfoID: int(tuningMode.VFOA)
+			state: 'down' if self.parent.vfo == int(tuningMode.VFOA) else 'normal'
+
+		VFOBoxButton:
+			text: 'VFO B'
+			vfoID: int(tuningMode.VFOB)
+			state: 'down' if self.parent.vfo == int(tuningMode.VFOB) else 'normal'
+
+		VFOBoxButton:
+			text: 'MEM'
+			vfoID: int(tuningMode.MEMORY)
+			state: 'down' if self.parent.vfo == int(tuningMode.MEMORY) else 'normal'
+			force_disabled: not app.rig.memoryVFOsplitEnabled
+
+		VFOBoxButton:
+			text: 'CALL'
+			vfoID: int(tuningMode.CALL)
+			state: 'down' if self.parent.vfo == int(tuningMode.CALL) else 'normal'
+			force_disabled: True
+
+# TODO: Add a TS control method
+#	Button:
+#		id: bandUpButton
+#		size_hint_max: 50, 25
+#		text: 'UP'
+#		on_press: root.control(bandUp = True)
+#		pos: TXvfoBox.pos[0] + TXvfoBox.width + 10, mainTXFreq.pos[1] + mainTXFreq.height - self.height
+
+#	Button:
+#		id: bandDownButton
+#		size_hint_max: 50, 25
+#		text: 'DOWN'
+#		on_press: root.control(bandDown = True)
+#		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
+
+#	BoolToggle:
+#		rig_state: 'CWautoTune'
+#		size_hint_max: 50, 25
+#		text: 'CWA'
+#		pos: bandDownButton.pos[0], bandDownButton.pos[1] - self.height
+
+	FreqDisplay:
+		id: mainTXFreq
+		activeColour: 1.0, 1.0, 1.0, 1.0
+		inactiveColour: 0.45, 0.45, 0.45, 1.0
+		zeroColour: 0.2, 0.2, 0.2, 1.0
+		font_size: 70
+		halign: 'right'
+		valign: 'top'
+		text_size: 588, 70
+		size_hint_min: self.text_size
+		size_hint_max: self.text_size
+		pos: (root.width - self.width) / 2, outputPower.pos[1] - self.size[1] - 30
+		max_lines: 1
+		lines: 1
+		font_name: 'DroidSansMono'
+		freq_display: mainTXFreq
+		op_mode_box: TXopModeBox
+		vfo_box: TXvfoBox
+		memory_display: mainTXMemory
+		rig_state: 'currentTXfrequency'
+
+	MemoryDisplay:
+		id: mainTXMemory
+		markup: True
+		color: 1,1,1,1
+		font_size: 20
+		halign: 'left'
+		valign: 'top'
+		text_size: 588, 24
+		size_hint_min: self.text_size
+		size_hint_max: self.text_size
+		pos: mainTXFreq.pos[0], mainTXFreq.pos[1] - 30
+		max_lines: 1
+		lines: 1
+		font_name: 'DroidSansMono'
+		freq_display: mainTXFreq
+		vfo_box: TXvfoBox
+		is_tx: True
+
+	OPModeBox:
+		id: TXopModeBox
+		pos: (root.width + mainTXFreq.pos[0] + mainTXFreq.width - self.width) / 2, mainTXFreq.pos[1] + mainTXFreq.height - self.height
+		size_hint_max: 200, 50
+		cols: 4
+		rows: 2
+		on_mode: highPassLabel.refresh(); lowPassLabel.refresh(); wideNarrowLabel.refresh(); noiseBlanker.refresh()
+		rig_state: 'TXmode'
+
+		OPModeBoxButton:
+			text: 'USB'
+			modeID: int(mode.USB)
+			state: 'down' if self.parent.mode == int(mode.USB) else 'normal'
+
+		OPModeBoxButton:
+			text: 'CW'
+			modeID: int(mode.CW)
+			state: 'down' if self.parent.mode == int(mode.CW) else 'normal'
+
+		OPModeBoxButton:
+			text: 'AM'
+			modeID: int(mode.AM)
+			state: 'down' if self.parent.mode == int(mode.AM) else 'normal'
+
+		OPModeBoxButton:
+			text: 'FSK'
+			modeID: int(mode.FSK)
+			state: 'down' if self.parent.mode == int(mode.FSK) else 'normal'
+
+		OPModeBoxButton:
+			text: 'LSB'
+			modeID: int(mode.LSB)
+			state: 'down' if self.parent.mode == int(mode.LSB) else 'normal'
+
+		OPModeBoxButton:
+			text: 'CW-R'
+			modeID: int(mode.CW_REVERSED)
+			state: 'down' if self.parent.mode == int(mode.CW_REVERSED) else 'normal'
+
+		OPModeBoxButton:
+			text: 'FM'
+			modeID: int(mode.FM)
+			state: 'down' if self.parent.mode == int(mode.FM) else 'normal'
+
+		OPModeBoxButton:
+			text: 'FSK-R'
+			modeID: int(mode.FSK_REVERSED)
+			state: 'down' if self.parent.mode == int(mode.FSK_REVERSED) else 'normal'
+
+	# TODO: Do we need to track TXautoMode?
+	#BoolToggle:
+	#	rig_state: 'autoMode'
+	#	size_hint_max: TXopModeBox.width, 25
+	#	text: 'Auto Mode'
+	#	pos: TXopModeBox.pos[0], TXopModeBox.pos[1] - self.height
+
+###
+
+	Label:
 		id: micGainLabel
 		color: 0.8,0.8,0.8,1
 		font_size: 15
@@ -526,7 +710,7 @@
 		size_hint_max: self.text_size
 		halign: 'left'
 		text: 'Microphone Gain'
-		pos: (root.width - (outputPower.pos[0] + outputPower.width - self.pos[0])) / 2, antenna2.pos[1] - 50 - self.height
+		pos: (root.width - (monitorLevel.pos[0] + monitorLevel.width - self.pos[0])) / 2, mainTXMemory.pos[1] - 30 - self.height
 
 	StateSlider:
 		rig_state: 'microphoneGain'
@@ -624,24 +808,4 @@
 		value_track: True
 		size_hint_max: self.cursor_width + self.max * 7, 30
 		pos: monitorLevelLabel.pos[0], monitorLevelLabel.pos[1] - self.height
-		step: 1
-
-	Label:
-		id: outputPowerLabel
-		color: 0.8,0.8,0.8,1
-		font_size: 15
-		text_size: 588, 15
-		size_hint_max: self.text_size
-		halign: 'left'
-		text: 'Output Power'
-		pos: monitorLevel.pos[0] + monitorLevel.width + 10, monitorLevelLabel.pos[1]
-
-	StateSlider:
-		rig_state: 'outputPower'
-		id: outputPower
-		min: 5
-		max: 100
-		value_track: True
-		size_hint_max: self.cursor_width + (self.max - self.min), 30
-		pos: outputPowerLabel.pos[0], outputPowerLabel.pos[1] - self.height
 		step: 1

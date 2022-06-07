@@ -61,7 +61,6 @@ vfoa = int(kenwood.tuningMode.VFOA)
 vfob = int(kenwood.tuningMode.VFOB)
 mem = int(kenwood.tuningMode.MEMORY)
 call = int(kenwood.tuningMode.CALL)
-ids = None
 
 # See https://new.reddit.com/r/kivy/comments/v5joow/labeltext_can_no_longer_be_updated_after_f1/
 # Monkey patch hack
@@ -215,34 +214,59 @@ class FreqDisplay(Label):
 	activeColour = ColorProperty(defaultvalue=[1.0, 1.0, 1.0, 1.0])
 	inactiveColour = ColorProperty(defaultvalue=[0.45, 0.45, 0.45, 1.0])
 	zeroColour = ColorProperty(defaultvalue=[0.2, 0.2, 0.2, 1.0])
+	vfo_box = ObjectProperty()
+	op_mode_box = ObjectProperty()
+	memory_display = ObjectProperty()
+	rig_state = StringProperty()
 
 	# TODO: Change frequency if appropriate when TXing
 	def __init__(self, **kwargs):
 		self.markup = True
 		self.bind(freqValue=self._updateFreq)
+		self.bind(vfo_box=self.newVFO)
 		super(FreqDisplay, self).__init__(**kwargs)
 		if rig.powerOn:
 			self.freqValue = int(rig.vfoAFrequency)
-		rig.add_callback('vfoAFrequency', self.newFreq)
+		self.cb_state = 'currentMainFrequency'
+		rig.add_callback(self.cb_state, self.newFreq)
+		self.bind(rig_state=self.newRigState)
+
+	def newRigState(self, widget, value):
+		rig.remove_callback(self.cb_state, self.newFreq)
+		rig.add_callback(self.rig_state, self.newFreq)
+		self._updateFreq()
+
+	def newVFO(self, widget, value):
+		Clock.schedule_once(lambda dt: self.setVFOCallback(), 0)
+
+	def newMemory(self, widget, value):
+		Clock.schedule_once(lambda dt: self._newMemory(), 0)
+
+	def _newMemory(self):
+		self.setVFOCallback()
+		self._updateFreq()
 
 	def setVFOCallback(self):
-		rig.remove_callback('vfoAFrequency', self.newFreq)
-		rig.remove_callback('vfoBFrequency', self.newFreq)
-		if ids is not None:
-			if ids.vfoBox.vfo == vfoa:
-				self.freqValue = rig.vfoAFrequency
-				self._updateFreq(self)
-				rig.add_callback('vfoAFrequency', self.newFreq)
-			elif ids.vfoBox.vfo == vfob:
-				self.freqValue = rig.vfoBFrequency
-				self._updateFreq(self)
-				rig.add_callback('vfoBFrequency', self.newFreq)
-			elif ids.vfoBox.vfo == mem:
-				ids.mainMemory.memoryValue = rig.memoryChannel
-				ids.mainMemory._updateChannel(ids.mainMemory)
-			elif ids.vfoBox.vfo == call:
-				ids.mainMemory.memoryValue = 300
-				ids.mainMemory._updateChannel(ids.mainMemory)
+		if self.rig_state == '':
+			rig.remove_callback(self.cb_state, self.newFreq)
+			if self.vfo_box is not None:
+				if self.vfo_box.vfo == vfoa:
+					self.freqValue = rig.vfoAFrequency
+					self._updateFreq(self)
+					self.cb_state = 'vfoAFrequency'
+					rig.add_callback(self.cb_state, self.newFreq)
+				elif self.vfo_box.vfo == vfob:
+					self.freqValue = rig.vfoBFrequency
+					self._updateFreq(self)
+					self.cb_state = 'vfoBFrequency'
+					rig.add_callback(self.cb_state, self.newFreq)
+				elif self.memory_display is not None:
+					if self.vfo_box.vfo == mem:
+						self.memory_display.memoryValue = rig.memoryChannel
+						self.memory_display._updateChannel(self.memory_display)
+					elif self.vfo_box.vfo == call:
+						self.memory_display.memoryValue = 300
+						self.memory_display._updateChannel(self.memory_display)
 
 	def newFreq(self, freq, *args):
 		if freq is not None:
@@ -252,7 +276,7 @@ class FreqDisplay(Label):
 		new = '{:014,.3f}'.format(self.freqValue/1000)
 		m = re.search('^[0,.]+', new)
 		colour = '[color=' + kivy.utils.get_hex_from_color(self.activeColour) + ']'
-		if ids is not None and ids.vfoBox.vfo != vfoa and ids.vfoBox.vfo != vfob:
+		if self.vfo_box is not None and self.vfo_box.vfo != vfoa and self.vfo_box.vfo != vfob:
 			colour = '[color=' + kivy.utils.get_hex_from_color(self.inactiveColour) + ']'
 		if m is not None:
 			e = m.end()
@@ -268,7 +292,7 @@ class FreqDisplay(Label):
 			return False
 		if not self.collide_point(touch.pos[0], touch.pos[1]):
 			return False
-		#if ids.vfoBox.vfo != vfoa and ids.vfoBox.vfo != vfob:
+		#if self.vfo_box.vfo != vfoa and self.vfo_box.vfo != vfob:
 		#	return
 		cell = math.floor(14 - ((touch.pos[0] - self.pos[0]) / 42))
 		if cell == 3 or cell == 7 or cell == 11:
@@ -290,16 +314,16 @@ class FreqDisplay(Label):
 		new = self.freqValue + add
 		if new % add:
 			new = math.floor(new / add) * add
-		if ids.vfoBox.vfo == vfoa:
+		if self.vfo_box.vfo == vfoa:
 			rig.vfoAFrequency = new
-		elif ids.vfoBox.vfo == vfob:
+		elif self.vfo_box.vfo == vfob:
 			rig.vfoBFrequency = new
-		elif ids.vfoBox.vfo == mem:
+		elif self.vfo_box.vfo == mem and rig.RXtuningMode == kenwood.tuningMode.MEMORY:
 			if up:
 				rig.up = None
 			else:
 				rig.down = None
-		elif ids.vfoBox.vfo == call:
+		elif self.vfo_box.vfo == call and rig.RXtuningMode == kenwood.tuningMode.CALL:
 			if up:
 				rig.bandUp = None
 			else:
@@ -308,6 +332,9 @@ class FreqDisplay(Label):
 
 class MemoryDisplay(Label):
 	memoryValue = BoundedNumericProperty(0, min=0, max=300, errorvalue=0)
+	freq_display = ObjectProperty()
+	vfo_box = ObjectProperty()
+	is_tx = BooleanProperty(False)
 
 	def __init__(self, **kwargs):
 		self.markup = True
@@ -320,6 +347,27 @@ class MemoryDisplay(Label):
 		rig.memories.memories[self.memoryValue].add_callback(self.updateChannel)
 		self.bind(on_ref_press=self.toggle_group)
 		rig.memories.memories[300].add_callback(self.updateChannel)
+		self.bind(freq_display=self.newFreqDisplay)
+		self.bind(vfo_box=self.newVFOBox)
+		self.bind(is_tx=self.newIsTX)
+
+	def newIsTX(self, widget, value):
+		Clock.schedule_once(self._doUpdateChannel, 0)
+
+	def newFreqDisplay(self, widget, value):
+		Clock.schedule_once(self._doUpdateChannel, 0)
+
+	def newVFOBox(self, widget, value):
+		self.setVisibility()
+		Clock.schedule_once(self._doUpdateChannel, 0)
+
+	def setVisibility(self):
+		if self.vfo_box is None or self.vfo_box.vfo == call or self.vfo_box.vfo == mem:
+			self.opacity = 1
+			self.disabled = False
+		else:
+			self.opacity = 0
+			self.disabled = True
 
 	def newChannel(self, channel, *args):
 		if self.memoryValue is not None:
@@ -334,7 +382,7 @@ class MemoryDisplay(Label):
 		self._updateChannel()
 
 	def updateChannel(self, channel, *args):
-		if channel['Channel'] == self.memoryValue:
+		if channel == self.memoryValue:
 			Clock.schedule_once(self._doUpdateChannel, 0)
 
 	def _updateChannel(self, *args):
@@ -351,9 +399,12 @@ class MemoryDisplay(Label):
 
 	def _doUpdateChannel(self, dt):
 		memData = rig.memories[self.memoryValue]
-		if ids is not None:
-			if ids.vfoBox.vfo == mem or ids.vfoBox.vfo == call:
-				ids.mainFreq.freqValue = memData['Frequency']
+		if self.vfo_box is not None and self.freq_display is not None:
+			if self.vfo_box.vfo == mem or self.vfo_box.vfo == call:
+				if self.is_tx:
+					self.freq_display.freqValue = memData['TXfrequency']
+				else:
+					self.freq_display.freqValue = memData['Frequency']
 		new = 'Memory: {:1d}-{:03d} {:8s} {:10s}'.format(memData['MemoryGroup'], memData['Channel'], memData['MemoryName'], 'Locked Out ' if memData['LockedOut'] else ' ')
 		memGroups = rig.memoryGroups
 		if memGroups is not None:
@@ -363,8 +414,8 @@ class MemoryDisplay(Label):
 				new += '[ref='+str(i)+']' + str(i) + '[/ref]'
 				if memGroups[i]:
 					new += '[/u]'
-			if ids is not None:
-				if ids.vfoBox.vfo == call:
+			if self.vfo_box is not None:
+				if self.vfo_box.vfo == call:
 					new = 'Calling Frequency'
 			self.text = new
 
@@ -372,35 +423,35 @@ class MemoryDisplay(Label):
 	#	# TODO: Deal with clicks...
 	#	return False
 
-def setMemoryVisibility():
-	if ids is not None:
-		if ids.vfoBox.vfo == mem or ids.vfoBox.vfo == call:
-			ids.mainMemory.opacity = 1
-			ids.mainMemory.disabled = False
-		else:
-			ids.mainMemory.opacity = 0
-			ids.mainMemory.disabled = True
-
 class VFOBoxButton(ToggleButton):
 	allow_no_selection = False
 	vfoID = NumericProperty(-1)
+	force_disabled = BooleanProperty(False)
 
 	def __init__(self, **kwargs):
 		super(VFOBoxButton, self).__init__(**kwargs)
-		self.group = 'VFOBoxButton'
+		self.group = str(self.parent)
 		self.allow_no_selection = False
+		self.bind(force_disabled=self.newForce_disabled)
+
+	def newForce_disabled(self, widget, value):
+		if value:
+			self.disabled = True
 
 	def on_parent(self, *args):
+		self.group = str(self.parent)
 		if self.parent.vfo == -1:
 			self.disabled = True
 
 	def on_state(self, widget, value):
 		if value == 'down':
-			if self.vfoID != self.parent.vfo:
-				rig.RXtuningMode = kenwood.tuningMode(self.vfoID)
+			if self.vfoID != self.parent.vfo and self.parent.rig_state != '':
+				setattr(rig, self.parent.rig_state, kenwood.tuningMode(self.vfoID))
 
 class VFOBox(GridLayout):
+	rig_state = StringProperty()
 	vfo = NumericProperty(-1)
+	freq_display = ObjectProperty()
 
 	def disable_children(self):
 		for c in self.children:
@@ -409,11 +460,29 @@ class VFOBox(GridLayout):
 	def __init__(self, **kwargs):
 		super(VFOBox, self).__init__(**kwargs)
 		self.bind(vfo=self._updateVFO)
-		if rig.RXtuningMode is None:
+		if self.rig_state != '':
+			if getattr(rig, self.rig_state) is None:
+				self.disable_children()
+			else:
+				self.vfo = int(getattr(rig, self.rig_state))
+		if (self.rig_state != ''):
+			self.on_rig_state(self, self.rig_state)
+		self.bind(freq_display=self.newFreqDisplay)
+
+	def newFreqDisplay(self, widget, value):
+		self._updateVFO()
+
+	def on_rig_state(self, widget, value):
+		Clock.schedule_once(lambda dt: self.refresh(), 0)
+		rig.add_callback(self.rig_state, self.newVFO)
+
+	def refresh(self):
+		st = getattr(rig, self.rig_state)
+		if st is None:
+			self.vfo = -1
 			self.disable_children()
 		else:
-			self.vfo = int(rig.RXtuningMode)
-		rig.add_callback('RXtuningMode', self.newVFO)
+			self.vfo = int(st)
 
 	def newVFO(self, vfo, *args):
 		if vfo is None:
@@ -421,15 +490,19 @@ class VFOBox(GridLayout):
 			self.disable_children()
 		else:
 			self.vfo = int(vfo)
+		self.freq_display._updateFreq()
 
 	def _updateVFO(self, *args):
-		Clock.schedule_once(lambda dt: setMemoryVisibility(), 0)
-		Clock.schedule_once(lambda dt: ids.mainFreq.setVFOCallback(), 0)
+		if self.freq_display is not None:
+			if self.freq_display.memory_display is not None:
+				Clock.schedule_once(lambda dt: self.freq_display.memory_display.setVisibility(), 0)
+			Clock.schedule_once(lambda dt: self.freq_display.setVFOCallback(), 0)
 		for c in self.children:
 			if self.vfo == -1:
 				c.disabled = True
 			else:
-				c.disabled = False
+				if not c.force_disabled:
+					c.disabled = False
 				if c.vfoID == self.vfo:
 					if c.state != 'down':
 						c.dispatch('on_press')
@@ -439,10 +512,11 @@ class OPModeBoxButton(ToggleButton):
 
 	def __init__(self, **kwargs):
 		super(OPModeBoxButton, self).__init__(**kwargs)
-		self.group = 'OPModeBoxButton'
+		self.group = str(self.parent)
 		self.allow_no_selection = False
 
 	def on_parent(self, *args):
+		self.group = str(self.parent)
 		if self.parent.mode == 0:
 			self.disabled = True
 
@@ -453,15 +527,29 @@ class OPModeBoxButton(ToggleButton):
 
 class OPModeBox(GridLayout):
 	mode = NumericProperty(0)
+	rig_state = StringProperty()
 
 	def __init__(self, **kwargs):
 		super(OPModeBox, self).__init__(**kwargs)
-		self.bind(mode=self._updateMode)
-		rm = rig.mode
-		if rm is not None:
-			self.mode = int(rm)
 		self.new_mode = self.mode
-		rig.add_callback('mode', self.newMode)
+		self.cb_installed = self.rig_state
+		if self.rig_state != '':
+			rig.add_callback(self.rig_state, self.newMode)
+			rm = getattr(rig, self.rig_state)
+			if rm is not None:
+				self.mode = int(rm)
+		self.bind(mode=self._updateMode)
+		self.bind(rig_state=self.newRigState)
+
+	def newRigState(self, widget, value):
+		if self.cb_installed != '':
+			rig.remove_callback(self.rig_state, self.newMode)
+		rig.add_callback(self.rig_state, self.newMode)
+		nm = getattr(rig, self.rig_state)
+		if nm is None:
+			self.mode = -1
+		else:
+			self.mode = int(getattr(rig, self.rig_state))
 
 	def disable_children(self):
 		for c in self.children:
@@ -637,6 +725,8 @@ class FilterDisplay(Widget):
 	line_width = NumericProperty(default_value = 1)
 	points = ListProperty()
 	line_points = ListProperty()
+	op_mode_box = ObjectProperty()
+
 	# TODO: This (and other radio-specific logic in here) doesn't beling
 	#       in this file really.  It should be handled/exposed by the
 	#       kenwood module.
@@ -690,14 +780,17 @@ class FilterDisplay(Widget):
 
 	def _get_max(self):
 		# TODO: Packet Filter (Menu No. 50A) changes behaviour in ??? mode
-		if ids.opModeBox.mode == int(kenwood.mode.AM):
-			return 3
-		elif ids.opModeBox.mode == int(kenwood.mode.FM):
+		if self.op_mode_box is None:
 			return 11
-		elif ids.opModeBox.mode == int(kenwood.mode.LSB):
-			return 11
-		elif ids.opModeBox.mode == int(kenwood.mode.USB):
-			return 11
+		else:
+			if self.op_mode_box.mode == int(kenwood.mode.AM):
+				return 3
+			elif self.op_mode_box.mode == int(kenwood.mode.FM):
+				return 11
+			elif self.op_mode_box.mode == int(kenwood.mode.LSB):
+				return 11
+			elif self.op_mode_box.mode == int(kenwood.mode.USB):
+				return 11
 
 	def on_touch_down(self, touch):
 		if not 'button' in touch.profile:
@@ -1004,21 +1097,18 @@ class NeatApp(App):
 		settings.add_json_panel('Neat', self.config, data = jsondata)
 
 	def build(self):
-		global ids, rig, rigctl
+		global rig, rigctl
 		self.config = ConfigParser()
 		self.build_config(self.config)
 		self.config.read('neat.ini')
 		rig = kenwood.Kenwood(self.config.get('SerialPort', 'device'), self.config.getint('SerialPort', 'speed'), self.config.getint('SerialPort', 'stopBits'), verbose = self.config.getboolean('Neat', 'verbose'))
+		self.rig = rig
 		if self.config.getboolean('Neat', 'rigctld'):
 			rigctl = rigctld.rigctld(rig, address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port'), verbose = self.config.getboolean('Neat', 'verbose'))
 			rigctldThread = threading.Thread(target = rigctl.rigctldThread, name = 'rigctld')
 			rigctldThread.start()
 		ui = Neat()
 		Window.size = ui.size
-		if ids is not None:
-			raise Exception("Only one instance of NeatApp allowed!")
-		ids = ui.ids
-		ids.mainFreq.setVFOCallback()
 		return ui
 
 	def on_config_change(self, config, section, key, value):

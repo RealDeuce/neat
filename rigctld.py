@@ -23,7 +23,7 @@ class error(enum.IntEnum):
 	RIG_EARG = -15         # NULL RIG handle or any invalid pointer parameter in get arg
 	RIG_EVFO = -16         # Invalid VFO
 	RIG_EDOM = -17         # Argument out of domain of func
-	
+
 class vfo(enum.Enum):
 	# "Real" VFOs
 	VFO_NONE = 0
@@ -700,7 +700,6 @@ class rigctld_connection:
 			if not vfo in (vfo.VFOA, vfo.VFOB):
 				self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 			self.currVFO = vfo
-			self._rigctld.rig.transmitSet = (vfo != self.rxVFO)
 			self.append(bytes('RPRT 0\n', 'ascii'))
 			return
 
