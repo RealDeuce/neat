@@ -1424,9 +1424,9 @@ class Kenwood:
 			if self._state['TXtuningMode']._cached == tuningMode.CALL:
 				self._state['TXmode']._cached = self._state['mainMode']._cached
 			elif self._state['TXtuningMode']._cached == tuningMode.MEMORY:
-				self._state['currentTXfrequency']._cached = self.memories.memories[self._state['memoryChannel']._cached]._cached['Frequency']
+				self._state['currentTXfrequency']._cached = self.memories.memories[self._state['memoryChannel']._cached]._cached['TXFrequency']
 				# Glah!  We'll just assume this is the same for now... TODO
-				self._state['TXmode']._cached = self._state['mainMode']._cached
+				self._state['TXmode']._cached = self._state['mainMode'].self.memories.memories[self._state['memoryChannel']._cached]._cached['TXMode']
 			elif self._state['TXtuningMode']._cached == tuningMode.VFOA:
 				self._state['currentTXfrequency']._cached = self._state['vfoAFrequency']._cached
 				self._state['TXmode']._cached = self._state['VFOAmode']._cached
