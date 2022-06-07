@@ -692,7 +692,7 @@ class Kenwood:
 		return True
 
 	def _notInTransmitSet(self):
-		return self._state['transmitSet'] == False
+		return self._state['transmitSet']._cached == False
 
 	def _init_19(self):
 		# Errors
