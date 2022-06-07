@@ -648,6 +648,29 @@ class StateSlider(Slider):
 		if self._latest != self.value:
 			setattr(rig, self.rig_state, int(self.value))
 
+class RITSlider(StateSlider):
+	def __init__(self, **kwargs):
+		super(RITSlider, self).__init__(**kwargs)
+		if self.rig_state != '':
+			self._latest = getattr(rig, self.rig_state)
+		if self._latest == None:
+			self._latest = 0
+
+	def on_rig_state(self, widget, value):
+		val = getattr(rig, self.rig_state)
+		if val is not None:
+			self._latest = val
+			self.value = self._latest
+		rig.add_callback(self.rig_state, self.newValue)
+
+	def refresh(self):
+		pass
+
+	def newValue(self, value, *args):
+		if value is not None:
+			self._latest = value
+			self.value = self._latest
+
 class StateLamp(Label):
 	background_color = ColorProperty(defaultvalue=[0, 0, 0, 0])
 	active_color = ColorProperty(defaultvalue=[1, 1, 0, 1.0])
@@ -1031,6 +1054,35 @@ class WideNarrowLabel(Label):
 		if rig.mode in self.supportedModes:
 			val = 'Narrow' if value == 0 else 'Wide'
 			self.text = self.prefix + val + self.suffix
+
+class StateLabel(Label):
+	prefix = StringProperty()
+	suffix = StringProperty()
+	rig_state = StringProperty()
+
+	def __init__(self, **kwargs):
+		super(StateLabel, self).__init__(**kwargs)
+		self.text = self.prefix + self.text + self.suffix
+		self.old_rig_state = self.rig_state
+		self.last_text = self.text
+		if self.rig_state != '':
+			rig.add_callback(self.rig_state, self.setLabel)
+		self.bind(rig_state=self.newRigState)
+		self.bind(prefix=self._setLabel)
+		self.bind(suffix=self._setLabel)
+
+	def newRigState(self, widget, value):
+		if self.old_rig_state != '':
+			rig.remove_callback(self.old_rig_state, self.setLabel)
+		self.old_rig_state = value
+		rig.add_callback(self.old_rig_state, self.setLabel)
+
+	def _setLabel(self, *args, **kwargs):
+		self.setLabel(self.last_text)
+
+	def setLabel(self, newLabel):
+		self.last_text = str(newLabel)
+		self.text = self.prefix + self.last_text + self.suffix
 
 class NeatApp(App):
 	def build_config(self, config):

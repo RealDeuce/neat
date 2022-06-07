@@ -211,6 +211,53 @@
 
 ###
 
+	BoolToggle:
+		id: RIT
+		rig_state: 'RIT'
+		size_hint_max: 50, 25
+		text: 'RIT'
+		pos: XIT.pos[0] - self.width, RITfreq.pos[1] + RITfreq.height
+		on_state: noiseReductionLevel.refresh()
+
+	BoolToggle:
+		id: XIT
+		rig_state: 'XIT'
+		size_hint_max: 50, 25
+		text: 'XIT'
+		pos: RITfreq.pos[0] + RITfreq.width - self.width, RIT.pos[1]
+		on_state: noiseReductionLevel.refresh()
+
+	Button:
+		id: clearRIT
+		size_hint_max: 50, 25
+		text: 'CLEAR'
+		on_press: root.control(clearRIT = True)
+		pos: RITfreq.pos[0] + (RITfreq.width - self.width) / 2 , RIT.pos[1]
+
+	StateLabel:
+		id: RITlabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: ''
+		rig_state: 'RIT_XITfrequency'
+		suffix: 'Hz'
+		pos: RITfreq.pos[0], RITfreq.pos[1] + RITfreq.height
+
+	RITSlider:
+		id: RITfreq
+		rig_state: 'RIT_XITfrequency'
+		min: -20000
+		max: 20000
+		value_track: False
+		size_hint_max: mainFreq.width, 25
+		pos: mainFreq.pos[0], autoNotchLevel.pos[1] - self.size[1] - 40
+		step: 1
+
+###
+
 	VFOBox:
 		id: vfoBox
 		pos: (mainFreq.pos[0] - self.width - bandUpButton.width - 10) / 2, (mainFreq.pos[1] * 2 + mainFreq.height - self.height) / 2
@@ -271,7 +318,7 @@
 		text_size: 588, 70
 		size_hint_min: self.text_size
 		size_hint_max: self.text_size
-		pos: (root.width - self.width) / 2, autoNotchLevel.pos[1] - self.size[1] - 30
+		pos: (root.width - self.width) / 2, RITfreq.pos[1] - self.height
 		max_lines: 1
 		lines: 1
 		font_name: 'DroidSansMono'

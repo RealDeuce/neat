@@ -394,10 +394,51 @@ class StateValue():
 	def _remove_wait_callback(self, cb):
 		self._wait_callbacks = tuple(filter(lambda x: x is cb, self._wait_callbacks))
 
-class IntStateValue(int, StateValue):
-	def __iadd__(self, other):
-		super().__iadd__(self, other)
-		self._cached = int(self)
+class NagleStateValue(StateValue):
+	def __init__(self, rig, **kwargs):
+		super().__init__(rig, **kwargs)
+		self._pending = None
+		self._queued = None
+		self.lock = threading.Lock()
+
+	@property
+	def value(self):
+		return super().value
+
+	@value.setter
+	def value(self, value):
+		if not self._read_only:
+			self.lock.acquire()
+			if self._pending is not None:
+				self._pending['value'] = value
+				self.lock.release()
+				return
+			if self._queued is not None:
+				self._queued['value'] = value
+				self.lock.release()
+				return
+			self._queued = {
+				'msgType': 'set',
+				'stateValue': self,
+				'value': value,
+			}
+			self._rig._writeQueue.put(self._queued)
+			self.lock.release()
+
+	def set_string(self, value):
+		self.lock.acquire()
+		self._pending = self._queued
+		self._queued = None
+		if not self.range_check(value):
+			self._pending = None
+			self.lock.release()
+			return None
+		self.lock.release()
+		if self._set_format is not None:
+			return self._set_format.format(value)
+		elif self._set_method is not None:
+			return self._set_method(value)
+		print('Attempt to set value "'+self.name+'" without a set command or method', file=sys.stderr)
 
 class MemoryArray:
 	def __init__(self, rig, **kwargs):
@@ -698,6 +739,21 @@ class Kenwood:
 			return True
 		return self._state['transmitSet']._cached == False
 
+	def _check_RIT_XITfrequency(self, value):
+		if value == self._state['RIT_XITfrequency']._cached:
+			return False
+		return not self._scanSpeedUpDownValid()
+
+	def _set_RIT_XITfrequency(self, value):
+		diff = int(value - self._state['RIT_XITfrequency']._cached)
+		if diff < 0:
+			return 'RD{:05d}'.format(int(abs(diff)))
+		else:
+			return 'RU{:05d}'.format(int(diff))
+
+	def _can_clearRIT(self):
+		return self._state['RIT']._cached or self._state['XIT']._cached
+
 	def _init_19(self):
 		# Errors
 		self._command = {
@@ -855,7 +911,7 @@ class Kenwood:
 			'currentReceiverTransmitting':  StateValue(self, query_command = 'IF', set_method = self._set_mainTransmitting, range_check = self._currentTransmittingValid),
 			'currentFrequency':             StateValue(self, query_command = 'IF'),
 			'frequencyStep':                StateValue(self, query_command = 'IF'),
-			'RIT_XITfrequency':             StateValue(self, query_command = 'IF'),
+			'RIT_XITfrequency':             NagleStateValue(self, echoed = True,  query_command = 'IF',  set_method = self._set_RIT_XITfrequency, range_check = self._check_RIT_XITfrequency),
 			'channelBank':                  StateValue(self, query_command = 'IF'),
 			'split':                        StateValue(self, query_command = 'IF'),
 			'shiftStatus':                  StateValue(self, query_command = 'IF'),
@@ -905,10 +961,10 @@ class Kenwood:
 			'quickMemory':                  StateValue(self, echoed = True,  query_command = 'QR',  set_method = self._set_quickMemory),
 			'quickMemoryChannel':           StateValue(self, echoed = True,  query_command = 'QR',  set_method = self._set_quickMemoryChannel),
 			'attenuator':                   StateValue(self, echoed = True,  query_command = 'RA',  set_format = 'RA{:02d}'),
-			'clearRIT':                     StateValue(self, echoed = True,                         set_format = 'RC'),
-			'RITdown':                      StateValue(self, echoed = True,                         set_format = 'RD{:04d}', validity_check = self._RITupDownValid),
+			'clearRIT':                     StateValue(self, echoed = True,                         set_format = 'RC', validity_check = self._can_clearRIT),
+			'RITdown':                      StateValue(self, echoed = True,                         set_format = 'RD{:05d}', validity_check = self._RITupDownValid),
 			'scanSpeed':                    StateValue(self, echoed = True,  query_command = 'RD',  validity_check = self._scanSpeedUpDownValid),
-			'scanSpeedDown':                StateValue(self, echoed = True,                         set_format = 'RD{:04d}', validity_check = self._scanSpeedUpDownValid),
+			'scanSpeedDown':                StateValue(self, echoed = True,                         set_format = 'RD{:05d}', validity_check = self._scanSpeedUpDownValid),
 			'RFgain':                       StateValue(self, echoed = False, query_command = 'RG',  set_format = 'RG{:03d}'),
 			'noiseReductionLevel':          StateValue(self, echoed = False, query_command = 'RL',  set_format = 'RL{:02d}', validity_check = self._noiseReductionLevelValid),
 			'meterType':                    StateValue(self, echoed = True,  query_command = 'RM',  set_format = 'RM{:01d}', range_check = self._checkMeterValue),
@@ -917,8 +973,8 @@ class Kenwood:
 			'compressionMeter':             StateValue(self, query_command = 'RM'),
 			'ALCmeter':                     StateValue(self, query_command = 'RM'),
 			'RIT':                          StateValue(self, echoed = True,  query_command = 'RT',  set_format = 'RT{:01d}'),
-			'RITup':                        StateValue(self, echoed = True,                         set_format = 'RU{:04d}', validity_check = self._RITupDownValid),
-			'scanSpeedUp':                  StateValue(self, echoed = True,                         set_format = 'RU{:04d}', validity_check = self._scanSpeedUpDownValid),
+			'RITup':                        StateValue(self, echoed = True,                         set_format = 'RU{:05d}', validity_check = self._RITupDownValid),
+			'scanSpeedUp':                  StateValue(self, echoed = True,                         set_format = 'RU{:05d}', validity_check = self._scanSpeedUpDownValid),
 			'mainTransmitting':             StateValue(self, echoed = True,  query_method = self._update_mainTransmitting, set_method = self._set_mainTransmitting, range_check = self._mainTransmittingValid), # RX, TX
 			'subTransmitting':              StateValue(self, echoed = True,  query_method = self._update_subTransmitting, set_method = self._set_subTransmitting, range_check = self._subTransmittingValid), # RX, TX
 			# TODO: Setters for SA command
@@ -1014,6 +1070,8 @@ class Kenwood:
 		self._killing_cache = False
 		self._serial = serial.Serial(baudrate = speed, stopbits = stopbits, rtscts = False, timeout = 0.01, inter_byte_timeout = 0.5)
 		self._serial.rts = True
+		# This is a hack for RIT... we ignore RIT updates received within a half second
+		# of the last time we sent a RU/RD command to change them.
 		self._serial.port = port
 		self._serial.open()
 		self._error_count = 0
@@ -1466,6 +1524,13 @@ class Kenwood:
 		else:
 			self._state['currentSubFrequency']._cached = split[0]
 		self._state['frequencyStep']._cached = split[1]
+		self._state['RIT_XITfrequency'].lock.acquire()
+		if self._state['RIT_XITfrequency']._pending is not None:
+			if self._state['RIT_XITfrequency']._pending['value'] is not None:
+				self._state['RIT_XITfrequency']._queued = self._state['RIT_XITfrequency']._pending
+				self._set(self._state['RIT_XITfrequency'], self._state['RIT_XITfrequency']._queued['value'])
+			self._state['RIT_XITfrequency']._pending = None
+		self._state['RIT_XITfrequency'].lock.release()
 		self._state['RIT_XITfrequency']._cached = split[2]
 		self._state['RIT']._cached = bool(split[3])
 		self._state['XIT']._cached = bool(split[4])
