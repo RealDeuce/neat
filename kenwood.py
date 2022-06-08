@@ -55,7 +55,14 @@ expected to deal with this.
 Each state property can also have callbacks installed which are called
 when the value of the state property changes.  This is how the front-end
 is expected to know when a change takes place, rather than assuming it
-took place as soon as the property was written.
+took place as soon as the property was written.  Callbacks are called
+from a different thread and should not query properties from that thread.
+TODO: Fix this with a queue, it's not that hard and you're lazy.
+If a callback is given a None value as the new value, that may just mean
+that a state change invalidated the cached value and a new read of the
+property will retreive it.  If reading the property returns None, that
+indicates the property can not be obtained from the rig in the current
+state, and is not applicable.
 
 This allows the front-end to be more responsive, at the expense of a
 consistent, known rig state.
