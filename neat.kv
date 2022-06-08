@@ -264,7 +264,7 @@
 		size_hint_max: 100, 50
 		cols: 2
 		rows: 2
-		rig_state: 'RXtuningMode'
+		rig_state: 'mainRXtuningMode'
 		freq_display: mainFreq
 
 		VFOBoxButton:
@@ -322,7 +322,7 @@
 		max_lines: 1
 		lines: 1
 		font_name: 'DroidSansMono'
-		freq_display: mainFreq
+		rig_state: 'mainRXfrequency'
 		op_mode_box: opModeBox
 		vfo_box: vfoBox
 		memory_display: mainMemory
@@ -671,7 +671,7 @@
 		op_mode_box: TXopModeBox
 		vfo_box: TXvfoBox
 		memory_display: mainTXMemory
-		rig_state: 'currentTXfrequency'
+		rig_state: 'mainTXfrequency'
 
 	MemoryDisplay:
 		id: mainTXMemory
@@ -698,7 +698,7 @@
 		cols: 4
 		rows: 2
 		on_mode: highPassLabel.refresh(); lowPassLabel.refresh(); wideNarrowLabel.refresh(); noiseBlanker.refresh()
-		rig_state: 'TXmode'
+		rig_state: 'mainTXmode'
 
 		OPModeBoxButton:
 			text: 'USB'

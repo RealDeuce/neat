@@ -88,11 +88,35 @@ subSetFrequency       - The "set" frequency for the sub-receiver
                         as it doesn't support RIT
 subTXoffsetFrequency  - This is the frequency the sub-receiver will transmit
                         on.  This takes into account offset
-currentMainFrequency  - Equal to either mainRXfrequency or mainTXfrequency
+mainFrequency         - Equal to either mainRXfrequency or mainTXfrequency
                         depending on if the radio is transmitting or not.
-currentSubFrequency   - Equal to either subSetFrequency or
+subFrequency          - Equal to either subSetFrequency or
                         subTXoffsetFrequency depending on if the radio
                         is transmitting or not.
+currentTXfrequency    - Set to either mainTXfrequency or subTXoffsetFrequency
+currentRXfrequency    - Set to either mainRXfrequency or subSetFrequency
+                        based on the current *TX* receiver
+
+"Tuning Mode" is what I call the VFO selection type thing... there's a
+few of these too:
+mainRXtuningMode
+mainTXtuningMode
+subTuningMode
+currentRXtuningMode
+currentTXtuningMode
+
+And the mode (ie: CW, USB, etc...)
+mainRXmode
+mainTXmode
+subMode
+currentRXmode
+currentTXmode
+
+The current* ones are intended to be generic across all backends, and
+should be enough for things like loggers and wsjt-x that just want to
+get or set the basic parameters and don't care how that happens.  If
+you're hacking up a backend for that, just implementing the current*
+stuff should get it functional.
 '''
 
 class tunerState(enum.IntEnum):
@@ -380,6 +404,8 @@ class StateValue():
 
 	@_cached.setter
 	def _cached(self, value):
+		if isinstance(value, StateValue):
+			raise Exception('Forgot to add ._cached!')
 		if self._cached_value != value:
 			self._cached_value = value
 			for cb in self._callbacks:
@@ -409,6 +435,8 @@ class StateValue():
 		if not self.range_check(value):
 			self._cached = None
 			return None
+		if value is None:
+			raise Exception('Setting new value of None!')
 		if self._set_format is not None:
 			return self._set_format.format(value)
 		elif self._set_method is not None:
@@ -417,6 +445,8 @@ class StateValue():
 
 	@value.setter
 	def value(self, value):
+		if isinstance(value, StateValue):
+			raise Exception('Forgot to add ._cached!')
 		if not self._read_only:
 			self._rig._set(self, value)
 
@@ -662,7 +692,7 @@ class Kenwood:
 		return False
 
 	def _antennaRangeCheck(self, value):
-		if self._state['currentMainFrequency']._cached <= 60000000 and (value == 1 or value == 2):
+		if self._state['mainFrequency']._cached <= 60000000 and (value == 1 or value == 2):
 			return True
 		return False
 
@@ -705,7 +735,7 @@ class Kenwood:
 		return True
 
 	def _query_VFOmode(self, cm, m, sv):
-		if cm == self._state['controlMain']._cached and (m is None or m == self._state['RXtuningMode']._cached):
+		if cm == self._state['controlMain']._cached and (m is None or m == self._state['currentRXtuningMode']._cached):
 			sv._cached = self._state['mode']._cached
 			return
 		old_cm = None
@@ -714,11 +744,11 @@ class Kenwood:
 			self._set(self._state['controlMain'], cm)
 		old_tm = None
 		if m is not None:
-			if not self._state['RXtuningMode']._cached == m:
-				old_tm = self._state['RXtuningMode']._cached
-				self._set(self._state['RXtuningMode'], m)
+			if not self._state['currentRXtuningMode']._cached == m:
+				old_tm = self._state['currentRXtuningMode']._cached
+				self._set(self._state['currentRXtuningMode'], m)
 		if old_tm is not None:
-			self._set(self._state['RXtuningMode'], old_tm)
+			self._set(self._state['currentRXtuningMode'], old_tm)
 		if old_cm is not None:
 			self._set(self._state['controlMain'], old_cm)
 
@@ -730,9 +760,6 @@ class Kenwood:
 
 	def _query_subMode(self):
 		self._query_VFOmode(False, tuningMode.VFOA, self._state['subMode'])
-
-	def _query_mainMode(self):
-		self._query_VFOmode(True, None, self._state['mainMode'])
 
 	def _set_controlMain(self, value):
 		if self._state['TXmain']._cached is None:
@@ -760,7 +787,9 @@ class Kenwood:
 	def _check_transmitSet(self, value):
 		if not value:
 			return True
-		return self._state['split']._cached
+		if self._state['split']._cached:
+			return True
+		return False
 
 	def _never(self):
 		return False
@@ -768,6 +797,9 @@ class Kenwood:
 	def _check_notSimplex(self):
 		if self.offsetFrequency == 0:
 			return True
+		if self.offsetType == offset.NONE:
+			return True
+		return False
 
 	def _set_mainRXtuningMode(self, value):
 		return 'FR{:01d}'.format(int(value))
@@ -786,8 +818,8 @@ class Kenwood:
 		if not self._state['controlMain']._cached:
 			return False
 		if value == tuningMode.CALL:
-			return self._state['RXtuningMode']._cached == tuningMode.CALL
-		elif self._state['TXtuningMode']._cached == tuningMode.CALL:
+			return self._state['mainRXtuningMode']._cached == tuningMode.CALL
+		elif self._state['mainTXtuningMode']._cached == tuningMode.CALL:
 			return False
 		return True
 
@@ -958,9 +990,9 @@ class Kenwood:
 			'filterDisplayPattern':         StateValue(self, query_command = 'FD'),
 			# NOTE: FR changes FT, but FT doesn't change FR **and** doesn't notify
 			# that FT was changed.  This is handled in update_FR
-			'RXtuningMode':                 StateValue(self, echoed = True,  query_command = 'FR',  set_format = 'FR{:01d}', validity_check = self._notInTransmitSet),
+			'currentRXtuningMode':          StateValue(self, echoed = True,  query_command = 'FR',  set_format = 'FR{:01d}', validity_check = self._notInTransmitSet),
 			'fineTuning':                   StateValue(self, echoed = True,  query_command = 'FS',  set_format = 'FS{:01d}'),
-			'TXtuningMode':                 StateValue(self, echoed = True,  query_command = 'FT',  set_format = 'FT{:01d}', validity_check = self._notInTransmitSet),
+			'currentTXtuningMode':          StateValue(self, echoed = True,  query_command = 'FT',  set_format = 'FT{:01d}', validity_check = self._notInTransmitSet),
 			'filterWidth':                  StateValue(self, echoed = True,  query_command = 'FW',  set_format = 'FW{:04d}', validity_check = self._filterWidthValid),
 			'filterWidth':                  StateValue(self, echoed = True,  query_command = 'FW',  set_format = 'FW{:04d}', validity_check = self._filterWidthValid),
 			'AGCconstant':                  StateValue(self, echoed = True,  query_command = 'GT',  set_format = 'GT{:03d}'),
@@ -1079,26 +1111,38 @@ class Kenwood:
 			'XIT':                          StateValue(self, echoed = False, query_command = 'XT',  set_format = 'XT{:01d}'),
 			'memoryVFOsplitEnabled':        StateValue(self, echoed = False, query_command = 'EX0060100',  set_format = 'EX0060100{:01d}'),
 			'tunerOnInRX':                  StateValue(self, echoed = False, query_command = 'EX0270000',  set_format = 'EX0270000{:01d}'),
-			'currentMainFrequency':         StateValue(self),
-			'currentSubFrequency':          StateValue(self),
+			'mainRXsetFrequency':           StateValue(self),
+			'mainRXfrequency':              StateValue(self),
+			'mainTXsetFrequency':           StateValue(self),
+			'mainTXoffsetFrequency':        StateValue(self),
+			'mainTXfrequency':              StateValue(self),
+			'subTXoffsetFrequency':         StateValue(self),
+			'mainFrequency':                StateValue(self),
+			'subFrequency':                 StateValue(self),
 			'currentTXfrequency':           StateValue(self),
+			'currentRXfrequency':           StateValue(self),
 			'mainRXtuningMode':             StateValue(self, set_method = self._set_mainRXtuningMode, range_check = self._check_mainRXtuningMode),
 			'mainTXtuningMode':             StateValue(self, set_method = self._set_mainTXtuningMode, range_check = self._check_mainTXtuningMode),
 			'subTuningMode':                StateValue(self),
-			'VFOAmode':                     StateValue(self, query_method = self._query_VFOAmode),
-			'VFOBmode':                     StateValue(self, query_method = self._query_VFOBmode),
-			'mainMode':                     StateValue(self, query_method = self._query_mainMode),
+			'mainRXmode':                   StateValue(self),
+			'mainTXmode':                   StateValue(self),
 			'subMode':                      StateValue(self, query_method = self._query_subMode),
-			'TXmode':                       StateValue(self),
+			'currentTXmode':                StateValue(self),
+			'currentRXmode':                StateValue(self),
+			'mainMemoryChannel':            StateValue(self),
+			'subMemoryChannel':             StateValue(self),
 		}
+		# TODO: This is a hack to fill the cache...
+		#self._state['mainFrequency']._cached_value = 0
+		#self._state['mainTransmitting']._cached_value = False
 		# Now plug the names in...
 		for a, p in self._state.items():
 			if isinstance(p, StateValue):
 				p.name = a
-		self.memories = MemoryArray(self)
-		self._fill_cache()
 		if self.powerOn:
 			self.autoInformation = 2
+		self.memories = MemoryArray(self)
+		self._fill_cache()
 
 	def __getattr__(self, name):
 		if name in self._state:
@@ -1175,6 +1219,7 @@ class Kenwood:
 			if self._fill_cache_state['matched_count'] == self._fill_cache_state['target_count']:
 				for cb in self._fill_cache_state['call_after']:
 					cb()
+				self._fill_cache_state['event'].set()
 
 	def _fill_cache(self):
 		done = {}
@@ -1182,7 +1227,9 @@ class Kenwood:
 		self._fill_cache_state['call_after'] = ()
 		self._fill_cache_state['target_count'] = 0
 		self._fill_cache_state['matched_count'] = 0
+		self._fill_cache_state['event'] = threading.Event()
 		# Perform queries in this order:
+		# 0) FA, FB, FC
 		# 1) Simple string queries without validators
 		# 2) Simple string queries with validators
 		# 3) Method queries
@@ -1199,7 +1246,44 @@ class Kenwood:
 							self._fill_cache_state['todo'].append((p, self._fill_cache_cb,))
 						else:
 							self._fill_cache_state['todo'].insert(0, (p, self._fill_cache_cb,))
+		self._fill_cache_state['todo'].insert(0, (self._state['subSetFrequency'], self._fill_cache_cb,))
+		self._fill_cache_state['todo'].insert(0, (self._state['VFOBsetFrequency'], self._fill_cache_cb,))
+		self._fill_cache_state['todo'].insert(0, (self._state['VFOAsetFrequency'], self._fill_cache_cb,))
+		self._fill_cache_state['todo'].insert(0, (self._state['subTransmitting'], self._fill_cache_cb,))
+		self._fill_cache_state['todo'].insert(0, (self._state['mainTransmitting'], self._fill_cache_cb,))
+		self._fill_cache_state['todo'].insert(0, (self._state['currentReceiverTransmitting'], self._fill_cache_cb,))
+		self._fill_cache_state['todo'].insert(0, (self._state['currentTXtuningMode'], self._fill_cache_cb,))
+		self._fill_cache_state['todo'].insert(0, (self._state['currentRXtuningMode'], self._fill_cache_cb,))
+		self._fill_cache_state['todo'].insert(0, (self._state['TXmain'], self._fill_cache_cb,))
 		self._fill_cache_cb(None, None)
+		self._fill_cache_state['event'].wait()
+		# TODO: if on main, toggle TF-SET to get TX mode/frequency
+		ocm = self._state['controlMain']._cached
+		if not ocm:
+			self._set(self._state['controlMain'], True)
+			self._send_query(self._state['currentRXtuningMode'])
+			self._send_query(self._state['currentTXtuningMode'])
+			oldts = self._state['transmitSet']._cached
+			if oldts is None:
+				oldts = False
+			self._set(self._state['transmitSet'], not oldts)
+			self._send_query(self._state['currentRXtuningMode'])
+			self._send_query(self._state['currentTXtuningMode'])
+			self._set(self._state['transmitSet'], oldts)
+			self._set(self._state['controlMain'], False)
+			self._set(self._state['controlMain'], False)
+		else:
+			oldts = self._state['transmitSet']._cached
+			if oldts is None:
+				oldts = False
+			self._set(self._state['transmitSet'], not oldts)
+			self._send_query(self._state['currentRXtuningMode'])
+			self._send_query(self._state['currentTXtuningMode'])
+			self._set(self._state['transmitSet'], oldts)
+			self._set(self._state['controlMain'], False)
+			self._send_query(self._state['currentRXtuningMode'])
+			self._set(self._state['controlMain'], True)
+		# TODO: switch to other receiver to get mode/frequency
 
 	def _kill_cache(self):
 		self._killing_cache = True
@@ -1267,6 +1351,8 @@ class Kenwood:
 		self._sync_lock.release()
 
 	def _set(self, state, value):
+		if value is None:
+			raise Exception('Attempt to set '+state.name+' to None')
 		self._writeQueue.put({
 			'msgType': 'set',
 			'stateValue': state,
@@ -1450,22 +1536,24 @@ class Kenwood:
 		split = parse('3d2d1d1d0l', args)
 		if split[0] == 27:
 			self._state['tunerOnInRX']._cached = bool(int(split[4]))
-		if split[0] == 6:
+		elif split[0] == 6:
 			self._state['memoryVFOsplitEnabled']._cached = bool(int(split[4]))
 		else:
 			print('Unhandled EX menu {:03d}'.format(split[0]), file=sys.stderr)
 
 	def _apply_offset(self, freq):
-		if self._state['offsetType'] is not None:
-			if self._state['offsetType'] == offset.NEGATIVE:
-				if self._state['offsetFrequency'] is not None:
-					freq = freq - self._state['offsetFrequency']
-			elif self._state['offsetType'] == offset.POSITIVE:
-				if self._state['offsetFrequency'] is not None:
-					freq = freq + self._state['offsetFrequency']
-			elif self._state['offsetType'] == offset.NONE:
+		if freq is None:
+			return
+		if self._state['offsetType']._cached is not None:
+			if self._state['offsetType']._cached == offset.NEGATIVE:
+				if self._state['offsetFrequency']._cached is not None:
+					freq = freq - self._state['offsetFrequency']._cached
+			elif self._state['offsetType']._cached == offset.POSITIVE:
+				if self._state['offsetFrequency']._cached is not None:
+					freq = freq + self._state['offsetFrequency']._cached
+			elif self._state['offsetType']._cached == offset.NONE:
 				pass
-			elif self._state['offsetType'] == offset.EURO_SPLIT:
+			elif self._state['offsetType']._cached == offset.EURO_SPLIT:
 				if freq > 200000000 and freq < 600000000:
 					freq -= 7600000
 				elif freq > 1200000000 and freq < 1400000000:
@@ -1473,12 +1561,42 @@ class Kenwood:
 		return freq
 
 	def _apply_RIT(self, freq):
-		if self._state['RIT']:
-			freq += self._state['RIT_XITfrequency']
+		if freq is None:
+			return
+		if self._state['RIT']._cached:
+			freq += self._state['RIT_XITfrequency']._cached
+		return freq
 
 	def _apply_XIT(self, freq):
-		if self._state['XIT']:
-			freq += self._state['RIT_XITfrequency']
+		if freq is None:
+			return
+		if self._state['XIT']._cached:
+			freq += self._state['RIT_XITfrequency']._cached
+		return freq
+
+	def _set_mainRXfrequencies(self, freq):
+		if freq is None:
+			return
+		self._state['mainRXsetFrequency']._cached = freq
+		self._state['mainRXfrequency']._cached = self._apply_RIT(freq)
+		if not self._state['mainTransmitting']._cached:
+			self._state['mainFrequency']._cached = self._state['mainRXfrequency']._cached
+		if self._state['TXmain']._cached:
+			self._state['currentRXfrequency']._cached = self._state['mainRXfrequency']._cached
+
+	def _set_mainTXfrequencies(self, freq):
+		if freq is None:
+			return
+		self._state['mainTXsetFrequency']._cached = freq
+		if self._state['mainTXmode']._cached == mode.FM and (not self._state['split']._cached):
+			self._state['mainTXoffsetFrequency']._cached = self._apply_offset(freq)
+		else:
+			self._state['mainTXoffsetFrequency']._cached = freq
+		self._state['mainTXfrequency']._cached = self._apply_XIT(self._state['mainTXoffsetFrequency']._cached)
+		if self._state['mainTransmitting']._cached:
+			self._state['mainFrequency']._cached = self._state['mainTXfrequency']._cached
+		if self._state['TXmain']._cached:
+			self._state['currentTXfrequency']._cached = self._state['mainTXfrequency']._cached
 
 	def _updateMainFrequency(self, args, tuning_mode):
 		split = parse('11d', args)
@@ -1489,19 +1607,9 @@ class Kenwood:
 		else:
 			raise Exception('Unspecified tuning mode ' + str(tuning_mode))
 		if self._state['mainRXtuningMode']._cached == tuning_mode:
-			self._state['mainRXsetFrequency']._cached = split[0]
-			self._state['mainRXfrequency']._cached = self._apply_RIT(split[0])
-			if not self._state['mainTransmitting']:
-				self._state['currentMainFrequency']._cached = self._state['mainRXfrequency']
+			self._set_mainRXfrequencies(split[0])
 		if self._state['mainTXtuningMode']._cached == tuning_mode:
-			self._state['mainTXsetFrequency']._cached = split[0]
-			if self._state['mainMode']._cached == mode.FM and (not self._state['split']):
-				self._state['mainTXoffsetFrequency']._cached = self._apply_offset(split[0])
-			else:
-				self._state['mainTXoffsetFrequency']._cached = split[0]
-			self._state['mainTXfrequency']._cached = self._apply_XIT(self._state['mainTXoffsetFrequency'])
-			if self._state['mainTransmitting']:
-				self._state['currentMainFrequency']._cached = self._state['mainTXfrequency']._cached
+			self._set_mainTXfrequencies(split[0])
 
 	def _update_FA(self, args):
 		self._updateMainFrequency(args, tuningMode.VFOA)
@@ -1509,17 +1617,26 @@ class Kenwood:
 	def _update_FB(self, args):
 		self._updateMainFrequency(args, tuningMode.VFOB)
 
+	def _set_subFrequencies(self, freq):
+		if freq is None:
+			return
+		self._state['subSetFrequency']._cached = freq
+		if self._state['subMode']._cached == mode.FM:
+			self._state['subTXoffsetFrequency']._cached = self._apply_offset(freq)
+		else:
+			self._state['subTXoffsetFrequency']._cached = freq
+		if self._state['subTransmitting']._cached:
+			self._state['subFrequency']._cached = self._state['subTXoffsetFrequency']._cached
+			self._state['subFrequency']._cached = self._state['subTXoffsetFrequency']._cached
+		else:
+			self._state['subFrequency']._cached = self._state['subSetFrequency']._cached
+		if not self._state['TXmain']._cached:
+			self._state['currentTXfrequency']._cached = self._state['subTXoffsetFrequency']._cached
+			self._state['currentRXfrequency']._cached = self._state['subSetFrequency']._cached
+
 	def _update_FC(self, args):
 		split = parse('11d', args)
-		self._state['subSetFrequency']._cached = split[0]
-		if self._state['subMode']._cached == mode.FM:
-			self._state['subTXoffsetFrequency']._cached = self._apply_offset(split[0])
-		else:
-			self._state['subTXoffsetFrequency']._cached = split[0]
-		if self._state['subTransmitting']:
-			self._state['currentSubFrequency']._cached = self._state['subTXoffsetFrequency']
-		else:
-			self._state['currentSubFrequency']._cached = self._state['subSetFrequency']
+		self._set_subFrequencies(split[0])
 
 	def _update_FD(self, args):
 		split = parse('8x', args)
@@ -1537,22 +1654,22 @@ class Kenwood:
 		tuning_mode = tuningMode(split[0])
 		# TODO: The mode is also unknown at this time...
 		if self._state['controlMain']._cached == True:
-			# This gets fixed by the IF command
-			#if not self._state['mainTransmitting'].state:
-			#	self._state['currentMainFrequency']._cached = None
+			# TODO: This gets fixed by the IF command
+			# TODO: We likely know all this already, 
+			# TODO: We need to invalidate this, but we don't.
+			#if not self._state['mainTransmitting']._cached:
+			#	self._state['mainFrequency']._cached = None
 			self._state['mainRXsetFrequency']._cached = None
-			self._state['mainRXFrequency']._cached = None
+			self._state['mainRXfrequency']._cached = None
+			if self._state['TXmain']._cached:
+				self._state['currentRXfrequency']._cached = None
 			self._state['split']._cached = False
-			self._state['RXtuningMode']._cached = tuning_mode
 			self._state['mainRXtuningMode']._cached = tuning_mode
+			self._state['currentRXtuningMode']._cached = tuning_mode
 		else:
-			#self._state['currentSubFrequency']._cached = None
-			#self._state['subSetFrequency']._cached = None
-			#self._state['subTXoffsetFrequency']._cached = None
-			self._state['RXtuningMode']._cached = tuning_mode
-			self._state['subTuningMode']._cached = tuning_mode
+			# Handled in _update_FT()
+			pass
 		self._update_FT(args)
-		self._send_query(self._state['split'])
 
 	def _update_FS(self, args):
 		split = parse('1d', args)
@@ -1561,38 +1678,31 @@ class Kenwood:
 	def _update_FT(self, args):
 		split = parse('1d', args)
 		tuning_mode = tuningMode(split[0])
-		if self._state['TXmain']._cached:
-			if self._state['mainTransmitting'].state:
-				self._state['currentMainFrequency']._cached = None
+		if self._state['controlMain']._cached:
+			# TODO: We need to invalidate this, but we don't.
+			#if self._state['mainTransmitting']._cached:
+			#	self._state['mainFrequency']._cached = None
 			self._state['mainTXsetFrequency']._cached = None
 			self._state['mainTXoffsetFrequency']._cached = None
 			self._state['mainTXfrequency']._cached = None
-			self._state['TXtuningMode']._cached = None
-			
-			if self._state['mainRXtuningMode'] != tuning_mode
+			self._state['currentTXtuningMode']._cached = tuning_mode
+			if self._state['mainRXtuningMode']._cached != tuning_mode:
 				self._state['split']._cached = True
-			else
+			else:
 				self._state['split']._cached = False
-			self._state['TXtuningMode']._cached = tuning_mode
 			self._state['mainTXtuningMode']._cached = tuning_mode
+			self._state['currentTXtuningMode']._cached = tuning_mode
 		else:
-			self._update_FR(args)
-			return
-		if self._state['TXmain']._cached:
-			# I assume that FR has already been updated. :(
-			# It *looks* like this is always true.
-			if self._state['TXtuningMode']._cached == tuningMode.CALL:
-				self._state['TXmode']._cached = self._state['mainMode']._cached
-			elif self._state['TXtuningMode']._cached == tuningMode.MEMORY:
-				self._state['currentTXfrequency']._cached = self.memories.memories[self._state['memoryChannel']._cached]._cached['TXfrequency']
-				# Glah!  We'll just assume this is the same for now... TODO
-				self._state['TXmode']._cached = self.memories.memories[self._state['memoryChannel']._cached]._cached['TXmode']
-			elif self._state['TXtuningMode']._cached == tuningMode.VFOA:
-				self._state['currentTXfrequency']._cached = self._state['VFOAsetFrequency']._cached
-				self._state['TXmode']._cached = self._state['VFOAmode']._cached
-			elif self._state['TXtuningMode']._cached == tuningMode.VFOB:
-				self._state['currentTXfrequency']._cached = self._state['VFOBsetFrequency']._cached
-				self._state['TXmode']._cached = self._state['VFOBmode']._cached
+			self._state['subFrequency']._cached = None
+			self._state['subSetFrequency']._cached = None
+			self._state['subTXoffsetFrequency']._cached = None
+			self._state['currentRXfrequency']._cached = None
+			if not self._state['TXmain']._cached:
+				self._state['currentRXfrequency']._cached = None
+			self._state['subTuningMode']._cached = tuning_mode
+			self._state['currentTXtuningMode']._cached = tuning_mode
+			self._state['currentRXtuningMode']._cached = tuning_mode
+		self._send_query(self._state['split'])
 
 	def _update_GT(self, args):
 		if args == '   ':
@@ -1613,16 +1723,7 @@ class Kenwood:
 		#     3810000,     0,       1,  0,  1,    0,  1,  0,  0,  0,  0,  0,   8,  0
 		split = parse('11d4d6d1d1d3d1d1d1d1d1d1d2d1d', args)
 
-		if split[6]:
-			self._state['currentTXfrequency']._cached = split[0]
-		else:
-			self._state['currentFrequency']._cached = split[0]
-		if self._state['controlMain']._cached == True:
-			if not split[6]:
-				self._state['currentMainFrequency']._cached = split[0]
-		else:
-			self._state['currentSubFrequency']._cached = split[0]
-		self._state['frequencyStep']._cached = split[1]
+		# We need to parse RIT/XIT/Offset before the frequency
 		self._state['RIT_XITfrequency'].lock.acquire()
 		if self._state['RIT_XITfrequency']._pending is not None:
 			if self._state['RIT_XITfrequency']._pending['value'] is not None:
@@ -1633,28 +1734,39 @@ class Kenwood:
 		self._state['RIT_XITfrequency']._cached = split[2]
 		self._state['RIT']._cached = bool(split[3])
 		self._state['XIT']._cached = bool(split[4])
+		self._state['offsetType']._cached = offset(split[13])
+		if self._state['TXmain']._cached == self._state['controlMain']._cached:
+			if split[6]: # TX - may not be the current transmitter
+				self._state['currentTXfrequency']._cached = split[0]
+				if self._state['controlMain']._cached:
+					self._set_mainTXfrequencies(split[0])
+				else:
+					self._set_subFrequencies(split[0])
+			else:
+				self._state['currentRXfrequency']._cached = split[0]
+		self._state['frequencyStep']._cached = split[1]
 		self._state['channelBank']._cached = split[5]
 		self._state['currentReceiverTransmitting']._cached = bool(split[6])
 		self._update_MD(str(split[7]))
-		if split[6]:
-			self._state['TXtuningMode']._cached = tuningMode(split[8])
-			if self._state['controlMain']._cached:
-				self._state['mainTXtuningMode']._cached = tuningMode(split[8])
+		if self._state['TXmain']._cached == self._state['controlMain']._cached:
+			if split[6]:
+				self._state['currentTXtuningMode']._cached = tuningMode(split[8])
+				if self._state['controlMain']._cached:
+					self._state['mainTXtuningMode']._cached = tuningMode(split[8])
+				else:
+					self._state['subTuningMode']._cached = tuningMode(split[8])
 			else:
-				self._state['subTuningMode']._cached = tuningMode(split[8])
-		else:
-			self._state['RXtuningMode']._cached = tuningMode(split[8])
-			self._state['tuningMode']._cached = tuningMode(split[8])
-			if self._state['controlMain']._cached:
-				self._state['mainRXtuningMode']._cached = tuningMode(split[8])
-			else:
-				self._state['subTuningMode']._cached = tuningMode(split[8])
+				self._state['currentRXtuningMode']._cached = tuningMode(split[8])
+				if self._state['controlMain']._cached:
+					self._state['mainRXtuningMode']._cached = tuningMode(split[8])
+				else:
+					self._state['subTuningMode']._cached = tuningMode(split[8])
 		self._state['scanMode']._cached = scanMode(split[9])
 		# TODO: Split is undocumented and full-duplex may be here?
 		self._state['split']._cached = bool(split[10])
 		# TODO: TONE/CTCSS/DCS squished together here in split[11]
 		# TODO: Tone frequency
-		self._state['shiftStatus']._cached = offset(split[13])
+		self._state['subToneFrequency']._cached = CTCSStone(split[12])
 		# Fun hack... in CALL mode, MC300 is updated via IF...
 		# We handle this special case by asserting that if we get IF
 		# when in MC300, the MC has been updated
@@ -1706,12 +1818,25 @@ class Kenwood:
 		if split[0] == 300:
 			self.memories.memories[300]._cached_value = None
 		self._state['memoryChannel']._cached = split[0]
-		# This also invalidates the current frequency
-		self._state['currentFrequency']._cached = None
 		if self._state['controlMain']._cached:
-			self._state['currentMainFrequency']._cached = None
+			self._state['mainMemoryChannel']._cached = split[0]
 		else:
-			self._state['currentSubFrequency']._cached = None
+			self._state['subMemoryChannel']._cached = split[0]
+		# This also invalidates the current frequency
+		self._state['currentRXfrequency']._cached = None
+		self._state['currentTXfrequency']._cached = None
+		if self._state['controlMain']._cached:
+			self._state['mainRXsetFrequency']._cached = None
+			self._state['mainRXfrequency']._cached = None
+			self._state['mainTXsetFrequency']._cached = None
+			self._state['mainTXoffsetFrequency']._cached = None
+			self._state['mainTXfrequency']._cached = None
+			# TODO: We need to invalidate this, but we don't.
+			#self._state['mainFrequency']._cached = None
+		else:
+			self._state['subSetFrequency']._cached = None
+			self._state['subTXoffsetFrequency']._cached = None
+			self._state['subFrequency']._cached = None
 
 	def _update_MD(self, args):
 		split = parse('1d', args)
@@ -1721,13 +1846,20 @@ class Kenwood:
 		else:
 			self._state['CWautoTune']._cached = False
 		if self._state['controlMain']._cached == True:
-			self._state['mainMode']._cached = mode(split[0])
-			if self._state['mainRXtuningMode']._cached == tuningMode.VFOA:
-				self._state['VFOAmode']._cached = mode(split[0])
-			elif self._state['mainRXtuningMode']._cached == tuningMode.VFOB:
-				self._state['VFOBmode']._cached = mode(split[0])
+			if self._notInTransmitSet():
+				self._state['mainRXmode']._cached = mode(split[0])
+				if self._state['mainTXtuningMode']._cached == self._state['mainRXtuningMode']._cached:
+					self._state['mainTXmode']._cached = mode(split[0])
+			else:
+				self._state['mainTXmode']._cached = mode(split[0])
+			if self._state['TXmain']._cached:
+				self._state['currentTXmode']._cached = self._state['mainTXmode']._cached
+				self._state['currentRXmode']._cached = self._state['mainRXmode']._cached
 		else:
 			self._state['subMode']._cached = mode(split[0])
+			if not self._state['TXmain']._cached:
+				self._state['currentTXmode']._cached = self._state['subMode']._cached
+				self._state['currentRXmode']._cached = self._state['subMode']._cached
 
 	def _update_MF(self, args):
 		split = parse('1d', args)
@@ -1782,6 +1914,16 @@ class Kenwood:
 		newVal['StepSize'] = split[12]
 		newVal['MemoryGroup'] = split[13]
 		newVal['MemoryName'] = split[14]
+		if newVal['Channel'] == self._state['mainMemoryChannel']._cached:
+			if self._state['mainRXtuningMode']._cached == tuningMode.MEMORY and 'Frequency' in newVal:
+				self._set_mainRXfrequencies(newVal['Frequency']._cached)
+			if self._state['mainTXtuningMode']._cached == tuningMode.MEMORY and 'TXfrequency' in newVal:
+				self._set_mainTXfrequencies(newVal['TXfrequency']._cached)
+		else:
+			if self._state['subTuningMode']._cached == tuningMode.MEMORY and 'Frequency' in newVal:
+				self._set_subFrequencies(newVal['Frequency']._cached)
+			elif self._state['subTuningMode']._cached == tuningMode.MEMORY and 'TXfrequency' in newVal:
+				self._set_subFrequencies(newVal['TXfrequency']._cached)
 		self.memories.memories[split[1]]._cached = newVal
 
 	def _update_MU(self, args):
@@ -1815,10 +1957,18 @@ class Kenwood:
 	def _update_OF(self, args):
 		split = parse('9d', args)
 		self._state['offsetFrequency']._cached = split[0]
+		if self._state['controlMain']._cached:
+			self._set_mainTXfrequencies(self._state['mainTXsetFrequency']._cached)
+		else:
+			self._set_subFrequencies(self._state['subSetFrequency']._cached)
 
 	def _update_OS(self, args):
 		split = parse('1d', args)
 		self._state['offsetType']._cached = offset(split[0])
+		if self._state['controlMain']._cached:
+			self._set_mainTXfrequencies(self._state['mainTXsetFrequency']._cached)
+		else:
+			self._set_subFrequencies(self._state['subSetFrequency']._cached)
 
 	def _update_PA(self, args):
 		split = parse('1d1d', args)
@@ -1907,6 +2057,7 @@ class Kenwood:
 	def _update_RT(self, args):
 		split = parse('1d', args)
 		self._state['RIT']._cached = bool(split[0])
+		self._set_mainTXfrequencies(self._state['mainTXsetFrequency']._cached)
 
 	# NOTE: Updates the same value as RD
 	def _update_RU(self, args):
@@ -1917,7 +2068,7 @@ class Kenwood:
 		split = parse('1d', args)
 		if self._state['TXmain']._cached == True and split[0] == 0:
 			self._state['currentReceiverTransmitting']._cached = False
-		elif self._state['RXmain']._cached == True and split[0] == 1:
+		elif self._state['TXmain']._cached == False and split[0] == 1:
 			self._state['currentReceiverTransmitting']._cached = False
 		if split[0] == 0:
 			self._state['mainTransmitting']._cached = False
@@ -2005,10 +2156,9 @@ class Kenwood:
 
 	def _update_TX(self, args):
 		split = parse('1d', args)
-		self._state['currentFrequency']._cached = None
 		if self._state['TXmain']._cached == True and split[0] == 0:
 			self._state['currentReceiverTransmitting']._cached = True
-		elif self._state['RXmain']._cached == True and split[0] == 1:
+		elif self._state['TXmain']._cached == False and split[0] == 1:
 			self._state['currentReceiverTransmitting']._cached = True
 		else:
 			print('TX triggered for wrong receiver!', file=sys.stderr)
@@ -2042,6 +2192,7 @@ class Kenwood:
 	def _update_XT(self, args):
 		split = parse('1d', args)
 		self._state['XIT']._cached = bool(split[0])
+		self._set_mainTXfrequencies(self._state['mainTXsetFrequency']._cached)
 
 	def _update_Error(self, args):
 		self._error_count += 1

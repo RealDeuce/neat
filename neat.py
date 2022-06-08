@@ -227,7 +227,7 @@ class FreqDisplay(Label):
 		super(FreqDisplay, self).__init__(**kwargs)
 		if rig.powerOn:
 			self.freqValue = int(rig.VFOAsetFrequency)
-		self.cb_state = 'currentMainFrequency'
+		self.cb_state = 'mainFrequency'
 		rig.add_callback(self.cb_state, self.newFreq)
 		self.bind(rig_state=self.newRigState)
 
@@ -318,12 +318,12 @@ class FreqDisplay(Label):
 			rig.VFOAsetFrequency = new
 		elif self.vfo_box.vfo == vfob:
 			rig.VFOBsetFrequency = new
-		elif self.vfo_box.vfo == mem and rig.RXtuningMode == kenwood.tuningMode.MEMORY:
+		elif self.vfo_box.vfo == mem and rig.mainRXtuningMode == kenwood.tuningMode.MEMORY:
 			if up:
 				rig.up = None
 			else:
 				rig.down = None
-		elif self.vfo_box.vfo == call and rig.RXtuningMode == kenwood.tuningMode.CALL:
+		elif self.vfo_box.vfo == call and rig.mainRXtuningMode == kenwood.tuningMode.CALL:
 			if up:
 				rig.bandUp = None
 			else:
