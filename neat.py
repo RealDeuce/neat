@@ -226,8 +226,8 @@ class FreqDisplay(Label):
 		self.bind(vfo_box=self.newVFO)
 		super(FreqDisplay, self).__init__(**kwargs)
 		if rig.powerOn:
-			self.freqValue = int(rig.vfoAFrequency)
-		self.cb_state = 'currentMainFrequency'
+			self.freqValue = int(rig.VFOAsetFrequency)
+		self.cb_state = 'mainFrequency'
 		rig.add_callback(self.cb_state, self.newFreq)
 		self.bind(rig_state=self.newRigState)
 
@@ -251,14 +251,14 @@ class FreqDisplay(Label):
 			rig.remove_callback(self.cb_state, self.newFreq)
 			if self.vfo_box is not None:
 				if self.vfo_box.vfo == vfoa:
-					self.freqValue = rig.vfoAFrequency
+					self.freqValue = rig.VFOAsetFrequency
 					self._updateFreq(self)
-					self.cb_state = 'vfoAFrequency'
+					self.cb_state = 'VFOAsetFrequency'
 					rig.add_callback(self.cb_state, self.newFreq)
 				elif self.vfo_box.vfo == vfob:
-					self.freqValue = rig.vfoBFrequency
+					self.freqValue = rig.VFOBsetFrequency
 					self._updateFreq(self)
-					self.cb_state = 'vfoBFrequency'
+					self.cb_state = 'VFOBsetFrequency'
 					rig.add_callback(self.cb_state, self.newFreq)
 				elif self.memory_display is not None:
 					if self.vfo_box.vfo == mem:
@@ -315,15 +315,15 @@ class FreqDisplay(Label):
 		if new % add:
 			new = math.floor(new / add) * add
 		if self.vfo_box.vfo == vfoa:
-			rig.vfoAFrequency = new
+			rig.VFOAsetFrequency = new
 		elif self.vfo_box.vfo == vfob:
-			rig.vfoBFrequency = new
-		elif self.vfo_box.vfo == mem and rig.RXtuningMode == kenwood.tuningMode.MEMORY:
+			rig.VFOBsetFrequency = new
+		elif self.vfo_box.vfo == mem and rig.mainRXtuningMode == kenwood.tuningMode.MEMORY:
 			if up:
 				rig.up = None
 			else:
 				rig.down = None
-		elif self.vfo_box.vfo == call and rig.RXtuningMode == kenwood.tuningMode.CALL:
+		elif self.vfo_box.vfo == call and rig.mainRXtuningMode == kenwood.tuningMode.CALL:
 			if up:
 				rig.bandUp = None
 			else:
@@ -1097,6 +1097,7 @@ class NeatApp(App):
 			'rigctld_address': 'localhost',
 			'rigctld_port': 4532
 		})
+
 	def build_settings(self, settings):
 		jsondata = """
 			[
