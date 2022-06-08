@@ -1748,8 +1748,6 @@ class Kenwood:
 		split = parse('1d', args)
 		self._state['skyCommandMonitor']._cached = bool(split[0])
 
-	# TODO: We actually need to merge these because we need two reads
-	# to get the RX/TX frequencies and modes
 	def _update_MR(self, args):
 		split = parse('1d3d11d1d1d1d2d2d3d1d1d9d2d1d0l', args)
 		idx = 0
