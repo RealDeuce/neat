@@ -739,11 +739,11 @@ class rigctld_connection:
 		# wsjtx/hamlib does set/get/set so this needs to be uncached. :(
 		rmode = self._rigctld.rig.RXtuningMode
 		if command['vfo'] == vfo.VFOA:
-			self.append(bytes(str(self._rigctld.rig.vfoAFrequency)+'\n', 'ascii'))
+			self.append(bytes(str(self._rigctld.rig.VFOAsetFrequency)+'\n', 'ascii'))
 		elif command['vfo'] == vfo.VFOB:
-			self.append(bytes(str(self._rigctld.rig.vfoBFrequency)+'\n', 'ascii'))
+			self.append(bytes(str(self._rigctld.rig.VFOBsetFrequency)+'\n', 'ascii'))
 		elif command['vfo'] == vfo.VFOC:
-			self.append(bytes(str(self._rigctld.rig.subReceiverFrequency)+'\n', 'ascii'))
+			self.append(bytes(str(self._rigctld.rig.subSetFrequency)+'\n', 'ascii'))
 		else:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 
@@ -932,13 +932,13 @@ class rigctld_connection:
 		# wsjtx (Hamlib?) sends this with six decimal places...
 		freq = int(float(command['argv'][0]))
 		if vfo == vfo.VFOA:
-			self._rigctld.rig.vfoAFrequency = freq
+			self._rigctld.rig.VFOAsetFrequency = freq
 			rprt = 0
 		if vfo == vfo.VFOB:
-			self._rigctld.rig.vfoBFrequency = freq
+			self._rigctld.rig.VFOBsetFrequency = freq
 			rprt = 0
 		if vfo == vfo.VFOC:
-			self._rigctld.rig.subReceiverFrequency = freq
+			self._rigctld.rig.subSetFrequency = freq
 			rprt = 0
 		self.append(bytes('RPRT {:d}\n'.format(rprt), 'ascii'))
 
