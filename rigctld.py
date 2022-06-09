@@ -749,9 +749,9 @@ class rigctld_connection:
 
 	def _get_mode(self, command):
 		if command['vfo'] == vfo.VFOA:
-			mode = self._rigctld.rig.VFOAmode
+			mode = self._rigctld.rig.mainRXmode
 		elif command['vfo'] == vfo.VFOB:
-			mode = self._rigctld.rig.VFOBmode
+			mode = self._rigctld.rig.mainTXmode
 		elif command['vfo'] == vfo.VFOC:
 			mode = self._rigctld.rig.subMode
 		else:
