@@ -399,6 +399,8 @@ class MemoryDisplay(Label):
 
 	def _doUpdateChannel(self, dt):
 		memData = rig.memories[self.memoryValue]
+		if memData is None:
+			return
 		if self.vfo_box is not None and self.freq_display is not None:
 			if self.vfo_box.vfo == mem or self.vfo_box.vfo == call:
 				if self.is_tx and ('TXfrequency' in memData):

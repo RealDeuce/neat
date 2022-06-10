@@ -102,8 +102,6 @@ few of these too:
 mainRXtuningMode
 mainTXtuningMode
 subTuningMode
-currentRXtuningMode
-currentTXtuningMode
 
 And the mode (ie: CW, USB, etc...)
 mainRXmode
@@ -149,16 +147,6 @@ class tuningMode(enum.IntEnum):
 	VFOB = 1
 	MEMORY = 2
 	CALL = 3
-
-class mode(enum.IntEnum):
-	LSB = 1
-	USB = 2
-	CW  = 3
-	FM  = 4
-	AM  = 5
-	FSK = 6
-	CW_REVERSED = 7
-	FSK_REVERSED = 9
 
 class scanMode(enum.IntEnum):
 	OFF = 0
@@ -1193,7 +1181,6 @@ class Kenwood:
 		self._init_done = False
 		self._terminate = False
 		self._writeQueue = queue.Queue(maxsize = 0)
-		self._verbose = verbose
 		self._killing_cache = False
 		self._serial = serial.Serial(baudrate = speed, stopbits = stopbits, rtscts = False, timeout = 0.01, inter_byte_timeout = 0.5)
 		self._serial.rts = True
@@ -1204,20 +1191,31 @@ class Kenwood:
 		self._error_count = 0
 		self._last_hack = time.time()
 		# We assume all rigs support the ID command (for no apparent reason)
-		self._state = {'ID': StateValue(self, query_command = 'ID', works_powered_off = True)}
+		self._state = {
+			'ID': StateValue(self, query_command = 'ID', works_powered_off = True),
+			'powerOn': StateValue(self, query_command = 'PS', works_powered_off = True)
+		}
+		self._state['ID'].name = 'ID'
+		self._state['powerOn'].name = 'powerOn'
+		self._state['powerOn']._cached_value = False
 		self._command = dict()
 		self._command = {
 			b'ID': self._update_ID,
+			b'PS': self._update_PS,
 			b'?': self._update_Error,
 			b'E': self._update_ComError,
 			b'O': self._update_IncompleteError,
 		}
+		self._aliveWait = threading.Event()
 		self._readThread = threading.Thread(target = self._readThread, name = "Read Thread")
 		self._readThread.start()
 		self._last_command = None
 		self._last_power_state = None
 		self._fill_cache_state = {}
 
+		self._aliveWait.wait()
+		self._aliveWait = None
+		ps = self.powerOn
 		resp = self.ID
 		initFunction = '_init_' + str(resp)
 		if callable(getattr(self, initFunction, None)):
@@ -1249,6 +1247,8 @@ class Kenwood:
 				self._fill_cache_state['event'].set()
 
 	def _fill_cache(self):
+		if self._state['powerOn']._cached == False:
+			return
 		done = {}
 		self._fill_cache_state['todo'] = []
 		self._fill_cache_state['call_after'] = ()
@@ -1274,6 +1274,7 @@ class Kenwood:
 						else:
 							self._fill_cache_state['todo'].insert(0, (p, self._fill_cache_cb,))
 		self._fill_cache_cb(None, None)
+		print('Waiting...')
 		self._fill_cache_state['event'].wait()
 		# TODO: if on main, toggle TF-SET to get TX mode/frequency
 		ocm = self._state['controlMain']._cached
@@ -1445,6 +1446,8 @@ class Kenwood:
 			if cmdline is not None:
 				m = re.match(b"^.*?([\?A-Z]{1,2})([\x20-\x3a\x3c-\x7f]*?);$", cmdline)
 				if m:
+					if self._aliveWait is not None:
+						self._aliveWait.set()
 					cmd = m.group(1)
 					args = m.group(2).decode('ascii')
 					if cmd in self._command:
@@ -2057,8 +2060,10 @@ class Kenwood:
 		self._state['powerOn']._cached = bool(split[0])
 		self._last_power_state = bool(split[0])
 		if split[0] and old == False:
-			self._set(self.autoInformation, 2)
+			self._set(self._state['autoInformation'], 2)
+			print('Filling')
 			self._fill_cache()
+			print('Done')
 		elif (not split[0]) and old == True:
 			self._kill_cache()
 
