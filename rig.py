@@ -1,6 +1,32 @@
-from abc import ABC
+# Copyright (c) 2022 Stephen Hurd
+# Copyright (c) 2022 Stephen Hurd
+# Developers:
+# Stephen Hurd (W8BSD/VE5BSD) <shurd@sasktel.net>
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice, developer list, and this permission notice shall
+# be included in all copies or substantial portions of the Software. If you meet
+# us some day, and you think this stuff is worth it, you can buy us a beer in
+# return
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
-class mode(enum.IntEnum):
+from abc import ABC, abstractmethod
+from enum import IntEnum
+
+class mode(IntEnum):
 	LSB = 1
 	USB = 2
 	CW  = 3
@@ -73,7 +99,7 @@ class Rig(ABC):
 	def __getattr__(self, name):
 		if name in self._state:
 			return self._state[name].value
-		elif name in (split, rx_frequency, tx_frequency, rx_mode, tx_mode, tx)
+		elif name in ('split', 'rx_frequency', 'tx_frequency', 'rx_mode', 'tx_mode', 'tx'):
 			raise NotImplementedError('Rig types require ' + name)
 		raise AttributeError('No state named ' + name + ' found in Kenwood object')
 
@@ -81,7 +107,7 @@ class Rig(ABC):
 		if name[:1] != '_':
 			if name in self._state:
 				self._state[name].value = value
-			elif name in (split, rx_frequency, tx_frequency, rx_mode, tx_mode, tx)
+			elif name in ('split', 'rx_frequency', 'tx_frequency', 'rx_mode', 'tx_mode', 'tx'):
 				raise NotImplementedError('Rig types require ' + name)
 		super().__setattr__(name ,value)
 
@@ -101,11 +127,13 @@ class Rig(ABC):
 """
 This class implements the caching layer.
 
-Backends should read/write the ._cached property to check/set the cached
-value.  A set to _cached triggers all applicable registered callbacks.
+Backends should read/write the .cached property to check/set the cached
+value.  A set to cached triggers all applicable registered callbacks.
 
 Frontends should read/write the property itself and not deal with this
 class at all.
+
+The set callbacks are intended for use by backends.
 """
 class StateValue(ABC):
 	def __init__(self, rig, **kwargs):
@@ -123,12 +151,12 @@ class StateValue(ABC):
 	@_cached.setter
 	def _cached(self, value):
 		if isinstance(value, StateValue):
-			raise Exception('Forgot to add ._cached!')
+			raise Exception('Forgot to add .cached!')
 		if self._cached_value != value:
 			self._cached_value = value
-			for cb in self._callbacks:
+			for cb in self._modify_callbacks:
 				cb(value)
-		for cb in self._wait_callbacks:
+		for cb in self._set_callbacks:
 			cb(self, value)
 
 	@property
@@ -142,13 +170,13 @@ class StateValue(ABC):
 		raise NotImplementedError('value setter not defined')
 
 	def add_modify_callback(self, cb):
-		self._callbacks += (cb,)
+		self._modify_callbacks += (cb,)
 
 	def add_set_callback(self, cb):
-		self._wait_callbacks += (cb,)
+		self._set_callbacks += (cb,)
 
 	def remove_modify_callback(self, cb):
-		self._callbacks = tuple(filter(lambda x: x == cb, self._callbacks))
+		self._modify_callbacks = tuple(filter(lambda x: x == cb, self._modify_callbacks))
 
 	def remove_set_callback(self, cb):
-		self._wait_callbacks = tuple(filter(lambda x: x is cb, self._wait_callbacks))
+		self._set_callbacks = tuple(filter(lambda x: x is cb, self._set_callbacks))
