@@ -34,15 +34,13 @@ it will get a suboptimal name.
 
 from enum import IntEnum
 from rig import Rig, StateValue
-import bitarray
-import bitarray.util
-import copy
-import re
-import serial
-import sys
-import threading
-import time
-import queue
+from bitarray.util import int2ba, base2ba
+from copy import deepcopy
+from re import match
+from sys import stderr
+from threading import Lock, Event, Thread
+from queue import Queue
+from rig.kenwood_hf.serial import KenwoodHFProtocol
 
 '''
 A basic overview of the concepts behind this
@@ -379,7 +377,7 @@ class KenwoodStateValue(StateValue):
 			return self._query_method()
 		elif self._query_command is not None:
 			return self._query_command
-		raise Exception('Attempt to query value "'+self.name+'" without a query command or method', file=sys.stderr)
+		raise Exception('Attempt to query value "'+self.name+'" without a query command or method', file=stderr)
 
 	def _do_range_check(self, value):
 		if not self._valid(False):
@@ -397,7 +395,7 @@ class KenwoodStateValue(StateValue):
 			return self._set_format.format(value)
 		elif self._set_method is not None:
 			return self._set_method(value)
-		print('Attempt to set value "'+self._name+'" without a set command or method', file=sys.stderr)
+		print('Attempt to set value "'+self._name+'" without a set command or method', file=stderr)
 
 	def _valid(self, can_query):
 		for d in self._depends_on:
@@ -428,7 +426,7 @@ class KenwoodStateValue(StateValue):
 		if self._cached is None and not self._rig._killing_cache:
 			self._rig._query(self)
 		# We just deepcopy it as an easy hack
-		return copy.deepcopy(self._cached)
+		return deepcopy(self._cached)
 
 	@value.setter
 	def value(self, value):
@@ -443,7 +441,7 @@ class KenwoodNagleStateValue(KenwoodStateValue):
 		super().__init__(rig, **kwargs)
 		self._pending = None
 		self._queued = None
-		self.lock = threading.Lock()
+		self.lock = Lock()
 
 	@property
 	def value(self):
@@ -469,7 +467,7 @@ class KenwoodNagleStateValue(KenwoodStateValue):
 			'stateValue': self,
 			'value': value,
 		}
-		self._rig._writeQueue.put(self._queued)
+		self._serial.writeQueue.put(self._queued)
 		self.lock.release()
 
 	def set_string(self, value):
@@ -485,7 +483,7 @@ class KenwoodNagleStateValue(KenwoodStateValue):
 			return self._set_format.format(value)
 		elif self._set_method is not None:
 			return self._set_method(value)
-		print('Attempt to set value "'+self.name+'" without a set command or method', file=sys.stderr)
+		print('Attempt to set value "'+self.name+'" without a set command or method', file=stderr)
 
 class KenwoodListStateValue(KenwoodStateValue):
 	def __init__(self, rig, length, **kwargs):
@@ -493,7 +491,7 @@ class KenwoodListStateValue(KenwoodStateValue):
 		self._queued = None
 		self.length = length
 		self.children = [None] * self.length
-		self.lock = threading.Lock()
+		self.lock = Lock()
 		self.add_set_callback(self._update_children)
 
 	def _update_children(self, value):
@@ -526,23 +524,24 @@ class KenwoodListStateValue(KenwoodStateValue):
 			'stateValue': self,
 			'value': value,
 		}
-		self._rig._writeQueue.put(self._queued)
+		self._serial.writeQueue.put(self._queued)
 		self.lock.release()
 
 	def set_string(self, value):
 		self.lock.acquire()
-		self._pending = self._queued
 		self._queued = None
 		if not self.range_check(value):
-			self._pending = None
 			self.lock.release()
 			return None
 		self.lock.release()
 		if self._set_format is not None:
+			for i in range(self.length):
+				if value[i] is None and self._cached is not None:
+					value[i] = self._cached[i]
 			return self._set_format.format(value)
 		elif self._set_method is not None:
 			return self._set_method(value)
-		print('Attempt to set value "'+self.name+'" without a set command or method', file=sys.stderr)
+		print('Attempt to set value "'+self.name+'" without a set command or method', file=stderr)
 
 class KenwoodSingleStateValue(KenwoodStateValue):
 	def __init__(self, parent, offset, **kwargs):
@@ -591,24 +590,19 @@ class MemoryArray:
 			yield self.memories[x].value
 
 class KenwoodHF(Rig):
-	def __init__(self, port = "/dev/ttyU0", speed = 4800, stopbits = 2, **kwargs):
+	def __init__(self, **kwargs):
 		super().__init__(**kwargs)
 		self._terminate = False
-		self._writeQueue = queue.Queue(maxsize = 0)
 		self._killing_cache = False
 		self._error_count = 0
 		self._last_hack = 0
-		self._PS_works = None
 		# TODO: The error handling repeats whatever the last command was, not the failing command
 		#       Short of only having one outstanding command at a time though, I'm not sure what
 		#       we can actually do about that.
 		self._last_command = None
 		self._last_power_state = None
 		self._fill_cache_state = {}
-		self._serial = serial.Serial(baudrate = speed, stopbits = stopbits, rtscts = False, timeout = 0.01, inter_byte_timeout = 0.5)
-		self._serial.rts = True
-		self._serial.port = port
-		self._serial.open()
+		self._serial = KenwoodHFProtocol(**kwargs)
 		# All supported rigs must support the ID command
 		self._state = {
 			'ID': KenwoodStateValue(self, name = 'ID', query_command = 'ID', works_powered_off = True),
@@ -620,8 +614,8 @@ class KenwoodHF(Rig):
 			b'E': self._update_ComError,
 			b'O': self._update_IncompleteError,
 		}
-		self._aliveWait = threading.Event()
-		self._readThread = threading.Thread(target = self._readThread, name = "Read Thread")
+		self._aliveWait = Event()
+		self._readThread = Thread(target = self._readThread, name = "Read Thread")
 		self._readThread.start()
 		self._aliveWait.wait()
 		self._aliveWait = None
@@ -635,7 +629,7 @@ class KenwoodHF(Rig):
 		else:
 			raise Exception("Unsupported rig (%d)!" % (resp))
 		self._init_done = True
-		self._sync_lock = threading.Lock()
+		self._sync_lock = Lock()
 
 	def __getattr__(self, name):
 		if name in self._state:
@@ -756,44 +750,41 @@ class KenwoodHF(Rig):
 
 		self._state = {
 			# State objects
-			'tuner': KenwoodStateValue(self,
+			# AC set fails when not in HF
+			# AC set fails when control is sub
+			# Not available for sub receiver
+			'tuner_list': KenwoodListStateValue(self,
 				echoed = True,
 				query_command = 'AC',
-				set_format = 'AC1{:1d}0'
+				set_format = 'AC{:1d}{:1d}{:1d}',
+				length = 3
 			),
-			'tunerRX': KenwoodStateValue(self, query_command = 'AC'),
-			'tunerTX': KenwoodStateValue(self, query_command = 'AC'),
-			'tunerState': KenwoodStateValue(self,
-				echoed = True,
-				query_command = 'AC',
-				set_format = 'AC11{:1d}'
-			),
-			'mainAFgain': KenwoodStateValue(self,
+			'main_af_gain': KenwoodStateValue(self,
 				echoed = False,
 				query_command = 'AG0',
 				set_format = 'AG0{:03d}'
 			),
-			'subAFgain': KenwoodStateValue(self,
+			'sub_af_gain': KenwoodStateValue(self,
 				echoed = False,
 				query_command = 'AG1',
 				set_format = 'AG1{:03d}'
 			),
-			'autoInformation': KenwoodStateValue(self,
+			'auto_information': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AI',
 				set_format = 'AI{:01d}'
 			),
-			'autoNotchLevel': KenwoodStateValue(self,
+			'auto_notch_level': KenwoodStateValue(self,
 				echoed = False,
 				query_command = 'AL',
 				set_format = 'AL{:03d}'
 			),
-			'autoMode': KenwoodStateValue(self,
+			'auto_mode': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AM',
 				set_format = 'AM{:01d}'
 			),
-			'antennaConnector': KenwoodStateValue(self,
+			'antenna_connector': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AN',
 				set_format = 'AN{:01d}',
@@ -813,49 +804,59 @@ class KenwoodHF(Rig):
 				validity_check = self._antenna2Valid,
 				depends_on=('mainFrequency',)
 			),
-			'mainAutoSimplexOn': KenwoodStateValue(self,
+			# The AR set command returns an error even when
+			# changing to the current state, and doesn't
+			# send a response.
+			#
+			# Further, the AR command returns an error when
+			# trying to set it on the non-control receiver.
+			# So basically, you can only set it for the
+			# control recevier, and then only to the
+			# opposite value.  Query appears to always work
+			# for both however.
+			'main_auto_simplex_on': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AR0',
 				set_format = 'AR0{:01d}1'
 			),
-			'mainSimplexPossible': KenwoodStateValue(self,
+			'main_simplex_possible': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AR0'
 			),
-			'subAutoSimplexOn': KenwoodStateValue(self,
+			'sub_auto_simplex_on': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AR1',
 				set_format = 'AR1{:01d}1'
 			),
-			'subSimplexPossible': KenwoodStateValue(self,
+			'sub_simplex_possible': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AR1'
 			),
-			'beatCanceller': KenwoodStateValue(self,
+			'beat_canceller': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'BC',
 				set_format = 'BC{:01}'
 			),
-			'autoBeatCanceller': KenwoodStateValue(self,
+			'auto_beat_canceller': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'BC',
 				set_format = 'BC{:01}'
 			),
-			'manualBeatCanceller': KenwoodStateValue(self,
+			'manual_beat_canceller': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'BC',
 				set_method = self._set_manualBeatCanceller
 			),
-			'bandDown': KenwoodStateValue(self,
+			'band_down': KenwoodStateValue(self,
 				echoed = True,
 				set_format = 'BD'
 			),
-			'manualBeatCancellerFrequency': KenwoodStateValue(self,
+			'manual_beat_canceller_frequency': KenwoodStateValue(self,
 				echoed = False,
 				query_command = 'BP',
 				set_format = 'BP{:03d}'
 			),
-			'bandUp': KenwoodStateValue(self,
+			'band_up': KenwoodStateValue(self,
 				echoed = True,
 				set_format = 'BU'
 			),
@@ -1440,6 +1441,20 @@ class KenwoodHF(Rig):
 			'mainMemoryChannel': KenwoodStateValue(self),
 			'subMemoryChannel': KenwoodStateValue(self),
 		}
+		# Parts if ListStates
+		self._state['tunerRX'] = KenwoodSingleStateValue(self, self._state['tuner_list'],
+			echoed = True,
+			offset = 0,
+		)
+		self._state['tunerTX'] = KenwoodSingleStateValue(self, self._state['tuner_list'],
+			echoed = True,
+			offset = 1,
+		)
+		self._state['tunerState'] = KenwoodSingleStateValue(self, self._state['tuner_list'],
+			echoed = True,
+			offset = 0,
+		)
+
 		# TODO: This is a hack to fill the cache...
 		#self._state['mainFrequency']._cached_value = 0
 		#self._state['mainTransmitting']._cached_value = False
@@ -1448,9 +1463,83 @@ class KenwoodHF(Rig):
 			if isinstance(p, StateValue):
 				p.name = a
 		if self.powerOn:
-			self.autoInformation = 2
+			self.auto_information = 2
 		self.memories = MemoryArray(self)
 		self._fill_cache()
+
+	def _readThread(self):
+		while not self._terminate:
+			cmdline = self._serial.read()
+			if cmdline is not None:
+				m = match(b"^.*?([\?A-Z]{1,2})([\x20-\x3a\x3c-\x7f]*?);$", cmdline)
+				if m:
+					if self._aliveWait is not None:
+						self._aliveWait.set()
+					cmd = m.group(1)
+					args = m.group(2).decode('ascii')
+					if cmd in self._command:
+						self._command[cmd](args)
+					else:
+						if cmd == b'PS':
+							self._serial.PS_works = True
+						else:
+							print('Unhandled command "%s" (args: "%s")' % (cmd, args), file=stderr)
+				else:
+					print('Bad command line: "'+str(cmdline)+'"', file=stderr)
+
+	def _send_query(self, state):
+		self._serial.writeQueue.put({
+			'msgType': 'query',
+			'stateValue': state,
+		})
+
+	def _query(self, state):
+		self._error_count = 0
+		ev = Event()
+		cb = lambda x, y: ev.set()
+		state.add_set_callback(cb)
+		while True:
+			# WE can't be the ones to retry since the error handler does that!
+			self._send_query(state)
+			if ev.wait(1):
+				break
+			raise Exception("I've been here all day waiting for "+str(state.name))
+		state.remove_set_callback(cb)
+
+	# This attenpts to synchronize the queue and the rig.
+	# Unfortunately, the rig will process commands out of order, so
+	# sending FB00007072000;ID; responds with ID019;FB00007072000;
+	# (Unless you're already on the 70.720 of course)
+	#
+	# As a result, the guarantee you get from calling this is that
+	# all commands have been sent to the rig, and the rig has started
+	# processing them.  This does not guarantee that processing is
+	# complete.  Worst case, a command will hit a transient failure
+	# and retry much later since retries go to the back of the queue
+	# 
+	# Actually, that's not the worst case since the command that gets
+	# retried is the *last* command that was sent, in the example
+	# above, if the FB failed after the ID was sent, the ID would
+	# be retried, and the VFOB frequency would never actually get
+	# updated.
+	#
+	# It *may* be possible to serialize these by relying on the
+	# echoed property and adding a query of the modified data after
+	# each command, but that's getting pretty insane and would
+	# impose a large performance penalty that I don't want to face.
+	def sync(self):
+		self._sync_lock.acquire()
+		self._query(self.ID)
+		self._sync_lock.release()
+
+	def _set(self, state, value):
+		if value is None:
+			raise Exception('Attempt to set '+state.name+' to None')
+		self._serial.writeQueue.put({
+			'msgType': 'set',
+			'stateValue': state,
+			'value': value,
+		})
 
 	def add_callback(self, prop, cb):
 		self._state[prop].add_callback(cb)
@@ -1459,10 +1548,11 @@ class KenwoodHF(Rig):
 		self._state[prop].remove_callback(cb)
 
 	def terminate(self):
-		if hasattr(self, 'autoInformation'):
-			self.autoInformation = 0
+		if hasattr(self, 'auto_information'):
+			self.auto_information = 0
 		if hasattr(self, '_terminate'):
 			self._terminate = True
+		self._serial.terminate()
 		if hasattr(self, 'readThread'):
 			self._readThread.join()
 
@@ -1495,7 +1585,7 @@ class KenwoodHF(Rig):
 		self._fill_cache_state['call_after'] = ()
 		self._fill_cache_state['target_count'] = 0
 		self._fill_cache_state['matched_count'] = 0
-		self._fill_cache_state['event'] = threading.Event()
+		self._fill_cache_state['event'] = Event()
 		# Perform queries in this order:
 		# 0) FA, FB, FC
 		# 1) Simple string queries without validators
@@ -1553,144 +1643,6 @@ class KenwoodHF(Rig):
 					continue
 				p._cached = None
 		self._killing_cache = False
-
-	def _send_query(self, state):
-		self._writeQueue.put({
-			'msgType': 'query',
-			'stateValue': state,
-		})
-
-	def _query(self, state):
-		self._error_count = 0
-		ev = threading.Event()
-		cb = lambda x, y: ev.set()
-		state.add_set_callback(cb)
-		while True:
-			# WE can't be the ones to retry since the error handler does that!
-			self._send_query(state)
-			if ev.wait(1):
-				break
-			raise Exception("I've been here all day waiting for "+str(state.name))
-		state.remove_set_callback(cb)
-
-	# This attenpts to synchronize the queue and the rig.
-	# Unfortunately, the rig will process commands out of order, so
-	# sending FB00007072000;ID; responds with ID019;FB00007072000;
-	# (Unless you're already on the 70.720 of course)
-	#
-	# As a result, the guarantee you get from calling this is that
-	# all commands have been sent to the rig, and the rig has started
-	# processing them.  This does not guarantee that processing is
-	# complete.  Worst case, a command will hit a transient failure
-	# and retry much later since retries go to the back of the queue
-	# 
-	# Actually, that's not the worst case since the command that gets
-	# retried is the *last* command that was sent, in the example
-	# above, if the FB failed after the ID was sent, the ID would
-	# be retried, and the VFOB frequency would never actually get
-	# updated.
-	#
-	# It *may* be possible to serialize these by relying on the
-	# echoed property and adding a query of the modified data after
-	# each command, but that's getting pretty insane and would
-	# impose a large performance penalty that I don't want to face.
-	def sync(self):
-		self._sync_lock.acquire()
-		self._query(self.ID)
-		self._sync_lock.release()
-
-	def _set(self, state, value):
-		if value is None:
-			raise Exception('Attempt to set '+state.name+' to None')
-		self._writeQueue.put({
-			'msgType': 'set',
-			'stateValue': state,
-			'value': value,
-		})
-
-	def _read(self):
-		ret = b'';
-		while not self._terminate:
-			# Always read first if possible.
-			if self._serial.rts:
-				ret += self._serial.read_until(b';')
-				if ret[-1:] == b';':
-					if self._verbose:
-						print("Read: "+str(ret), file=sys.stderr)
-					return ret
-				else:
-					if not self._writeQueue.empty():
-						self._serial.rts = False
-			if not self._writeQueue.empty():
-				if self._serial.cts:
-					self._serial.rts = False
-			if self._serial.cts:
-				if not self._writeQueue.empty():
-					wr = self._writeQueue.get()
-					self._last_command = wr
-					print('Setting '+wr['stateValue'].name)
-					if wr['msgType'] == 'set':
-						cmd = wr['stateValue']._set_string(wr['value'])
-					elif wr['msgType'] == 'query':
-						cmd = wr['stateValue']._query_string()
-					else:
-						raise Exception('Unhandled message type: '+str(wr['msgType']))
-					if cmd is None:
-						if wr['msgType'] == 'query':
-							wr['stateValue']._cached = None
-					else:
-						if cmd != '':
-							cmd = bytes(cmd + ';', 'ascii')
-							if self._verbose:
-								print('Writing ' + str(cmd), file=sys.stderr)
-							self._serial.write(cmd)
-							# Another power-related hack...
-							if cmd == b'PS0;':
-								return cmd
-							if wr['msgType'] == 'set' and (not wr['stateValue']._echoed):
-								cmd = wr['stateValue']._query_string()
-								if cmd is not None:
-									cmd = bytes(cmd + ';', 'ascii')
-									self._serial.write(cmd)
-							self.last_hack = time.time()
-				if self._writeQueue.empty():
-					self._serial.rts = True
-			else:
-				self._serial.rts = True
-			# The final piece of the puzzle...
-			# It looks like when the rig is powered off, it takes a byte being
-			# sent to wake it up.  It then stays awake for some period of time
-			# before going back to sleep.  That period of time appears to be
-			# longer than a second, so we send a power state request at least
-			# every second of idle time when the rig is powered off.
-			#
-			# This has the side benefit of letting us know if/when the power state
-			# change occured (as long as we know when we turned the rig off, see PS0 above)
-			if self._PS_works == None or self._PS_works == True:
-				if (not 'powerOn' in self._state) or self._state['powerOn']._cached == False:
-					if time.time() - self._last_hack > 1:
-						self._serial.write(b'PS;')
-						self._last_hack = time.time()
-
-	def _readThread(self):
-		while not self._terminate:
-			cmdline = self._read()
-			if cmdline is not None:
-				m = re.match(b"^.*?([\?A-Z]{1,2})([\x20-\x3a\x3c-\x7f]*?);$", cmdline)
-				if m:
-					if self._aliveWait is not None:
-						self._aliveWait.set()
-					cmd = m.group(1)
-					args = m.group(2).decode('ascii')
-					if cmd in self._command:
-						self._command[cmd](args)
-					else:
-						if cmd == b'PS':
-							self._PS_works = True
-						else:
-							print('Unhandled command "%s" (args: "%s")' % (cmd, args), file=sys.stderr)
-				else:
-					print('Bad command line: "'+str(cmdline)+'"', file=sys.stderr)
 
 	# Range check methods return True or False
 	
@@ -1999,35 +1951,32 @@ class KenwoodHF(Rig):
 
 	def _update_AC(self, args):
 		split = self.parse('1d1d1d', args)
-		self._state['tuner']._cached = bool(split[0]) or bool(split[1])
-		self._state['tunerRX']._cached = bool(split[0])
-		self._state['tunerTX']._cached = bool(split[1])
-		self._state['tunerState']._cached = tunerState(split[2])
+		self._state['tuner_list'] = [bool(split[0]), bool(split[1]), tunerState(split[2])]
 
 	def _update_AG(self, args):
 		split = self.parse('1d3d', args)
 		if split[0] == 0:
-			self._state['mainAFgain']._cached = split[1]
+			self._state['main_af_gain']._cached = split[1]
 		else:
-			self._state['subAFgain']._cached = split[1]
+			self._state['sub_af_gain']._cached = split[1]
 
 	def _update_AI(self, args):
 		split = self.parse('1d', args)
-		self._state['autoInformation']._cached = AI(split[0])
+		self._state['auto_information']._cached = AI(split[0])
 
 	def _update_AL(self, args):
 		split = self.parse('3d', args)
-		self._state['autoNotchLevel']._cached = split[0]
+		self._state['auto_notch_level']._cached = split[0]
 
 	def _update_AM(self, args):
 		split = self.parse('1d', args)
-		self._state['autoMode']._cached = bool(split[0])
+		self._state['auto_mode']._cached = bool(split[0])
 
 	# TODO: None here means 2m or 440 fixed antenna
 	#       maybe something better would be good?
 	def _update_AN(self, args):
 		split = self.parse('1d', args)
-		self._state['antennaConnector']._cached = None if split[0] == 0 else split[0]
+		self._state['antenna_connector']._cached = None if split[0] == 0 else split[0]
 		self._state['antenna1']._cached = (split[0] == 1) if split[0] != 0 else None
 		self._state['antenna2']._cached = (split[0] == 2) if split[0] != 0 else None
 
@@ -2035,28 +1984,28 @@ class KenwoodHF(Rig):
 		split = self.parse('1d1d1d', args)
 		aso = bool(split[1])
 		if split[0] == 0:
-			self._state['mainAutoSimplexOn']._cached = aso
-			self._state['mainSimplexPossible']._cached = bool(split[2]) if aso else False
+			self._state['main_auto_simplex_on']._cached = aso
+			self._state['main_simplex_possible']._cached = bool(split[2]) if aso else False
 		else:
-			self._state['subAutoSimplexOn']._cached = aso
-			self._state['subSimplexPossible']._cached = bool(split[2]) if aso else False
+			self._state['sub_auto_simplex_on']._cached = aso
+			self._state['sub_simplex_possible']._cached = bool(split[2]) if aso else False
 
 	def _update_BC(self, args):
 		split = self.parse('1d', args)
-		self._state['beatCanceller']._cached = BeatCanceller(split[0])
+		self._state['beat_canceller']._cached = BeatCanceller(split[0])
 		if split[0] == 0:
-			self._state['autoBeatCanceller']._cached = False
-			self._state['manualBeatCanceller']._cached = False
+			self._state['auto_beat_canceller']._cached = False
+			self._state['manual_beat_canceller']._cached = False
 		elif split[0] == 1:
-			self._state['autoBeatCanceller']._cached = True
-			self._state['manualBeatCanceller']._cached = False
+			self._state['auto_beat_canceller']._cached = True
+			self._state['manual_beat_canceller']._cached = False
 		elif split[0] == 2:
-			self._state['autoBeatCanceller']._cached = False
-			self._state['manualBeatCanceller']._cached = True
+			self._state['auto_beat_canceller']._cached = False
+			self._state['manual_beat_canceller']._cached = True
 
 	def _update_BP(self, args):
 		split = self.parse('3d', args)
-		self._state['manualBeatCancellerFrequency']._cached = split[0]
+		self._state['manual_beat_canceller_frequency']._cached = split[0]
 
 	def _update_BY(self, args):
 		split = self.parse('1d1d', args)
@@ -2099,7 +2048,7 @@ class KenwoodHF(Rig):
 		elif split[0] == 6:
 			self._state['memoryVFOsplitEnabled']._cached = bool(int(split[4]))
 		else:
-			print('Unhandled EX menu {:03d}'.format(split[0]), file=sys.stderr)
+			print('Unhandled EX menu {:03d}'.format(split[0]), file=stderr)
 
 	def _apply_offset(self, freq):
 		if freq is None:
@@ -2200,7 +2149,7 @@ class KenwoodHF(Rig):
 
 	def _update_FD(self, args):
 		split = self.parse('8x', args)
-		self._state['filterDisplayPattern']._cached = bitarray.util.int2ba(split[0], 32)
+		self._state['filterDisplayPattern']._cached = int2ba(split[0], 32)
 
 	# TODO: Toggle tuningMode when transmitting?  Check the IF command...
 	# NOTE: FR changes FT **and** doesn't notify that FT was changed.
@@ -2469,7 +2418,7 @@ class KenwoodHF(Rig):
 	def _update_MR(self, args):
 		split = self.parse('1d3d11d1d1d1d2d2d3d1d1d9d2d1d0l', args)
 		idx = 0
-		newVal = copy.deepcopy(self.memories.memories[split[1]]._cached)
+		newVal = deepcopy(self.memories.memories[split[1]]._cached)
 		if newVal is None:
 			newVal = {}
 		newVal['Channel'] = split[1]
@@ -2513,7 +2462,7 @@ class KenwoodHF(Rig):
 		self.memories.memories[split[1]]._cached = newVal
 
 	def _update_MU(self, args):
-		self._state['memoryGroups']._cached = bitarray.util.base2ba(2, args)
+		self._state['memoryGroups']._cached = base2ba(2, args)
 
 	def _update_NB(self, args):
 		split = self.parse('1d', args)
@@ -2594,13 +2543,13 @@ class KenwoodHF(Rig):
 		self._state['speechProcessor']._cached = bool(split[0])
 
 	def _update_PS(self, args):
-		self._PS_works = True
+		self._serial.PS_works = True
 		split = self.parse('1d', args)
 		old = self._last_power_state
 		self._state['powerOn']._cached = bool(split[0])
 		self._last_power_state = bool(split[0])
 		if split[0] and old == False:
-			self._set(self._state['autoInformation'], 2)
+			self._set(self._state['auto_information'], 2)
 			print('Filling')
 			self._fill_cache()
 			print('Done')
@@ -2703,10 +2652,10 @@ class KenwoodHF(Rig):
 		if split[0] == 1:
 			self._state['subSMeter']._cached = split[1]
 		if split[0] == 2:
-			print('Got SM2!', file=sys.stderr)
+			print('Got SM2!', file=stderr)
 			self._state['mainSMeterLevel']._cached = split[1]
 		if split[0] == 3:
-			print('Got SM3!', file=sys.stderr)
+			print('Got SM3!', file=stderr)
 			self._state['subSMeterLevel']._cached = split[1]
 
 	def _update_SQ(self, args):
@@ -2750,7 +2699,7 @@ class KenwoodHF(Rig):
 		elif self._state['TXmain']._cached == False and split[0] == 1:
 			self._state['currentReceiverTransmitting']._cached = True
 		else:
-			print('TX triggered for wrong receiver!', file=sys.stderr)
+			print('TX triggered for wrong receiver!', file=stderr)
 		if split[0] == 0:
 			self._state['mainTransmitting']._cached = True
 		if split[0] == 1:
@@ -2786,30 +2735,30 @@ class KenwoodHF(Rig):
 	def _update_Error(self, args):
 		self._error_count += 1
 		if self._last_command is None:
-			self._PS_works = False
+			self._serial.PS_works = False
 		if self._error_count < 10:
-			print('Resending: '+str(self._last_command), file=sys.stderr)
-			self._writeQueue.put(self._last_command)
+			print('Resending: '+str(self._last_command), file=stderr)
+			self._serial.writeQueue.put(self._last_command)
 		else:
 			raise Exception('Error count exceeded')
 
 	def _update_ComError(self, args):
 		self._error_count += 1
 		if self._last_command is None:
-			self._PS_works = False
+			self._serial.PS_works = False
 		if self._error_count < 10:
-			print('Resending: '+str(self._last_command), file=sys.stderr)
-			self._writeQueue.put(self._last_command)
+			print('Resending: '+str(self._last_command), file=stderr)
+			self._serial.writeQueue.put(self._last_command)
 		else:
 			raise Exception('Error count exceeded')
 
 	def _update_IncompleteError(self, args):
 		self._error_count += 1
 		if self._last_command is None:
-			self._PS_works = False
+			self._serial.PS_works = False
 		if self._error_count < 10:
-			print('Resending: '+str(self._last_command), file=sys.stderr)
-			self._writeQueue.put(self._last_command)
+			print('Resending: '+str(self._last_command), file=stderr)
+			self._serial.writeQueue.put(self._last_command)
 		else:
 			raise Exception('Error count exceeded')
 
