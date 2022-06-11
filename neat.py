@@ -22,16 +22,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import getopt
-import sys
+from getopt import getopt
+from sys import argv
 
-opts, args = getopt.getopt(sys.argv[1:], "d", ["debug"])
+opts, args = getopt(argv[1:], "d", ["debug"])
 verbose = False
 for o, a in opts:
 	if o in ('-d', '--debug'):
 		verbose = True
 
-import kenwood
+import rig.kenwood_hf
 import rigctld
 import math
 import re
@@ -57,10 +57,10 @@ from gardengauge import Gauge
 rig = None
 rigctldThread = None
 rigctl = None
-vfoa = int(kenwood.tuningMode.VFOA)
-vfob = int(kenwood.tuningMode.VFOB)
-mem = int(kenwood.tuningMode.MEMORY)
-call = int(kenwood.tuningMode.CALL)
+vfoa = int(kenwood_hf.tuningMode.VFOA)
+vfob = int(kenwood_hf.tuningMode.VFOB)
+mem = int(kenwood_hf.tuningMode.MEMORY)
+call = int(kenwood_hf.tuningMode.CALL)
 
 # See https://new.reddit.com/r/kivy/comments/v5joow/labeltext_can_no_longer_be_updated_after_f1/
 # Monkey patch hack
@@ -86,7 +86,7 @@ class Meter(Gauge):
 	accel_up_mult = NumericProperty(1.1)
 	accel_down_initial = NumericProperty(-0.02)
 	accel_down_mult = NumericProperty(1.1)
-	click_selects = NumericProperty(int(kenwood.meter.UNSELECTED))
+	click_selects = NumericProperty(int(kenwood_hf.meter.UNSELECTED))
 	calculation = StringProperty()
 
 	def __init__(self, **kwargs):
@@ -107,7 +107,7 @@ class Meter(Gauge):
 		self.bind(rig_state=self._newRigState)
 
 	def on_touch_down(self, touch):
-		if self.click_selects == kenwood.meter.UNSELECTED:
+		if self.click_selects == kenwood_hf.meter.UNSELECTED:
 			return False
 		if not 'button' in touch.profile:
 			return False
@@ -117,7 +117,7 @@ class Meter(Gauge):
 			return False
 		if touch.pos[1] < (self._gauge.pos[1] + self._gauge.size[1] * 0.4):
 			return False
-		rig.meterType = kenwood.meter(self.click_selects)
+		rig.meterType = kenwood_hf.meter(self.click_selects)
 
 	def _newRigState(self, *args):
 		if self._old_rig_state != '':
@@ -318,12 +318,12 @@ class FreqDisplay(Label):
 			rig.VFOAsetFrequency = new
 		elif self.vfo_box.vfo == vfob:
 			rig.VFOBsetFrequency = new
-		elif self.vfo_box.vfo == mem and rig.mainRXtuningMode == kenwood.tuningMode.MEMORY:
+		elif self.vfo_box.vfo == mem and rig.mainRXtuningMode == kenwood_hf.tuningMode.MEMORY:
 			if up:
 				rig.up = True
 			else:
 				rig.down = True
-		elif self.vfo_box.vfo == call and rig.mainRXtuningMode == kenwood.tuningMode.CALL:
+		elif self.vfo_box.vfo == call and rig.mainRXtuningMode == kenwood_hf.tuningMode.CALL:
 			if up:
 				rig.bandUp = True
 			else:
@@ -448,7 +448,7 @@ class VFOBoxButton(ToggleButton):
 	def on_state(self, widget, value):
 		if value == 'down':
 			if self.vfoID != self.parent.vfo and self.parent.rig_state != '':
-				setattr(rig, self.parent.rig_state, kenwood.tuningMode(self.vfoID))
+				setattr(rig, self.parent.rig_state, kenwood_hf.tuningMode(self.vfoID))
 
 class VFOBox(GridLayout):
 	rig_state = StringProperty()
@@ -525,7 +525,7 @@ class OPModeBoxButton(ToggleButton):
 	def on_state(self, widget, value):
 		if value == 'down':
 			if self.modeID != self.parent.mode:
-				rig.mode = kenwood.mode(self.modeID)
+				rig.mode = kenwood_hf.mode(self.modeID)
 
 class OPModeBox(GridLayout):
 	mode = NumericProperty(0)
@@ -756,12 +756,12 @@ class FilterDisplay(Widget):
 	#       in this file really.  It should be handled/exposed by the
 	#       kenwood module.
 	filter_widths = {
-		kenwood.mode.CW: [50, 80, 100, 150, 200, 300, 400, 500, 600, 1000, 2000],
-		kenwood.mode.CW_REVERSED: [50, 80, 100, 150, 200, 300, 400, 500, 600, 1000, 2000],
-		kenwood.mode.FSK: [250, 500, 1000, 1500],
-		kenwood.mode.FSK_REVERSED: [250, 500, 1000, 1500],
-		kenwood.mode.FM: [0, 1],
-		kenwood.mode.AM: [0, 1],
+		kenwood_hf.mode.CW: [50, 80, 100, 150, 200, 300, 400, 500, 600, 1000, 2000],
+		kenwood_hf.mode.CW_REVERSED: [50, 80, 100, 150, 200, 300, 400, 500, 600, 1000, 2000],
+		kenwood_hf.mode.FSK: [250, 500, 1000, 1500],
+		kenwood_hf.mode.FSK_REVERSED: [250, 500, 1000, 1500],
+		kenwood_hf.mode.FM: [0, 1],
+		kenwood_hf.mode.AM: [0, 1],
 	}
 	filter_shifts = [400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 950, 1000]
 
@@ -808,13 +808,13 @@ class FilterDisplay(Widget):
 		if self.op_mode_box is None:
 			return 11
 		else:
-			if self.op_mode_box.mode == int(kenwood.mode.AM):
+			if self.op_mode_box.mode == int(kenwood_hf.mode.AM):
 				return 3
-			elif self.op_mode_box.mode == int(kenwood.mode.FM):
+			elif self.op_mode_box.mode == int(kenwood_hf.mode.FM):
 				return 11
-			elif self.op_mode_box.mode == int(kenwood.mode.LSB):
+			elif self.op_mode_box.mode == int(kenwood_hf.mode.LSB):
 				return 11
-			elif self.op_mode_box.mode == int(kenwood.mode.USB):
+			elif self.op_mode_box.mode == int(kenwood_hf.mode.USB):
 				return 11
 
 	def on_touch_down(self, touch):
@@ -830,14 +830,14 @@ class FilterDisplay(Widget):
 			return False
 		mode = rig.mode
 		if touch.button == 'left':
-			if mode == kenwood.mode.AM or mode == kenwood.mode.FM:
+			if mode == kenwood_hf.mode.AM or mode == kenwood_hf.mode.FM:
 				rig.filterWidth = not rig.filterWidth
 		if not touch.button in ('scrollup', 'scrolldown'):
 			return False
 		highpass = True if touch.pos[0] < self.pos[0] + self.width / 2 else False
 		up = True if touch.button == 'scrolldown' else False
 		# TODO: Packet Filter (Menu No. 50A) changes behaviour in ??? mode
-		if mode in (kenwood.mode.USB, kenwood.mode.LSB, kenwood.mode.FM, kenwood.mode.AM):
+		if mode in (kenwood_hf.mode.USB, kenwood_hf.mode.LSB, kenwood_hf.mode.FM, kenwood_hf.mode.AM):
 			stateName = 'voiceHighPassCutoff' if highpass else 'voiceLowPassCutoff'
 			newVal = getattr(rig, stateName) + (1 if up else -1)
 			maxVal = self._get_max()
@@ -846,7 +846,7 @@ class FilterDisplay(Widget):
 			if newVal > maxVal:
 				newVal = maxVal
 			setattr(rig, stateName, newVal)
-		elif mode == kenwood.mode.CW and not highpass:
+		elif mode == kenwood_hf.mode.CW and not highpass:
 			newVal = self.filter_shifts.index(rig.IFshift)
 			newVal += (1 if up else -1)
 			if newVal < 0:
@@ -867,7 +867,7 @@ class FilterDisplay(Widget):
 class HighPassLabel(Label):
 	prefix = StringProperty()
 	suffix = StringProperty()
-	supportedModes = (kenwood.mode.AM, kenwood.mode.FM, kenwood.mode.LSB, kenwood.mode.USB,)
+	supportedModes = (kenwood_hf.mode.AM, kenwood_hf.mode.FM, kenwood_hf.mode.LSB, kenwood_hf.mode.USB,)
 
 	def __init__(self, **kwargs):
 		super(HighPassLabel, self).__init__(**kwargs)
@@ -900,7 +900,7 @@ class HighPassLabel(Label):
 	def newValue(self, value, *args):
 		val = ''
 		mode = rig.mode
-		if mode == kenwood.mode.AM:
+		if mode == kenwood_hf.mode.AM:
 			if value == 0:
 				val = '10'
 			elif value == 1:
@@ -910,7 +910,7 @@ class HighPassLabel(Label):
 			elif value == 3:
 				val = '500'
 			val = self.prefix + val + self.suffix
-		elif mode == int(kenwood.mode.FM) or mode == int(kenwood.mode.LSB) or mode == int(kenwood.mode.USB):
+		elif mode == int(kenwood_hf.mode.FM) or mode == int(kenwood_hf.mode.LSB) or mode == int(kenwood_hf.mode.USB):
 			if value == 0:
 				val = '10'
 			elif value == 1:
@@ -945,8 +945,8 @@ class HighPassLabel(Label):
 class LowPassLabel(Label):
 	prefix = StringProperty()
 	suffix = StringProperty()
-	supportedModes = (kenwood.mode.AM, kenwood.mode.FM, kenwood.mode.LSB, kenwood.mode.USB, kenwood.mode.CW,)
-	cwModes = (kenwood.mode.CW, kenwood.mode.CW_REVERSED,)
+	supportedModes = (kenwood_hf.mode.AM, kenwood_hf.mode.FM, kenwood_hf.mode.LSB, kenwood_hf.mode.USB, kenwood_hf.mode.CW,)
+	cwModes = (kenwood_hf.mode.CW, kenwood_hf.mode.CW_REVERSED,)
 
 	def __init__(self, **kwargs):
 		super(LowPassLabel, self).__init__(**kwargs)
@@ -984,7 +984,7 @@ class LowPassLabel(Label):
 			mode = 0
 		else:
 			mode = int(rig.mode)
-		if mode == int(kenwood.mode.AM):
+		if mode == int(kenwood_hf.mode.AM):
 			if value == 0:
 				val = '2500'
 			elif value == 1:
@@ -994,7 +994,7 @@ class LowPassLabel(Label):
 			elif value == 3:
 				val = '5000'
 			val = self.prefix + val + self.suffix
-		elif mode == int(kenwood.mode.FM) or mode == int(kenwood.mode.LSB) or mode == int(kenwood.mode.USB):
+		elif mode == int(kenwood_hf.mode.FM) or mode == int(kenwood_hf.mode.LSB) or mode == int(kenwood_hf.mode.USB):
 			if value == 0:
 				val = '1400'
 			elif value == 1:
@@ -1027,7 +1027,7 @@ class LowPassLabel(Label):
 class WideNarrowLabel(Label):
 	prefix = StringProperty()
 	suffix = StringProperty()
-	supportedModes = (kenwood.mode.AM, kenwood.mode.FM,)
+	supportedModes = (kenwood_hf.mode.AM, kenwood_hf.mode.FM,)
 
 	def __init__(self, **kwargs):
 		super(WideNarrowLabel, self).__init__(**kwargs)
@@ -1156,7 +1156,7 @@ class NeatApp(App):
 		self.config = ConfigParser()
 		self.build_config(self.config)
 		self.config.read('neat.ini')
-		rig = kenwood.Kenwood(self.config.get('SerialPort', 'device'), self.config.getint('SerialPort', 'speed'), self.config.getint('SerialPort', 'stopBits'), verbose = self.config.getboolean('Neat', 'verbose'))
+		rig = kenwood_hf.KenwoodHF(self.config.get('SerialPort', 'device'), self.config.getint('SerialPort', 'speed'), self.config.getint('SerialPort', 'stopBits'), verbose = self.config.getboolean('Neat', 'verbose'))
 		self.rig = rig
 		if self.config.getboolean('Neat', 'rigctld'):
 			rigctl = rigctld.rigctld(rig, address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port'), verbose = self.config.getboolean('Neat', 'verbose'))

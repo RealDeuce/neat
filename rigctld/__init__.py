@@ -1,5 +1,5 @@
 import enum
-import kenwood
+import rig
 import selectors
 import socket
 import sys
@@ -1030,21 +1030,21 @@ class rigctld_connection:
 		return None, offset
 
 	def send_mode(self, mode):
-		if mode == kenwood.mode.AM:
+		if mode == rig.mode.AM:
 			self.append(b'AM\n')
-		elif mode == kenwood.mode.FM:
+		elif mode == rig.mode.FM:
 			self.append(b'FM\n')
-		elif mode == kenwood.mode.USB:
+		elif mode == rig.mode.USB:
 			self.append(b'USB\n')
-		elif mode == kenwood.mode.LSB:
+		elif mode == rig.mode.LSB:
 			self.append(b'LSB\n')
-		elif mode == kenwood.mode.CW:
+		elif mode == rig.mode.CW:
 			self.append(b'CW\n')
-		elif mode == kenwood.mode.CW_REVERSED:
+		elif mode == rig.mode.CW_REVERSED:
 			self.append(b'CWR\n')
-		elif mode == kenwood.mode.FSK:
+		elif mode == rig.mode.FSK:
 			self.append(b'RTTY\n')
-		elif mode == kenwood.mode.FSK_REVERSED:
+		elif mode == rig.mode.FSK_REVERSED:
 			self.append(b'RTTYR\n')
 		else:
 			self.append(b'\n')
