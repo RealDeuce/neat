@@ -393,6 +393,9 @@ class KenwoodStateValue(StateValue):
 			return ''
 		if value is None:
 			raise Exception('Setting new value of None!')
+		if isinstance(value, list) and None in value:
+			raise Exception('Setting a list with None in '+self.name+', '+str(value))
+			return ''
 		if self._set_format is not None:
 			print('STR: "'+self._set_format+'", val='+str(value))
 			return self._set_format.format(value)
@@ -496,12 +499,37 @@ class KenwoodListStateValue(KenwoodStateValue):
 		self._queued = None
 		self.length = length
 		self.children = [None] * self.length
+		self._cached_value = [None] * self.length
 		self.lock = Lock()
 		self.add_set_callback(self._update_children)
 
 	def _update_children(self, prop, value):
 		for i in range(self.length):
 			self.children[i]._cached = value[i]
+
+	@property
+	def _cached(self):
+		return self._cached_value
+
+	@_cached.setter
+	def _cached(self, value):
+		modified = False
+		if isinstance(value, StateValue):
+			raise Exception('Forgot to add .cached!')
+		for i in range(self.length):
+			nv = None if value is None else value[i]
+			if self._cached_value[i] != nv:
+				modified = True
+				self._cached_value[i] = nv
+				for cb in self.children[i]._modify_callbacks:
+					cb(nv)
+			for cb in self.children[i]._set_callbacks:
+				cb(nv)
+		if modified:
+			for cb in self._modify_callbacks:
+				cb(value)
+		for cb in self._set_callbacks:
+			cb(self, value)
 
 	@property
 	def value(self):
@@ -517,25 +545,33 @@ class KenwoodListStateValue(KenwoodStateValue):
 			raise Exception('Incorrect length for '+self.name+', got '+str(len(value))+', expected '+str(self.length))
 		self.lock.acquire()
 		if self._queued is not None:
-			# Merge values... anything that's not None in
-			# the new value should be copied into the old one
-			for v in range(len(value)):
-				if value[v] is not None:
-					self._queued['value'][v] = value[v]
+			lst = self._queued['value']
+		else:
+			lst = [None] * self.length
+		# Merge values... anything that's not None in
+		# the new value should be copied into the old one
+		for v in range(len(lst)):
+			if value[v] is not None:
+				lst[v] = value[v]
+			else:
+				lst[v] = self._cached[v]
+		if self._queued is not None:
 			self.lock.release()
 			return
+		print('Sending list '+str(lst))
 		self._queued = {
 			'msgType': 'set',
 			'stateValue': self,
-			'value': value,
+			'value': lst,
 		}
 		self._rig._serial.writeQueue.put(self._queued)
 		self.lock.release()
 
-	def set_string(self, value):
+	def _set_string(self, value):
 		self.lock.acquire()
 		self._queued = None
-		if not self.range_check(value):
+		print('Setting list '+str(value))
+		if not self._do_range_check(value):
 			self.lock.release()
 			return None
 		self.lock.release()
@@ -558,7 +594,10 @@ class KenwoodSingleStateValue(KenwoodStateValue):
 
 	@property
 	def value(self):
-		return self._parent.value[self._offset]
+		plist = self._parent.value
+		if plist is None:
+			return None
+		return plist[self._offset]
 
 	@value.setter
 	def value(self, value):
@@ -604,7 +643,6 @@ class KenwoodHF(Rig):
 		# TODO: The error handling repeats whatever the last command was, not the failing command
 		#       Short of only having one outstanding command at a time though, I'm not sure what
 		#       we can actually do about that.
-		self._last_command = None
 		self._last_power_state = None
 		self._fill_cache_state = {}
 		self._serial = KenwoodHFProtocol(**kwargs)
@@ -763,12 +801,17 @@ class KenwoodHF(Rig):
 			# TODO:
 			# AC set fails when not in HF
 			# AC set fails when control is sub
+			# AC set with a state of 0 always toggles the
+			# current TX state, and will toggle the RX state
+			# if so configured in the menu.
+			# AC001; is an error
 			# Not available for sub receiver
 			'tuner_list': KenwoodListStateValue(self,
 				echoed = True,
 				query_command = 'AC',
 				set_format = 'AC{0[0]:1d}{0[1]:1d}{0[2]:1d}',
-				length = 3
+				length = 3,
+				range_check = self._tuner_list_range_check
 			),
 			'main_af_gain': KenwoodStateValue(self,
 				echoed = False,
@@ -1655,7 +1698,15 @@ class KenwoodHF(Rig):
 		self._killing_cache = False
 
 	# Range check methods return True or False
-	
+	def _tuner_list_range_check(self, value):
+		if value[1] == self._state['tuner_list']._cached[1]:
+			if value[1] == False:
+				if value[0] or value[2]:
+					return False
+			if value[2] == self._state['tuner_list']._cached[2]:
+				return False
+		return True
+
 	# Set methods return a string to send to the rig
 	def _set_manualBeatCanceller(self, value):
 		return 'BC{:01d}'.format(BeatCanceller.MANUAL if value else BeatCanceller.OFF)
@@ -2672,31 +2723,31 @@ class KenwoodHF(Rig):
 
 	def _update_Error(self, args):
 		self._error_count += 1
-		if self._last_command is None:
+		if self._serial._last_command is None:
 			self._serial.PS_works = False
 		if self._error_count < 10:
-			print('Resending: '+str(self._last_command), file=stderr)
-			self._serial.writeQueue.put(self._last_command)
+			print('Resending: '+str(self._serial._last_command), file=stderr)
+			self._serial.writeQueue.put(self._serial._last_command)
 		else:
 			raise Exception('Error count exceeded')
 
 	def _update_ComError(self, args):
 		self._error_count += 1
-		if self._last_command is None:
+		if self._serial._last_command is None:
 			self._serial.PS_works = False
 		if self._error_count < 10:
-			print('Resending: '+str(self._last_command), file=stderr)
-			self._serial.writeQueue.put(self._last_command)
+			print('Resending: '+str(self._serial._last_command), file=stderr)
+			self._serial.writeQueue.put(self._serial._last_command)
 		else:
 			raise Exception('Error count exceeded')
 
 	def _update_IncompleteError(self, args):
 		self._error_count += 1
-		if self._last_command is None:
+		if self._serial._last_command is None:
 			self._serial.PS_works = False
 		if self._error_count < 10:
-			print('Resending: '+str(self._last_command), file=stderr)
-			self._serial.writeQueue.put(self._last_command)
+			print('Resending: '+str(self._serial._last_command), file=stderr)
+			self._serial.writeQueue.put(self._serial._last_command)
 		else:
 			raise Exception('Error count exceeded')
 

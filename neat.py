@@ -122,7 +122,7 @@ class Meter(Gauge):
 
 	def _newRigState(self, *args):
 		if self._old_rig_state != '':
-			getattr(rigobj, self._old_rig_state).remove_callback(self.stateUpdate)
+			rigobj.remove_callback(self._old_rig_state, self.stateUpdate)
 		rigobj.add_callback(self.rig_state, self.stateUpdate)
 		self._old_rig_state = self.rig_state
 
@@ -372,12 +372,12 @@ class MemoryDisplay(Label):
 
 	def newChannel(self, channel, *args):
 		if self.memoryValue is not None:
-			rigobj.memories.memories[self.memoryValue].remove_callback(self.updateChannel)
+			rigobj.memories.memories[self.memoryValue].remove_modify_callback(self.updateChannel)
 			if self.memoryValue == channel and channel == 300:
 				self._updateChannel()
 		if channel is not None:
 			self.memoryValue = int(channel)
-			rigobj.memories.memories[self.memoryValue].add_callback(self.updateChannel)
+			rigobj.memories.memories[self.memoryValue].add_modify_callback(self.updateChannel)
 
 	def newGroups(self, groups, *args):
 		self._updateChannel()
@@ -592,6 +592,7 @@ class BoolToggle(ToggleButton):
 		super(BoolToggle, self).__init__(**kwargs)
 		if (self.rig_state != ''):
 			self.on_rig_state(self, self.rig_state)
+		self.remote_state = self.state
 
 	def on_rig_state(self, widget, value):
 		Clock.schedule_once(lambda dt: self.refresh(), 0)
@@ -611,9 +612,13 @@ class BoolToggle(ToggleButton):
 		else:
 			self.disabled = False
 			self.state = 'down' if on else 'normal'
+			self.remote_state = self.state
 
 	def on_press(self):
 		setattr(rigobj, self.rig_state, self.state == 'down')
+		# We need the remote to tell us the state has changed,
+		# we just requested a change.
+		self.state = self.remote_state
 
 class StateSlider(Slider):
 	rig_state = StringProperty()
