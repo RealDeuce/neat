@@ -379,7 +379,7 @@ class KenwoodStateValue(StateValue):
 		elif self._query_command is not None:
 			print('Query: '+str(self._query_command))
 			return self._query_command
-		raise Exception('Attempt to query value "'+self.name+'" without a query command or method', file=stderr)
+		raise Exception('Attempt to query value "'+self.name+'" without a query command or method')
 
 	def _do_range_check(self, value):
 		if not self._valid(False):
@@ -394,6 +394,7 @@ class KenwoodStateValue(StateValue):
 		if value is None:
 			raise Exception('Setting new value of None!')
 		if self._set_format is not None:
+			print('STR: "'+self._set_format+'", val='+str(value))
 			return self._set_format.format(value)
 		elif self._set_method is not None:
 			return self._set_method(value)
@@ -471,14 +472,14 @@ class KenwoodNagleStateValue(KenwoodStateValue):
 			'stateValue': self,
 			'value': value,
 		}
-		self._serial.writeQueue.put(self._queued)
+		self._rig._serial.writeQueue.put(self._queued)
 		self.lock.release()
 
-	def set_string(self, value):
+	def _set_string(self, value):
 		self.lock.acquire()
 		self._pending = self._queued
 		self._queued = None
-		if not self.range_check(value):
+		if not self._range_check(value):
 			self._pending = None
 			self.lock.release()
 			return None
@@ -646,6 +647,7 @@ class KenwoodHF(Rig):
 		if name[:1] != '_':
 			if name in self._state:
 				self._state[name].value = value
+				return
 		super().__setattr__(name ,value)
 
 	def __del__(self):
@@ -765,7 +767,7 @@ class KenwoodHF(Rig):
 			'tuner_list': KenwoodListStateValue(self,
 				echoed = True,
 				query_command = 'AC',
-				set_format = 'AC{:1d}{:1d}{:1d}',
+				set_format = 'AC{0[0]:1d}{0[1]:1d}{0[2]:1d}',
 				length = 3
 			),
 			'main_af_gain': KenwoodStateValue(self,
@@ -1024,7 +1026,7 @@ class KenwoodHF(Rig):
 			'lock_list': KenwoodListStateValue(self, 2,
 				echoed = True,
 				query_command = 'LK',
-				set_format = 'LK{:1d}{:1d}',
+				set_format = 'LK{0[0]:1d}{0[1]:1d}',
 			),
 			'recording_channel': KenwoodStateValue(self,
 				echoed = True,
@@ -1100,6 +1102,7 @@ class KenwoodHF(Rig):
 				query_command = 'NR',
 				set_method = self._set_noiseReduction2
 			),
+			# It appears that writing NT1 *toggles* auto-notch... *sigh*
 			'auto_notch': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'NT',
@@ -1142,6 +1145,7 @@ class KenwoodHF(Rig):
 			'speech_processor_level_list': KenwoodListStateValue(self, 2,
 				echoed = False,
 				query_command = 'PL',
+				set_format = 'PL{0[0]:03d}{0[1]:03d}'
 			),
 			'programmable_memory_channel': KenwoodStateValue(self,
 				echoed = True,
@@ -1171,7 +1175,7 @@ class KenwoodHF(Rig):
 			'quick_memory_list': KenwoodListStateValue(self, 2,
 				echoed = True,
 				query_command = 'QR',
-				set_format = 'QR{:01d}{:01d}'
+				set_format = 'QR{0[0]:01d}{0[1]:01d}'
 			),
 			'attenuator': KenwoodStateValue(self,
 				echoed = True,
@@ -1260,7 +1264,7 @@ class KenwoodHF(Rig):
 			'satellite_mode_list': KenwoodListStateValue(self, 8,
 				echoed = True,
 				query_command = 'SA',
-				set_format = 'SA{:01d}{:01d}{:01d}{:01d}{:01d}{:01d}{:01d}'
+				set_format = 'SA{0[0]:01d}{0[1]:01d}{0[2]:01d}{0[3]:01d}{0[4]:01d}{0[5]:01d}{0[6]:01d}'
 			),
 			'sub_receiver': KenwoodStateValue(self,
 				echoed = True,
@@ -1405,6 +1409,7 @@ class KenwoodHF(Rig):
 			'tx_frequency': KenwoodStateValue(self),
 			'rx_frequency': KenwoodStateValue(self),
 			'main_rx_tuning_mode': KenwoodStateValue(self,
+				echoed = True,
 				set_method = self._set_mainRXtuningMode,
 				range_check = self._check_mainRXtuningMode
 			),
@@ -1536,6 +1541,7 @@ class KenwoodHF(Rig):
 	def _set(self, state, value):
 		if value is None:
 			raise Exception('Attempt to set '+state.name+' to None')
+		print('Setting...'+str(state.name))
 		self._serial.writeQueue.put({
 			'msgType': 'set',
 			'stateValue': state,
@@ -2113,9 +2119,8 @@ class KenwoodHF(Rig):
 		if self._state['control_main']._cached == True:
 			# TODO: This gets fixed by the IF command
 			# TODO: We likely know all this already, 
-			# TODO: We need to invalidate this, but we don't.
-			#if not self._state['main_transmitting']._cached:
-			#	self._state['main_frequency']._cached = None
+			if not self._state['main_transmitting']._cached:
+				self._state['main_frequency']._cached = None
 			self._state['main_rx_set_frequency']._cached = None
 			self._state['main_rx_frequency']._cached = None
 			if self._state['tx_main']._cached:
@@ -2136,9 +2141,8 @@ class KenwoodHF(Rig):
 		split = self.parse('1d', args)
 		tuning_mode = tuningMode(split[0])
 		if self._state['control_main']._cached:
-			# TODO: We need to invalidate this, but we don't.
-			#if self._state['main_transmitting']._cached:
-			#	self._state['main_frequency']._cached = None
+			if self._state['main_transmitting']._cached:
+				self._state['main_frequency']._cached = None
 			self._state['main_tx_set_frequency']._cached = None
 			self._state['main_tx_offset_frequency']._cached = None
 			self._state['main_tx_frequency']._cached = None
@@ -2488,6 +2492,7 @@ class KenwoodHF(Rig):
 		split = self.parse('1d', args)
 		old = self._last_power_state
 		self._state['power_on']._cached = bool(split[0])
+		self._serial.power_on = self._state['power_on']._cached
 		self._last_power_state = bool(split[0])
 		if split[0] and old == False:
 			self._set(self._state['auto_information'], 2)

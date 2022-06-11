@@ -231,7 +231,7 @@
 		id: clearRIT
 		size_hint_max: 50, 25
 		text: 'CLEAR'
-		on_press: root.control(clearRIT = True)
+		on_press: root.control(clear_rit = True)
 		pos: RITfreq.pos[0] + (RITfreq.width - self.width) / 2 , RIT.pos[1]
 
 	StateLabel:
@@ -291,14 +291,14 @@
 		id: bandUpButton
 		size_hint_max: 50, 25
 		text: 'UP'
-		on_press: root.control(bandUp = True)
+		on_press: root.control(band_up = True)
 		pos: vfoBox.pos[0] + vfoBox.width + 10, mainFreq.pos[1] + mainFreq.height - self.height
 
 	Button:
 		id: bandDownButton
 		size_hint_max: 50, 25
 		text: 'DOWN'
-		on_press: root.control(bandDown = True)
+		on_press: root.control(band_down = True)
 		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
 
 	BoolToggle:
@@ -322,7 +322,7 @@
 		max_lines: 1
 		lines: 1
 		font_name: 'DroidSansMono'
-		rig_state: 'main_rx_frequency'
+		rig_state: 'main_rx_set_frequency'
 		op_mode_box: opModeBox
 		vfo_box: vfoBox
 		memory_display: mainMemory
@@ -671,7 +671,7 @@
 		op_mode_box: TXopModeBox
 		vfo_box: TXvfoBox
 		memory_display: mainTXMemory
-		rig_state: 'main_tx_frequency'
+		rig_state: 'main_tx_offset_frequency'
 
 	MemoryDisplay:
 		id: mainTXMemory
