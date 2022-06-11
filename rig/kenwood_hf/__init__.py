@@ -377,7 +377,9 @@ class KenwoodStateValue(StateValue):
 			print('Method: '+str(self._query_method))
 			return self._query_method()
 		elif self._query_command is not None:
-			print('Query: '+str(self._query_command))
+			if self.name is None:
+				raise Exception('Unnamed state! '+self._query_command)
+			print('Query: '+str(self.name))
 			return self._query_command
 		raise Exception('Attempt to query value "'+self.name+'" without a query command or method')
 
@@ -615,7 +617,7 @@ class MemoryArray:
 		self._rig = rig
 		for i in range(len(self.memories)):
 			self.memories[i] = KenwoodStateValue(rig, query_command = 'MR0{:03d};MR1{:03d}'.format(i, i))
-			self.name = 'Memory' + str(i+1)
+			self.memories[i].name = 'Memory' + str(i)
 
 	def __len__(self):
 		return self.memories.len()
@@ -2260,11 +2262,17 @@ class KenwoodHF(Rig):
 					self._set_subFrequencies(split[0])
 			else:
 				self._state['rx_frequency']._cached = split[0]
+				if self._state['control_main']._cached:
+					self._set_mainRXfrequencies(split[0])
+				else:
+					self._set_subFrequencies(split[0])
 		self._state['multi_ch_frequency_steps']._cached = split[1]
 		self._state['memory_channel']._cached = split[5]
 		self._state['tx']._cached = bool(split[6])
 		self._update_MD(str(split[7]))
+		print('Compare '+str(self._state['tx_main']._cached)+" == "+str(self._state['control_main']._cached))
 		if self._state['tx_main']._cached == self._state['control_main']._cached:
+			print('TX: '+str(split[6]))
 			if split[6]:
 				self._state['current_tx_tuning_mode']._cached = tuningMode(split[8])
 				if self._state['control_main']._cached:
@@ -2273,6 +2281,7 @@ class KenwoodHF(Rig):
 					self._state['sub_tuning_mode']._cached = tuningMode(split[8])
 			else:
 				self._state['current_rx_tuning_mode']._cached = tuningMode(split[8])
+				print('controlMain: '+str(self._state['control_main']._cached))
 				if self._state['control_main']._cached:
 					self._state['main_rx_tuning_mode']._cached = tuningMode(split[8])
 				else:
