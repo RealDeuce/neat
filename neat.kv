@@ -23,9 +23,9 @@
 # SOFTWARE.
 
 #:kivy 2.1.0
-#:import tuningMode kenwood.tuningMode
-#:import mode kenwood.mode
-#:import meter kenwood.meter
+#:import tuningMode rig.kenwood_hf.tuningMode
+#:import mode rig.mode
+#:import meter rig.kenwood_hf.meter
 
 <Neat>:
 	size: 1074, 950
@@ -36,7 +36,7 @@
 		max_value: 30
 		size_gauge: 256
 		size_text: 20
-		rig_state: 'mainSMeter'
+		rig_state: 'main_s_meter'
 		file_gauge: 'gardengauge/smeter.png'
 		pos: (root.width - self.size_gauge * 4 - 10 * 3) / 2, root.size[1] - self.size_gauge - 10
 		low_format: 'S[b]{0:.0f}[/b]'
@@ -49,7 +49,7 @@
 		max_value: 30
 		size_gauge: 256
 		size_text: 20
-		rig_state: 'SWRmeter'
+		rig_state: 'swr_meter'
 		peak_hold: 0
 		accel_down_initial: -3
 		file_gauge: 'gardengauge/SWR.png'
@@ -64,7 +64,7 @@
 		max_value: 30
 		size_gauge: 256
 		size_text: 20
-		rig_state: 'ALCmeter'
+		rig_state: 'alc_meter'
 		file_gauge: 'gardengauge/ALC.png'
 		pos: SWRmeter.pos[0] + self.size_gauge + 10, SWRmeter.pos[1]
 		low_format: '\nALC'
@@ -77,7 +77,7 @@
 		max_value: 30
 		size_gauge: 256
 		size_text: 20
-		rig_state: 'compressionMeter'
+		rig_state: 'compression_meter'
 		file_gauge: 'gardengauge/comp.png'
 		pos: ALCmeter.pos[0] + self.size_gauge + 10, ALCmeter.pos[1]
 		low_cutoff: 11
@@ -124,14 +124,14 @@
 
 	BoolToggle:
 		id: autoNotch
-		rig_state: 'autoNotch'
+		rig_state: 'auto_notch'
 		size_hint_max: 75, 25
 		text: 'AN'
 		pos: filterDisplay.pos[0] + filterDisplay.width + 10, filterDisplay.pos[1] + filterDisplay.height - self.height
 
 	StateSlider:
 		id: autoNotchLevel
-		rig_state: 'autoNotchLevel'
+		rig_state: 'auto_notch_level'
 		min: 0
 		max: 4
 		value_track: True
@@ -141,21 +141,21 @@
 
 	BoolToggle:
 		id: autoBeatCanceller
-		rig_state: 'autoBeatCanceller'
+		rig_state: 'auto_beat_canceller'
 		size_hint_max: 50, 25
 		text: 'ABC'
 		pos: autoNotch.pos[0] + autoNotch.width + 10, autoNotch.pos[1]
 
 	BoolToggle:
 		id: manualBeatCanceller
-		rig_state: 'manualBeatCanceller'
+		rig_state: 'manual_beat_canceller'
 		size_hint_max: 50, 25
 		text: 'MBC'
 		pos: autoBeatCanceller.pos[0] + autoBeatCanceller.width, autoBeatCanceller.pos[1]
 
 	StateSlider:
 		id: manualBeatCancellerFrequency
-		rig_state: 'manualBeatCancellerFrequency'
+		rig_state: 'manual_beat_canceller_frequency'
 		min: 0
 		max: 63
 		value_track: True
@@ -165,7 +165,7 @@
 
 	BoolToggle:
 		id: noiseReduction1
-		rig_state: 'noiseReduction1'
+		rig_state: 'noise_reduction1'
 		size_hint_max: 50, 25
 		text: 'NR1'
 		pos: manualBeatCanceller.pos[0] + manualBeatCanceller.width + 10, manualBeatCanceller.pos[1] + manualBeatCanceller.height - self.height
@@ -173,7 +173,7 @@
 
 	BoolToggle:
 		id: noiseReduction2
-		rig_state: 'noiseReduction2'
+		rig_state: 'noise_reduction2'
 		size_hint_max: 50, 25
 		text: 'NR2'
 		pos: noiseReduction1.pos[0] + noiseReduction1.width, noiseReduction1.pos[1]
@@ -181,7 +181,7 @@
 
 	StateSlider:
 		id: noiseReductionLevel
-		rig_state: 'noiseReductionLevel'
+		rig_state: 'noise_reduction_level'
 		min: 0
 		max: 9
 		value_track: True
@@ -200,7 +200,7 @@
 		pos: noiseReduction2.pos[0] + noiseReduction2.width + 10, noiseReduction2.pos[1] + noiseReduction2.height - self.height
 
 	StateSlider:
-		rig_state: 'mainAFgain'
+		rig_state: 'main_af_gain'
 		id: mainAFgain
 		min: 0
 		max: 255
@@ -213,7 +213,7 @@
 
 	BoolToggle:
 		id: RIT
-		rig_state: 'RIT'
+		rig_state: 'rit'
 		size_hint_max: 50, 25
 		text: 'RIT'
 		pos: XIT.pos[0] - self.width, RITfreq.pos[1] + RITfreq.height
@@ -221,7 +221,7 @@
 
 	BoolToggle:
 		id: XIT
-		rig_state: 'XIT'
+		rig_state: 'xit'
 		size_hint_max: 50, 25
 		text: 'XIT'
 		pos: RITfreq.pos[0] + RITfreq.width - self.width, RIT.pos[1]
@@ -242,13 +242,13 @@
 		size_hint_max: self.text_size
 		halign: 'left'
 		text: ''
-		rig_state: 'RIT_XITfrequency'
+		rig_state: 'rit_xit_frequency'
 		suffix: 'Hz'
 		pos: RITfreq.pos[0], RITfreq.pos[1] + RITfreq.height
 
 	RITSlider:
 		id: RITfreq
-		rig_state: 'RIT_XITfrequency'
+		rig_state: 'rit_xit_frequency'
 		min: -20000
 		max: 20000
 		value_track: False
@@ -264,7 +264,7 @@
 		size_hint_max: 100, 50
 		cols: 2
 		rows: 2
-		rig_state: 'mainRXtuningMode'
+		rig_state: 'main_rx_tuning_mode'
 		freq_display: mainFreq
 
 		VFOBoxButton:
@@ -302,7 +302,7 @@
 		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
 
 	BoolToggle:
-		rig_state: 'CWautoTune'
+		rig_state: 'cw_auto_tune'
 		size_hint_max: 50, 25
 		text: 'CWA'
 		pos: bandDownButton.pos[0], bandDownButton.pos[1] - self.height
@@ -322,7 +322,7 @@
 		max_lines: 1
 		lines: 1
 		font_name: 'DroidSansMono'
-		rig_state: 'mainRXfrequency'
+		rig_state: 'main_rx_frequency'
 		op_mode_box: opModeBox
 		vfo_box: vfoBox
 		memory_display: mainMemory
@@ -394,7 +394,7 @@
 			state: 'down' if self.parent.mode == int(mode.FSK_REVERSED) else 'normal'
 
 	BoolToggle:
-		rig_state: 'autoMode'
+		rig_state: 'auto_mode'
 		size_hint_max: opModeBox.width, 25
 		text: 'Auto Mode'
 		pos: opModeBox.pos[0], opModeBox.pos[1] - self.height
@@ -410,7 +410,7 @@
 
 	BoolToggle:
 		id: preAmpButton
-		rig_state: 'mainPreAmp'
+		rig_state: 'main_preamp'
 		pos: attenuatorButton.pos[0], attenuatorButton.pos[1] - self.size[1]
 		size_hint_max: 50, 25
 		text: 'PRE'
@@ -428,7 +428,7 @@
 
 	StateSlider:
 		id: rfGain
-		rig_state: 'RFgain'
+		rig_state: 'rf_gain'
 		min: 0
 		max: 255
 		value_track: True
@@ -438,14 +438,14 @@
 
 	BoolToggle:
 		id: noiseBlanker
-		rig_state: 'noiseBlanker'
+		rig_state: 'noise_blanker'
 		size_hint_max: 75, 25
 		text: 'NB'
 		pos: rfGain.pos[0] + rfGain.width + 10, rfGainLabel.pos[1] + rfGainLabel.height - self.height
 
 	StateSlider:
 		id: noiseBlankerLevel
-		rig_state: 'noiseBlankerLevel'
+		rig_state: 'noise_blanker_level'
 		min: 1
 		max: 10
 		value_track: True
@@ -465,7 +465,7 @@
 
 	StateSlider:
 		id: AGCconstant
-		rig_state: 'AGCconstant'
+		rig_state: 'agc_constant'
 		min: 0
 		max: 20
 		value_track: True
@@ -485,7 +485,7 @@
 
 	StateSlider:
 		id: mainSquelch
-		rig_state: 'mainSquelch'
+		rig_state: 'main_squelch'
 		min: 0
 		max: 255
 		value_track: True
@@ -495,7 +495,7 @@
 
 	StateLamp:
 		id: rxLamp
-		rig_state: 'mainBusy'
+		rig_state: 'main_busy'
 		active_color: 0, 1, 0, 1
 		size_hint_max: 50, 50
 		pos: 10, mainSquelchLabel.pos[1] + mainSquelchLabel.height - self.height
@@ -505,7 +505,7 @@
 
 	BoolToggle:
 		id: powerOn
-		rig_state: 'powerOn'
+		rig_state: 'power_on'
 		active_color: 1, 0, 0, 1
 		size_hint_max: 50, 50
 		pos: 10, antenna2.pos[1]
@@ -528,20 +528,20 @@
 
 	BoolToggle:
 		id: tunerButton
-		rig_state: 'tuner'
+		rig_state: 'tuner_state'
 		pos: antenna1.pos[0] + antenna1.width + 10, antenna1.pos[1]
 		size_hint_max: 50, 25
 		text: 'AT'
 
 	BoolToggle:
 		id: tunerOnInRXbutton
-		rig_state: 'tunerOnInRX'
+		rig_state: 'tuner_on_in_rx'
 		pos: tunerButton.pos[0] + tunerButton.width, tunerButton.pos[1]
 		size_hint_max: 50, 25
 		text: 'ON-RX'
 
 	BoolToggle:
-		rig_state: 'tunerState'
+		rig_state: 'tuner_state'
 		id: tuneButton
 		pos: (tunerButton.pos[0] + (tunerOnInRXbutton.pos[0] + tunerOnInRXbutton.width)) / 2 - self.width / 2, tunerButton.pos[1] - self.height
 		size_hint_max: 50, 25
@@ -560,7 +560,7 @@
 
 	StateLamp:
 		id: txLamp
-		rig_state: 'mainTransmitting'
+		rig_state: 'main_transmitting'
 		active_color: 1, 0, 0, 1
 		size_hint_max: 50, 50
 		update_meter: smeter
@@ -586,7 +586,7 @@
 		pos: (root.width - (outputPower.pos[0] + outputPower.width - self.pos[0])) / 2, antenna2.pos[1] - 50 - self.height
 
 	StateSlider:
-		rig_state: 'outputPower'
+		rig_state: 'output_power'
 		id: outputPower
 		min: 5
 		max: 100
@@ -606,7 +606,7 @@
 		size_hint_max: 100, 50
 		cols: 2
 		rows: 2
-		rig_state: 'mainTXtuningMode'
+		rig_state: 'main_tx_tuning_mode'
 		freq_display: mainTXFreq
 
 		VFOBoxButton:
@@ -623,7 +623,7 @@
 			text: 'MEM'
 			vfoID: int(tuningMode.MEMORY)
 			state: 'down' if self.parent.vfo == int(tuningMode.MEMORY) else 'normal'
-			force_disabled: not app.rig.memoryVFOsplitEnabled
+			force_disabled: not app.rig.memory_vfo_split_enabled
 
 		VFOBoxButton:
 			text: 'CALL'
@@ -647,7 +647,7 @@
 #		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
 
 #	BoolToggle:
-#		rig_state: 'CWautoTune'
+#		rig_state: 'cw_auto_tune'
 #		size_hint_max: 50, 25
 #		text: 'CWA'
 #		pos: bandDownButton.pos[0], bandDownButton.pos[1] - self.height
@@ -671,7 +671,7 @@
 		op_mode_box: TXopModeBox
 		vfo_box: TXvfoBox
 		memory_display: mainTXMemory
-		rig_state: 'mainTXfrequency'
+		rig_state: 'main_tx_frequency'
 
 	MemoryDisplay:
 		id: mainTXMemory
@@ -698,7 +698,7 @@
 		cols: 4
 		rows: 2
 		on_mode: highPassLabel.refresh(); lowPassLabel.refresh(); wideNarrowLabel.refresh(); noiseBlanker.refresh()
-		rig_state: 'mainTXmode'
+		rig_state: 'main_tx_mode'
 
 		OPModeBoxButton:
 			text: 'USB'
@@ -742,7 +742,7 @@
 
 	# TODO: Do we need to track TXautoMode?
 	#BoolToggle:
-	#	rig_state: 'autoMode'
+	#	rig_state: 'auto_mode'
 	#	size_hint_max: TXopModeBox.width, 25
 	#	text: 'Auto Mode'
 	#	pos: TXopModeBox.pos[0], TXopModeBox.pos[1] - self.height
@@ -760,7 +760,7 @@
 		pos: (root.width - (monitorLevel.pos[0] + monitorLevel.width - self.pos[0])) / 2, mainTXMemory.pos[1] - 30 - self.height
 
 	StateSlider:
-		rig_state: 'microphoneGain'
+		rig_state: 'microphone_gain'
 		id: microphoneGain
 		min: 0
 		max: 100
@@ -780,7 +780,7 @@
 		pos: microphoneGain.pos[0] + microphoneGain.width + 10, micGainLabel.pos[1]
 
 	StateSlider:
-		rig_state: 'carrierGain'
+		rig_state: 'carrier_gain'
 		id: carrierGain
 		min: 0
 		max: 100
@@ -791,7 +791,7 @@
 
 	BoolToggle:
 		id: speechProcessor
-		rig_state: 'speechProcessor'
+		rig_state: 'speech_processor'
 		size_hint_max: 50, 25
 		text: 'PROC'
 		pos: carrierGain.pos[0] + carrierGain.width + 10 + speechProcessorInputLevel.width + 5 - self.width / 2, carGainLabel.pos[1] + carGainLabel.height - self.height
@@ -808,7 +808,7 @@
 		pos: carrierGain.pos[0] + carrierGain.width + 10, speechProcessor.pos[1]
 
 	StateSlider:
-		rig_state: 'speechProcessorInputLevel'
+		rig_state: 'speech_processor_input_level'
 		id: speechProcessorInputLevel
 		min: 0
 		max: 100
@@ -828,7 +828,7 @@
 		pos: speechProcessorInputLevel.pos[0] + speechProcessorInputLevel.width + 10, speechProcessorInputLevelLabel.pos[1]
 
 	StateSlider:
-		rig_state: 'speechProcessorOutputLevel'
+		rig_state: 'speech_processor_output_level'
 		id: speechProcessorOutputLevel
 		min: 0
 		max: 100
@@ -848,7 +848,7 @@
 		pos: speechProcessorOutputLevel.pos[0] + speechProcessorOutputLevel.width + 10, carGainLabel.pos[1]
 
 	StateSlider:
-		rig_state: 'monitorLevel'
+		rig_state: 'monitor_level'
 		id: monitorLevel
 		min: 0
 		max: 9

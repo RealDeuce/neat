@@ -33,12 +33,12 @@ it will get a suboptimal name.
 """
 
 from enum import IntEnum
-from rig import Rig, StateValue
+from rig import Rig, StateValue, mode
 from bitarray.util import int2ba, base2ba
 from copy import deepcopy
 from re import match
 from sys import stderr
-from threading import Lock, Event, Thread
+from threading import Lock, Event, Thread, get_ident
 from queue import Queue
 from rig.kenwood_hf.serial import KenwoodHFProtocol
 
@@ -374,8 +374,10 @@ class KenwoodStateValue(StateValue):
 			self._cached = None
 			return ''
 		if self._query_method is not None:
+			print('Method: '+str(self._query_method))
 			return self._query_method()
 		elif self._query_command is not None:
+			print('Query: '+str(self._query_command))
 			return self._query_command
 		raise Exception('Attempt to query value "'+self.name+'" without a query command or method', file=stderr)
 
@@ -395,9 +397,11 @@ class KenwoodStateValue(StateValue):
 			return self._set_format.format(value)
 		elif self._set_method is not None:
 			return self._set_method(value)
-		print('Attempt to set value "'+self._name+'" without a set command or method', file=stderr)
+		print('Attempt to set value "'+self.name+'" without a set command or method', file=stderr)
 
 	def _valid(self, can_query):
+		if hasattr(self, '_readThread') and get_ident() == self._readThread.ident:
+			can_query = False
 		for d in self._depends_on:
 			if isinstance(d, StateValue):
 				if StateValue._cached is None:
@@ -494,7 +498,7 @@ class KenwoodListStateValue(KenwoodStateValue):
 		self.lock = Lock()
 		self.add_set_callback(self._update_children)
 
-	def _update_children(self, value):
+	def _update_children(self, prop, value):
 		for i in range(self.length):
 			self.children[i]._cached = value[i]
 
@@ -524,7 +528,7 @@ class KenwoodListStateValue(KenwoodStateValue):
 			'stateValue': self,
 			'value': value,
 		}
-		self._serial.writeQueue.put(self._queued)
+		self._rig._serial.writeQueue.put(self._queued)
 		self.lock.release()
 
 	def set_string(self, value):
@@ -553,7 +557,7 @@ class KenwoodSingleStateValue(KenwoodStateValue):
 
 	@property
 	def value(self):
-		return super().value[self._offset]
+		return self._parent.value[self._offset]
 
 	@value.setter
 	def value(self, value):
@@ -561,7 +565,7 @@ class KenwoodSingleStateValue(KenwoodStateValue):
 			raise Exception('Forgot to add ._cached!')
 		if self._read_only:
 			raise Exception('Attempt to set read-only property '+self.name+'!')
-		newval = [None] * self.parent.length
+		newval = [None] * self._parent.length
 		newval[self._offset] = value
 		self._parent.value = newval
 
@@ -633,6 +637,8 @@ class KenwoodHF(Rig):
 
 	def __getattr__(self, name):
 		if name in self._state:
+			if hasattr(self, '_readThread') and get_ident() == self._readThread.ident:
+				return self._state[name]._cached
 			return self._state[name].value
 		return super().__getattr__(name)
 
@@ -983,7 +989,7 @@ class KenwoodHF(Rig):
 				works_powered_off = True,
 				read_only = True
 			),
-			'current_receiver_transmitting': KenwoodStateValue(self,
+			'tx': KenwoodStateValue(self,
 				query_command = 'IF',
 				set_method = self._set_mainTransmitting,
 				range_check = self._currentTransmittingValid,
@@ -1208,7 +1214,7 @@ class KenwoodHF(Rig):
 				validity_check = self._noiseReductionLevelValid,
 				depends_on = ('noise_reduction',)
 			),
-			'meter_type': KenwoodStateValue(self,
+			'meter_value': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'RM',
 				set_format = 'RM{:01d}',
@@ -1241,20 +1247,20 @@ class KenwoodHF(Rig):
 				query_method = self._update_mainTransmitting,
 				set_method = self._set_mainTransmitting,
 				range_check = self._mainTransmittingValid,
-				depends_on = ('tx_main', 'current_receiver_transmitting',)
+				depends_on = ('tx_main', 'tx',)
 			), # RX, TX
 			'sub_transmitting': KenwoodStateValue(self,
 				echoed = True,
 				query_method = self._update_subTransmitting,
 				set_method = self._set_subTransmitting,
 				range_check = self._subTransmittingValid,
-				depends_on = ('tx_main', 'current_receiver_transmitting',)
+				depends_on = ('tx_main', 'tx',)
 			), # RX, TX
 			# TODO: Setters for SA command
 			'satellite_mode_list': KenwoodListStateValue(self, 8,
 				echoed = True,
-				query_command = 'SB',
-				set_format = 'SB{:01d}{:01d}{:01d}{:01d}{:01d}{:01d}{:01d}'
+				query_command = 'SA',
+				set_format = 'SA{:01d}{:01d}{:01d}{:01d}{:01d}{:01d}{:01d}'
 			),
 			'sub_receiver': KenwoodStateValue(self,
 				echoed = True,
@@ -1263,8 +1269,8 @@ class KenwoodHF(Rig):
 			),
 			'scan_mode': KenwoodStateValue(self,
 				echoed = True,
-				query_command = 'SB',
-				set_format = 'SB{:01d}'
+				query_command = 'SC',
+				set_format = 'SC{:01d}'
 			),
 			'cw_break_in_time_delay': KenwoodStateValue(self,
 				echoed = True,
@@ -1422,7 +1428,7 @@ class KenwoodHF(Rig):
 		self._state['tuner_tx'] = KenwoodSingleStateValue(self, self._state['tuner_list'], 1,
 			echoed = True,
 		)
-		self._state['tuner_state'] = KenwoodSingleStateValue(self, self._state['tuner_list'], 0,
+		self._state['tuner_state'] = KenwoodSingleStateValue(self, self._state['tuner_list'], 2,
 			echoed = True,
 		)
 		self._state['rig_lock'] = KenwoodSingleStateValue(self, self._state['lock_list'], 0,
@@ -1434,7 +1440,7 @@ class KenwoodHF(Rig):
 		self._state['speech_processor_input_level'] = KenwoodSingleStateValue(self, self._state['speech_processor_level_list'], 0,
 			echoed = True,
 		)
-		self._state['speech_processor_output_level'] = KenwoodSingleStateValue(self, self._state['speech_processor_level_list'], 0,
+		self._state['speech_processor_output_level'] = KenwoodSingleStateValue(self, self._state['speech_processor_level_list'], 1,
 			echoed = True,
 		)
 		self._state['quick_memory'] = KenwoodSingleStateValue(self, self._state['quick_memory_list'], 0,
@@ -1448,7 +1454,7 @@ class KenwoodHF(Rig):
 		self._state['satellite_main_up_sub_down'] = KenwoodSingleStateValue(self, self._state['satellite_mode_list'], 2)
 		self._state['satellite_control_main'] = KenwoodSingleStateValue(self, self._state['satellite_mode_list'], 3)
 		self._state['satellite_trace'] = KenwoodSingleStateValue(self, self._state['satellite_mode_list'], 4)
-		self._state['satellite_trace_reverse]'] = KenwoodSingleStateValue(self, self._state['satellite_mode_list'], 5)
+		self._state['satellite_trace_reverse'] = KenwoodSingleStateValue(self, self._state['satellite_mode_list'], 5)
 		self._state['satellite_multi_knob_vfo'] = KenwoodSingleStateValue(self, self._state['satellite_mode_list'], 6)
 		self._state['satellite_channel_name'] = KenwoodSingleStateValue(self, self._state['satellite_mode_list'], 7)
 		# Now plug the names in...
@@ -1487,6 +1493,8 @@ class KenwoodHF(Rig):
 		})
 
 	def _query(self, state):
+		if get_ident() == self._readThread.ident:
+			raise Exception('_query from readThread')
 		self._error_count = 0
 		ev = Event()
 		cb = lambda x, y: ev.set()
@@ -1535,10 +1543,10 @@ class KenwoodHF(Rig):
 		})
 
 	def add_callback(self, prop, cb):
-		self._state[prop].add_callback(cb)
+		self._state[prop].add_modify_callback(cb)
 
 	def remove_callback(self, prop, cb):
-		self._state[prop].remove_callback(cb)
+		self._state[prop].remove_modify_callback(cb)
 
 	def terminate(self):
 		if hasattr(self, 'auto_information'):
@@ -1560,11 +1568,14 @@ class KenwoodHF(Rig):
 			break
 		if nxt is not None:
 			nxt[0].add_set_callback(nxt[1])
+			print('Requesting '+nxt[0].name)
 			self._send_query(nxt[0])
 
 		if prop is not None:
+			print('Got '+prop.name)
 			self._fill_cache_state['matched_count'] += 1
 			prop.remove_set_callback(self._fill_cache_cb)
+			print('Got {:d} of {:d}'.format(self._fill_cache_state['matched_count'], self._fill_cache_state['target_count']))
 			if self._fill_cache_state['matched_count'] == self._fill_cache_state['target_count']:
 				for cb in self._fill_cache_state['call_after']:
 					cb()
@@ -1651,11 +1662,11 @@ class KenwoodHF(Rig):
 
 	# Update methods return a string to send to the rig
 	def _update_mainTransmitting(self):
-		self._state['main_transmitting']._cached = self._state['tx_main']._cached and self._state['current_receiver_transmitting']._cached
+		self._state['main_transmitting']._cached = self._state['tx_main']._cached and self._state['tx']._cached
 		return ''
 
 	def _update_subTransmitting(self):
-		self._state['sub_transmitting']._cached = (not self._state['tx_main']._cached) and self._state['current_receiver_transmitting']._cached
+		self._state['sub_transmitting']._cached = (not self._state['tx_main']._cached) and self._state['tx']._cached
 		return ''
 
 	
@@ -1824,7 +1835,7 @@ class KenwoodHF(Rig):
 		return self._state['sub_transmitting']._cached != value
 
 	def _currentTransmittingValid(self, value):
-		return self._state['current_receiver_transmitting']._cached != value
+		return self._state['tx']._cached != value
 
 	def _check_transmitSet(self, value):
 		if not value:
@@ -1892,7 +1903,7 @@ class KenwoodHF(Rig):
 
 	def _update_AC(self, args):
 		split = self.parse('1d1d1d', args)
-		self._state['tuner_list'] = [bool(split[0]), bool(split[1]), tunerState(split[2])]
+		self._state['tuner_list']._cached = [bool(split[0]), bool(split[1]), tunerState(split[2])]
 
 	def _update_AG(self, args):
 		split = self.parse('1d3d', args)
@@ -2196,7 +2207,7 @@ class KenwoodHF(Rig):
 				self._state['rx_frequency']._cached = split[0]
 		self._state['multi_ch_frequency_steps']._cached = split[1]
 		self._state['memory_channel']._cached = split[5]
-		self._state['current_receiver_transmitting']._cached = bool(split[6])
+		self._state['tx']._cached = bool(split[6])
 		self._update_MD(str(split[7]))
 		if self._state['tx_main']._cached == self._state['control_main']._cached:
 			if split[6]:
@@ -2239,7 +2250,7 @@ class KenwoodHF(Rig):
 
 	def _update_LK(self, args):
 		split = self.parse('1d1d', args)
-		self._state['lock_list']._cached = (rigLock(split[0]), split[1])
+		self._state['lock_list']._cached = [rigLock(split[0]), split[1]]
 
 	def _update_LM(self, args):
 		# TODO: Maybe false for 0 and be an int?
@@ -2461,8 +2472,7 @@ class KenwoodHF(Rig):
 
 	def _update_PL(self, args):
 		split = self.parse('3d3d', args)
-		self._state['speech_processor_input_level']._cached = split[0]
-		self._state['speech_processor_output_level']._cached = split[1]
+		self._state['speech_processor_level_list']._cached = [split[0], split[1]]
 
 	def _update_PM(self, args):
 		split = self.parse('1d', args)
@@ -2493,7 +2503,7 @@ class KenwoodHF(Rig):
 
 	def _update_QR(self, args):
 		split = self.parse('1d1d', args)
-		self._state['quick_memory_list']._cached = (bool(split[0]), split[1])
+		self._state['quick_memory_list']._cached = [bool(split[0]), split[1]]
 
 	def _update_RA(self, args):
 		split = self.parse('2d', args)
@@ -2535,9 +2545,9 @@ class KenwoodHF(Rig):
 	def _update_RX(self, args):
 		split = self.parse('1d', args)
 		if self._state['tx_main']._cached == True and split[0] == 0:
-			self._state['current_receiver_transmitting']._cached = False
+			self._state['tx']._cached = False
 		elif self._state['tx_main']._cached == False and split[0] == 1:
-			self._state['current_receiver_transmitting']._cached = False
+			self._state['tx']._cached = False
 		if split[0] == 0:
 			self._state['main_transmitting']._cached = False
 		if split[0] == 1:
@@ -2545,14 +2555,7 @@ class KenwoodHF(Rig):
 
 	def _update_SA(self, args):
 		split = self.parse('1d1d1d1d1d1d1d8l', args)
-		self._state['satellite_mode']._cached = bool(split[0])
-		self._state['satellite_memory_channel']._cached = split[1]
-		self._state['satellite_main_up_sub_down']._cached = not bool(split[2])
-		self._state['satellite_control_main']._cached = not bool(split[3])
-		self._state['satellite_trace']._cached = bool(split[4])
-		self._state['satellite_trace_reverse']._cached = bool(split[5])
-		self._state['satellite_multi_knob_vfo']._cached = not bool(split[6])
-		self._state['satellite_channel_name']._cached = split[7]
+		self._state['satellite_mode_list']._cached = [bool(split[0]), split[1], not bool(split[2]), not bool(split[3]), bool(split[4]), bool(split[5]), not bool(split[6]), split[7]]
 
 	def _update_SB(self, args):
 		split = self.parse('1d', args)
@@ -2625,9 +2628,9 @@ class KenwoodHF(Rig):
 	def _update_TX(self, args):
 		split = self.parse('1d', args)
 		if self._state['tx_main']._cached == True and split[0] == 0:
-			self._state['current_receiver_transmitting']._cached = True
+			self._state['tx']._cached = True
 		elif self._state['tx_main']._cached == False and split[0] == 1:
-			self._state['current_receiver_transmitting']._cached = True
+			self._state['tx']._cached = True
 		else:
 			print('TX triggered for wrong receiver!', file=stderr)
 		if split[0] == 0:
