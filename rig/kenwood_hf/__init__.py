@@ -511,6 +511,8 @@ class KenwoodListStateValue(KenwoodStateValue):
 
 	@property
 	def _cached(self):
+		if self._cached_value is None:
+			self._cached_value = [None] * self.length
 		return self._cached_value
 
 	@_cached.setter
@@ -640,6 +642,7 @@ class KenwoodHF(Rig):
 		super().__init__(**kwargs)
 		self._terminate = False
 		self._killing_cache = False
+		self._filling_cache = False
 		self._error_count = 0
 		self._last_hack = 0
 		# TODO: The error handling repeats whatever the last command was, not the failing command
@@ -1460,11 +1463,14 @@ class KenwoodHF(Rig):
 			),
 			'main_tx_tuning_mode': KenwoodStateValue(self,
 				set_method = self._set_mainTXtuningMode,
-				range_check = self._check_mainTXtuningMode
+				range_check = self._check_mainTXtuningMode,
+				query_method = self._query_main_tx_tuning_mode
 			),
 			'sub_tuning_mode': KenwoodStateValue(self),
 			'main_rx_mode': KenwoodStateValue(self),
-			'main_tx_mode': KenwoodStateValue(self),
+			'main_tx_mode': KenwoodStateValue(self,
+				query_method = self._query_main_tx_mode
+			),
 			'sub_mode': KenwoodStateValue(self, query_method = self._query_subMode),
 			'tx_mode': KenwoodStateValue(self),
 			'rx_mode': KenwoodStateValue(self),
@@ -1545,6 +1551,8 @@ class KenwoodHF(Rig):
 	def _query(self, state):
 		if get_ident() == self._readThread.ident:
 			raise Exception('_query from readThread')
+		if self._filling_cache:
+			self._fill_cache_wait()
 		self._error_count = 0
 		ev = Event()
 		cb = lambda x, y: ev.set()
@@ -1608,59 +1616,7 @@ class KenwoodHF(Rig):
 		if hasattr(self, 'readThread'):
 			self._readThread.join()
 
-	def _fill_cache_cb(self, prop, *args):
-		nxt = None
-		while len(self._fill_cache_state['todo']) > 0:
-			nxt = self._fill_cache_state['todo'].pop(0)
-			if not nxt[0]._valid(False):
-				self._fill_cache_state['matched_count'] += 1
-				nxt = None
-				continue
-			break
-		if nxt is not None:
-			nxt[0].add_set_callback(nxt[1])
-			print('Requesting '+nxt[0].name)
-			self._send_query(nxt[0])
-
-		if prop is not None:
-			print('Got '+prop.name)
-			self._fill_cache_state['matched_count'] += 1
-			prop.remove_set_callback(self._fill_cache_cb)
-			print('Got {:d} of {:d}'.format(self._fill_cache_state['matched_count'], self._fill_cache_state['target_count']))
-			if self._fill_cache_state['matched_count'] == self._fill_cache_state['target_count']:
-				for cb in self._fill_cache_state['call_after']:
-					cb()
-				self._fill_cache_state['event'].set()
-
-	def _fill_cache(self):
-		if self._state['power_on']._cached == False:
-			return
-		done = {}
-		self._fill_cache_state['todo'] = []
-		self._fill_cache_state['call_after'] = ()
-		self._fill_cache_state['target_count'] = 0
-		self._fill_cache_state['matched_count'] = 0
-		self._fill_cache_state['event'] = Event()
-		# Perform queries in this order:
-		# 0) FA, FB, FC
-		# 1) Simple string queries without validators
-		# 2) Simple string queries with validators
-		# 3) Method queries
-		for a, p in self._state.items():
-			if isinstance(p, StateValue):
-				if p._query_command is None:
-					if p._query_method is not None:
-						self._fill_cache_state['call_after'] += (p._query_method,)
-				else:
-					if not p._query_command in done:
-						done[p._query_command] = True
-						self._fill_cache_state['target_count'] += 1
-						if p._validity_check is not None:
-							self._fill_cache_state['todo'].append((p, self._fill_cache_cb,))
-						else:
-							self._fill_cache_state['todo'].insert(0, (p, self._fill_cache_cb,))
-		self._fill_cache_cb(None, None)
-		print('Waiting...')
+	def _fill_cache_wait(self):
 		self._fill_cache_state['event'].wait()
 		# TODO: if on main, toggle TF-SET to get TX mode/frequency
 		ocm = self._state['control_main']._cached
@@ -1688,6 +1644,63 @@ class KenwoodHF(Rig):
 			self._set(self._state['control_main'], False)
 			self._send_query(self._state['current_rx_tuning_mode'])
 			self._set(self._state['control_main'], True)
+		self._filling_cache = False
+
+	def _fill_cache_cb(self, prop, *args):
+		nxt = None
+		while len(self._fill_cache_state['todo']) > 0:
+			nxt = self._fill_cache_state['todo'].pop(0)
+			if not nxt[0]._valid(False):
+				self._fill_cache_state['matched_count'] += 1
+				nxt = None
+				continue
+			break
+		if nxt is not None:
+			nxt[0].add_set_callback(nxt[1])
+			print('Requesting '+nxt[0].name)
+			self._send_query(nxt[0])
+
+		if prop is not None:
+			print('Got '+prop.name)
+			self._fill_cache_state['matched_count'] += 1
+			prop.remove_set_callback(self._fill_cache_cb)
+			print('Got {:d} of {:d}'.format(self._fill_cache_state['matched_count'], self._fill_cache_state['target_count']))
+			if self._fill_cache_state['matched_count'] == self._fill_cache_state['target_count']:
+				for cb in self._fill_cache_state['call_after']:
+					cb()
+				self._fill_cache_state['event'].set()
+
+	def _fill_cache(self):
+		if self._state['power_on']._cached == False:
+			return
+		self._filling_cache = True
+		done = {}
+		self._fill_cache_state['todo'] = []
+		self._fill_cache_state['call_after'] = ()
+		self._fill_cache_state['target_count'] = 0
+		self._fill_cache_state['matched_count'] = 0
+		self._fill_cache_state['event'] = Event()
+		# Perform queries in this order:
+		# 0) FA, FB, FC
+		# 1) Simple string queries without validators
+		# 2) Simple string queries with validators
+		# 3) Method queries
+		for a, p in self._state.items():
+			if isinstance(p, StateValue):
+				if p._query_command is None:
+					if p._query_method is not None:
+						self._fill_cache_state['call_after'] += (p._query_method,)
+				else:
+					if not p._query_command in done:
+						done[p._query_command] = True
+						self._fill_cache_state['target_count'] += 1
+						if p._validity_check is not None:
+							self._fill_cache_state['todo'].append((p, self._fill_cache_cb,))
+						else:
+							self._fill_cache_state['todo'].insert(0, (p, self._fill_cache_cb,))
+		self._fill_cache_cb(None, None)
+		if get_ident() != self._readThread.ident:
+			self._fill_cache_wait()
 		# TODO: switch to other receiver to get mode/frequency
 
 	def _kill_cache(self):
@@ -1728,6 +1741,22 @@ class KenwoodHF(Rig):
 		self._state['sub_transmitting']._cached = (not self._state['tx_main']._cached) and self._state['tx']._cached
 		return ''
 
+	def _query_main_tx_tuning_mode(self):
+		ocm = self._state['control_main']._cached
+		if not self._state['control_main']._cached:
+			ocm = False
+			self._set(self._state['control_main'], True)
+		self._send_query(self._state['split'])
+		self._set(self._state['control_main'], ocm)
+	
+	def _query_main_tx_mode(self):
+		print('!!! getting main tx mode')
+		ocm = self._state['control_main']._cached
+		if not self._state['control_main']._cached:
+			ocm = False
+			self._set(self._state['control_main'], True)
+		self._send_query(self._state['current_tx_tuning_mode'])
+		self._set(self._state['control_main'], ocm)
 	
 	# Validity check methods return True or False
 	def _noiseBlankerValid(self):
