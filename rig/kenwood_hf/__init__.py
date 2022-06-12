@@ -374,12 +374,10 @@ class KenwoodStateValue(StateValue):
 			self._cached = None
 			return ''
 		if self._query_method is not None:
-			print('Method: '+str(self._query_method))
 			return self._query_method()
 		elif self._query_command is not None:
 			if self.name is None:
 				raise Exception('Unnamed state! '+self._query_command)
-			print('Query: '+str(self.name))
 			return self._query_command
 		raise Exception('Attempt to query value "'+self.name+'" without a query command or method')
 
@@ -399,7 +397,6 @@ class KenwoodStateValue(StateValue):
 			raise Exception('Setting a list with None in '+self.name+', '+str(value))
 			return ''
 		if self._set_format is not None:
-			print('STR: "'+self._set_format+'", val='+str(value))
 			return self._set_format.format(value)
 		elif self._set_method is not None:
 			return self._set_method(value)
@@ -562,7 +559,6 @@ class KenwoodListStateValue(KenwoodStateValue):
 		if self._queued is not None:
 			self.lock.release()
 			return
-		print('Sending list '+str(lst))
 		self._queued = {
 			'msgType': 'set',
 			'stateValue': self,
@@ -574,7 +570,6 @@ class KenwoodListStateValue(KenwoodStateValue):
 	def _set_string(self, value):
 		self.lock.acquire()
 		self._queued = None
-		print('Setting list '+str(value))
 		if not self._do_range_check(value):
 			self.lock.release()
 			return None
@@ -1594,7 +1589,6 @@ class KenwoodHF(Rig):
 	def _set(self, state, value):
 		if value is None:
 			raise Exception('Attempt to set '+state.name+' to None')
-		print('Setting...'+str(state.name))
 		self._serial.writeQueue.put({
 			'msgType': 'set',
 			'stateValue': state,
@@ -1657,14 +1651,11 @@ class KenwoodHF(Rig):
 			break
 		if nxt is not None:
 			nxt[0].add_set_callback(nxt[1])
-			print('Requesting '+nxt[0].name)
 			self._send_query(nxt[0])
 
 		if prop is not None:
-			print('Got '+prop.name)
 			self._fill_cache_state['matched_count'] += 1
 			prop.remove_set_callback(self._fill_cache_cb)
-			print('Got {:d} of {:d}'.format(self._fill_cache_state['matched_count'], self._fill_cache_state['target_count']))
 			if self._fill_cache_state['matched_count'] == self._fill_cache_state['target_count']:
 				for cb in self._fill_cache_state['call_after']:
 					cb()
@@ -1750,7 +1741,6 @@ class KenwoodHF(Rig):
 		self._set(self._state['control_main'], ocm)
 	
 	def _query_main_tx_mode(self):
-		print('!!! getting main tx mode')
 		ocm = self._state['control_main']._cached
 		if not self._state['control_main']._cached:
 			ocm = False
@@ -2299,9 +2289,7 @@ class KenwoodHF(Rig):
 		self._state['memory_channel']._cached = split[5]
 		self._state['tx']._cached = bool(split[6])
 		self._update_MD(str(split[7]))
-		print('Compare '+str(self._state['tx_main']._cached)+" == "+str(self._state['control_main']._cached))
 		if self._state['tx_main']._cached == self._state['control_main']._cached:
-			print('TX: '+str(split[6]))
 			if split[6]:
 				self._state['current_tx_tuning_mode']._cached = tuningMode(split[8])
 				if self._state['control_main']._cached:
@@ -2310,7 +2298,6 @@ class KenwoodHF(Rig):
 					self._state['sub_tuning_mode']._cached = tuningMode(split[8])
 			else:
 				self._state['current_rx_tuning_mode']._cached = tuningMode(split[8])
-				print('controlMain: '+str(self._state['control_main']._cached))
 				if self._state['control_main']._cached:
 					self._state['main_rx_tuning_mode']._cached = tuningMode(split[8])
 				else:
@@ -2380,7 +2367,6 @@ class KenwoodHF(Rig):
 				#self._state['main_frequency']._cached = None
 			else:
 				mem = self.memories.memories[split[0]]._cached
-				print('mem = '+str(mem))
 				self._state['offset_frequency']._cached = mem['OffsetFrequency']
 				self._state['offset_type']._cached = mem['OffsetType']
 				self._state['main_rx_set_frequency']._cached = mem['Frequency']
@@ -2585,9 +2571,7 @@ class KenwoodHF(Rig):
 		self._last_power_state = bool(split[0])
 		if split[0] and old == False:
 			self._set(self._state['auto_information'], 2)
-			print('Filling')
 			self._fill_cache()
-			print('Done')
 		elif (not split[0]) and old == True:
 			self._kill_cache()
 
