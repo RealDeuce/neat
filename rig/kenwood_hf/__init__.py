@@ -503,6 +503,8 @@ class KenwoodListStateValue(KenwoodStateValue):
 		self.add_set_callback(self._update_children)
 
 	def _update_children(self, prop, value):
+		if self._cached_value is None:
+			self._cached_value = [None] * self.length
 		for i in range(self.length):
 			self.children[i]._cached = value[i]
 
@@ -514,6 +516,8 @@ class KenwoodListStateValue(KenwoodStateValue):
 
 	@_cached.setter
 	def _cached(self, value):
+		if self._cached_value is None:
+			self._cached_value = [None] * self.length
 		modified = False
 		if isinstance(value, StateValue):
 			raise Exception('Forgot to add .cached!')
