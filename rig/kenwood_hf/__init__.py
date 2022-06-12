@@ -811,32 +811,32 @@ class KenwoodHF(Rig):
 				query_command = 'AC',
 				set_format = 'AC{0[0]:1d}{0[1]:1d}{0[2]:1d}',
 				length = 3,
-				range_check = self._tuner_list_range_check
+				range_check = self._tuner_list_range_check,
 			),
 			'main_af_gain': KenwoodStateValue(self,
 				echoed = False,
 				query_command = 'AG0',
-				set_format = 'AG0{:03d}'
+				set_format = 'AG0{:03d}',
 			),
 			'sub_af_gain': KenwoodStateValue(self,
 				echoed = False,
 				query_command = 'AG1',
-				set_format = 'AG1{:03d}'
+				set_format = 'AG1{:03d}',
 			),
 			'auto_information': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AI',
-				set_format = 'AI{:01d}'
+				set_format = 'AI{:01d}',
 			),
 			'auto_notch_level': KenwoodStateValue(self,
 				echoed = False,
 				query_command = 'AL',
-				set_format = 'AL{:03d}'
+				set_format = 'AL{:03d}',
 			),
 			'auto_mode': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AM',
-				set_format = 'AM{:01d}'
+				set_format = 'AM{:01d}',
 			),
 			'antenna_connector': KenwoodStateValue(self,
 				echoed = True,
@@ -1049,7 +1049,8 @@ class KenwoodHF(Rig):
 			),
 			'split': KenwoodStateValue(self,
 				query_command = 'IF',
-				depends_on=('main_tx_tuning_mode', 'main_rx_tuning_mode', 'tx_main', 'control_main',)
+				depends_on=('main_tx_tuning_mode', 'main_rx_tuning_mode', 'tx_main', 'control_main',),
+				set_method = self._set_split
 			),
 			'if_shift': KenwoodStateValue(self,
 				echoed = True,
@@ -1449,8 +1450,14 @@ class KenwoodHF(Rig):
 			'sub_tx_offset_frequency': KenwoodStateValue(self),
 			'main_frequency': KenwoodStateValue(self),
 			'sub_frequency': KenwoodStateValue(self),
-			'tx_frequency': KenwoodStateValue(self),
-			'rx_frequency': KenwoodStateValue(self),
+			'tx_frequency': KenwoodStateValue(self,
+				echoed = True,
+				set_method = self._set_tx_frequency
+			),
+			'rx_frequency': KenwoodStateValue(self,
+				echoed = True,
+				set_method = self._set_rx_frequency
+			),
 			'main_rx_tuning_mode': KenwoodStateValue(self,
 				echoed = True,
 				set_method = self._set_mainRXtuningMode,
@@ -1467,8 +1474,14 @@ class KenwoodHF(Rig):
 				query_method = self._query_main_tx_mode
 			),
 			'sub_mode': KenwoodStateValue(self, query_method = self._query_subMode),
-			'tx_mode': KenwoodStateValue(self),
-			'rx_mode': KenwoodStateValue(self),
+			'tx_mode': KenwoodStateValue(self,
+				echoed = True,
+				set_method = self._set_tx_mode
+			),
+			'rx_mode': KenwoodStateValue(self,
+				echoed = True,
+				set_method = self._set_rx_mode
+			),
 			'main_memory_channel': KenwoodStateValue(self),
 			'sub_memory_channel': KenwoodStateValue(self),
 		}
@@ -1583,7 +1596,7 @@ class KenwoodHF(Rig):
 	# impose a large performance penalty that I don't want to face.
 	def sync(self):
 		self._sync_lock.acquire()
-		self._query(self.id)
+		self._query(self._state['id'])
 		self._sync_lock.release()
 
 	def _set(self, state, value):
@@ -1722,6 +1735,86 @@ class KenwoodHF(Rig):
 
 	def _set_noiseReduction2(self, value):
 		return 'NR{:01d}'.format(noiseReduction.NR2 if value else noiseReduction.OFF)
+
+	def _set_rx_frequency(self, value):
+		ret = ''
+		vfo = self._state['main_rx_tuning_mode']._cached
+		if self._state['tx_main']._cached == False or self._state['control_main']._cached == False:
+			ret += 'DC00;'
+		if not self._state['main_rx_tuning_mode']._cached in (tuningMode.VFOA, tuningMode.VFOB):
+			ret += 'FR0;'
+			vfo = tuningMode.VFOA
+		if vfo == tuningMode.VFOA:
+			ret += 'FA{:011d};FA'.format(int(value))
+		else:
+			ret += 'FB{:011d};FB'.format(int(value))
+		return ret
+
+	def _set_tx_frequency(self, value):
+		ret = ''
+		vfo = self._state['main_tx_tuning_mode']._cached
+		if self._state['tx_main']._cached == False or self._state['control_main']._cached == False:
+			ret += 'DC00;'
+		if not vfo in (tuningMode.VFOA, tuningMode.VFOB):
+			ret += 'FT0;'
+			vfo = tuningMode.VFOA
+		if vfo == tuningMode.VFOA:
+			ret += 'FA{:011d};FA'.format(int(value))
+		else:
+			ret += 'FB{:011d};FB'.format(int(value))
+		return ret
+
+	def _set_tx_mode(self, value):
+		ret = ''
+		tvfo = self._state['main_tx_tuning_mode']._cached
+		rvfo = self._state['main_rx_tuning_mode']._cached
+		if self._state['tx_main']._cached == False or self._state['control_main']._cached == False:
+			ret += 'DC00;'
+		if (not rvfo in (tuningMode.VFOA, tuningMode.VFOB)) or (not rvfo in (tuningMode.VFOA, tuningMode.VFOB)):
+			ret += 'FR0;'
+			rvfo = tuningMode.VFOA
+			tvfo = tuningMode.VFOA
+		if rvfo != tvfo:
+			ret += 'TS1;'
+		ret += 'MD{:01d};MD'.format(int(value))
+		if rvfo != tvfo:
+			ret += ';TS0'
+		return ret
+
+	def _set_rx_mode(self, value):
+		ret = ''
+		tvfo = self._state['main_tx_tuning_mode']._cached
+		rvfo = self._state['main_rx_tuning_mode']._cached
+		if self._state['tx_main']._cached == False or self._state['control_main']._cached == False:
+			ret += 'DC00;'
+		if (not rvfo in (tuningMode.VFOA, tuningMode.VFOB)) or (not rvfo in (tuningMode.VFOA, tuningMode.VFOB)):
+			ret += 'FR0;'
+			rvfo = tuningMode.VFOA
+			tvfo = tuningMode.VFOA
+		ret += 'MD{:01d}'.format(int(value))
+		return ret
+
+	def _set_split(self, value):
+		print('!!! Setting split!')
+		ret = ''
+		vfo = self._state['main_rx_tuning_mode']._cached
+		if self._state['tx_main']._cached == False or self._state['control_main']._cached == False:
+			ret += 'DC00;'
+		if not vfo in (tuningMode.VFOA, tuningMode.VFOB):
+			ret += 'FR0;'
+			vfo = tuningMode.VFOA
+		if value:
+			if vfo == tuningMode.VFOA:
+				ret += 'FT1'
+			else:
+				ret += 'FT0'
+		else:
+			if vfo == tuningMode.VFOB:
+				ret += 'FT0'
+			else:
+				ret += 'FT1'
+		ret += ';FR;FT;FA;FB'
+		return ret
 
 	# Update methods return a string to send to the rig
 	def _update_mainTransmitting(self):

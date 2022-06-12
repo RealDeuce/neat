@@ -609,6 +609,8 @@ class rigctld_connection:
 		# When not in braindead mode though, it's expected to change both the RX and TX VFOs.
 		# currVFO is always the "you know what I mean" VFO, even if you don't.
 		self.bd_split = self._rigctld.rig.split
+		if self.bd_split is None:
+			self.bd_split = False
 		self.currVFO = vfo.VFOA # Bah.
 		self.rxVFO = self.currVFO
 		self.txVFO = self.currVFO
@@ -749,15 +751,19 @@ class rigctld_connection:
 		else:
 			rxvfo = vfo.VFOA
 		if command['argv'][0] == '0':
-			self._rigctld.split = False
+			print('--- Trying to set split to '+str(False))
+			self._rigctld.rig.split = False
 			self.currVFO = rxvfo
 			self.rxVFO = rxvfo
 			self.txVFO = rxvfo
+			self.bd_split = False
 		elif command['argv'][0] == '1':
-			self._rigctld.split = True
+			print('--- Trying to set split to '+str(True))
+			self._rigctld.rig.split = True
 			self.currVFO = rxvfo
 			self.rxVFO = rxvfo
 			self.txVFO = txvfo
+			self.bd_split = True
 		else:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 			return
@@ -948,6 +954,7 @@ class rigctld_connection:
 	def handle(self, cmd):
 		cmd = self.shorten(cmd)
 		while len(cmd):
+			self._rigctld.rig.sync()
 			if self._rigctld.verbose:
 				print('Raw command: '+str(cmd), file=sys.stderr)
 			command = self.parse_command_line(cmd)

@@ -227,7 +227,8 @@ class FreqDisplay(Label):
 		self.bind(vfo_box=self.newVFO)
 		super(FreqDisplay, self).__init__(**kwargs)
 		if rigobj.power_on:
-			self.freqValue = int(rigobj.vfoa_set_frequency)
+			if rigobj.vfoa_set_frequency is not None:
+				self.freqValue = int(rigobj.vfoa_set_frequency)
 		self.cb_state = 'main_frequency'
 		rigobj.add_callback(self.cb_state, self.newFreq)
 		self.bind(rig_state=self.newRigState)
