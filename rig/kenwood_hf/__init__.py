@@ -350,6 +350,29 @@ class DCScode(IntEnum):
 	DCS_743 = 102
 	DCS_754 = 103
 
+# Indicates which sub-rigs this property should be included in
+class InRig(IntEnum):
+	BOTH = 0     # The state is shared between the two receivers
+	MAIN = 1     # The state is only for the main receiver
+	SUB = 2      # The state is only for the sub receiver
+	NONE = 3     # The state is not in a receiver (ie: a list with a state for each)
+
+# Indicates what state the control and tx rig selection needs to be
+# in to set this value
+class SetState(IntEnum):
+	ANY = 0     # Can be set from any state
+	CONTROL = 1 # Can only be set for the current control receiver
+	TX = 2      # Can only be set for the current TX receiver
+	TS = 3      # Must be the current TX receiver and TS mode must be enabled
+	NONE = 4    # Can't be set
+
+class QueryState(IntEnum):
+	ANY = 0     # Can always be queried
+	CONTROL = 1 # Can only be queried when control receiver is the receiver it's in
+	TX = 2      # Can only be queried when TX receiver is the receiver it's in
+	TS = 3      # Can only be queried when TX and when TS is true
+	NONE = 4    # Can't be queried
+
 class KenwoodStateValue(StateValue):
 	def __init__(self, rig, **kwargs):
 		super().__init__(rig, **kwargs)
@@ -362,6 +385,15 @@ class KenwoodStateValue(StateValue):
 		self._set_method = kwargs.get('set_method')
 		self._validity_check = kwargs.get('validity_check')
 		self._works_powered_off = kwargs.get('works_powered_off')
+		self._in_rig = kwargs.get('in_rig')
+		self._set_state = kwargs.get('set_state')
+		self._query_state = kwargs.get('query_state')
+		if self._in_rig is None:
+			self._in_rig = InRig.BOTH
+		if self._set_state is None:
+			self._set_state = SetState.ANY
+		if self._query_state is None:
+			self._set_state = QueryState.ANY
 		if self._depends_on is None:
 			self._depends_on = ()
 		if self._set_format is not None and self._set_method is not None:
@@ -802,8 +834,8 @@ class KenwoodHF(Rig):
 		# Read/Write state values
 		self._state = {
 			# State objects
-			# TODO:
-			# AC set fails when not in HF
+			# AC set fails when main TX frequency not in HF
+			# AC set fails when Control not in main
 			# AC set fails when control is sub
 			# AC set with a state of 0 always toggles the
 			# current TX state, and will toggle the RX state
@@ -816,122 +848,169 @@ class KenwoodHF(Rig):
 				set_format = 'AC{0[0]:1d}{0[1]:1d}{0[2]:1d}',
 				length = 3,
 				range_check = self._tuner_list_range_check,
+				in_rig = InRig.MAIN,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.ANY
 			),
-			'main_af_gain': KenwoodStateValue(self,
+			'main_audio_level': KenwoodStateValue(self,
+				name = 'audio_level',
 				echoed = False,
 				query_command = 'AG0',
 				set_format = 'AG0{:03d}',
+				in_rig = InRig.MAIN,
+				set_state = SetState.ANY,
+				query_state = QueryState.ANY
 			),
-			'sub_af_gain': KenwoodStateValue(self,
+			'sub_audio_level': KenwoodStateValue(self,
+				name = 'audio_level',
 				echoed = False,
 				query_command = 'AG1',
 				set_format = 'AG1{:03d}',
+				in_rig = InRig.SUB,
+				set_state = SetState.ANY,
+				query_state = QueryState.ANY
 			),
+			# TODO: Should this be read-only?
 			'auto_information': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AI',
 				set_format = 'AI{:01d}',
+				in_rig = InRig.BOTH,
+				set_state = SetState.ANY,
+				query_state = QueryState.ANY
 			),
 			'auto_notch_level': KenwoodStateValue(self,
 				echoed = False,
 				query_command = 'AL',
 				set_format = 'AL{:03d}',
+				in_rig = InRig.MAIN,
+				set_state = SetState.ANY,
+				query_state = QueryState.ANY,
 			),
 			'auto_mode': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AM',
 				set_format = 'AM{:01d}',
+				in_rig = InRig.MAIN,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.ANY,
 			),
 			'antenna_connector': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'AN',
 				set_format = 'AN{:01d}',
-				range_check = self._antennaRangeCheck
-			),
-			'antenna1': KenwoodStateValue(self,
-				echoed = True,
-				query_command = 'AN',
-				set_method = self._setAntenna1,
-				validity_check = self._antenna1Valid,
-				depends_on=('main_frequency',)
-			),
-			'antenna2': KenwoodStateValue(self,
-				echoed = True,
-				query_command = 'AN',
-				set_method = self._setAntenna2,
-				validity_check = self._antenna2Valid,
-				depends_on=('main_frequency',)
+				in_rig = InRig.MAIN,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.ANY,
+				range_check = self._antenna_connector_range_check
 			),
 			# The AR set command returns an error even when
-			# changing to the current state, and doesn't
-			# send a response.
-			#
+			# changing to the current state
+			# 
 			# Further, the AR command returns an error when
 			# trying to set it on the non-control receiver.
 			# So basically, you can only set it for the
 			# control recevier, and then only to the
 			# opposite value.  Query appears to always work
 			# for both however.
-			'main_auto_simplex_on': KenwoodStateValue(self,
+			# 
+			# You can't change the offset when AR is
+			# enabled, and you can't set AR when OS is Simplex
+			# 
+			# TS-Set disables AR mode (and doesn't change TS)
+			# 
+			# Setting AR disables TS (and does change it)
+			# 
+			# Memories hold the TS status for OS != 0, if
+			# a memory is recalled with TS = 1 and OS != 0,
+			# AR is disabled
+			'main_auto_simplex_check': KenwoodStateValue(self,
+				name = 'auto_simplex_check',
 				echoed = True,
 				query_command = 'AR0',
-				set_format = 'AR0{:01d}1'
+				set_format = 'AR0{:01d}0',
+				in_rig = InRig.MAIN,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.ANY,
+				range_check = self._main_auto_simplex_check_range_check,
 			),
 			'main_simplex_possible': KenwoodStateValue(self,
+				name = 'simplex_possible',
 				echoed = True,
-				query_command = 'AR0'
+				query_command = 'AR0',
+				in_rig = InRig.MAIN,
+				set_state = SetState.NONE,
+				query_state = QueryState.ANY,
 			),
-			'sub_auto_simplex_on': KenwoodStateValue(self,
+			'sub_auto_simplex_check': KenwoodStateValue(self,
+				name = 'auto_simplex_check',
 				echoed = True,
 				query_command = 'AR1',
-				set_format = 'AR1{:01d}1'
+				set_format = 'AR1{:01d}0',
+				in_rig = InRig.SUB,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.ANY,
+				range_check = self._sub_auto_simplex_check_range_check,
 			),
 			'sub_simplex_possible': KenwoodStateValue(self,
+				name = 'simplex_possible',
 				echoed = True,
-				query_command = 'AR1'
+				query_command = 'AR1',
+				in_rig = InRig.SUB,
+				set_state = SetState.NONE,
+				query_state = QueryState.ANY,
 			),
 			'beat_canceller': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'BC',
-				set_format = 'BC{:01}'
-			),
-			'auto_beat_canceller': KenwoodStateValue(self,
-				echoed = True,
-				query_command = 'BC',
-				set_format = 'BC{:01}'
-			),
-			'manual_beat_canceller': KenwoodStateValue(self,
-				echoed = True,
-				query_command = 'BC',
-				set_method = self._set_manualBeatCanceller
+				set_format = 'BC{:01}',
+				in_rig = InRig.MAIN,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.ANY,
+				range_check = self._beat_canceller_range_check
 			),
 			'band_down': KenwoodStateValue(self,
 				echoed = True,
-				set_format = 'BD'
+				set_format = 'BD',
+				in_rig = InRig.BOTH,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.NONE,
 			),
 			'manual_beat_canceller_frequency': KenwoodStateValue(self,
 				echoed = False,
 				query_command = 'BP',
-				set_format = 'BP{:03d}'
+				set_format = 'BP{:03d}',
+				in_rig= InRig.MAIN,
+				set_state = SetState.ANY,
+				query_state = QueryState.ANY,
 			),
 			'band_up': KenwoodStateValue(self,
 				echoed = True,
-				set_format = 'BU'
+				set_format = 'BU',
+				in_rig = InRig.BOTH,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.NONE,
 			),
-			'main_busy': KenwoodStateValue(self, query_command = 'BY'),
-			'sub_busy': KenwoodStateValue(self, query_command = 'BY'),
-			'cw_auto_tune': KenwoodStateValue(self,
+			'busy_list': KenwoodListStateValue(self, 2,
+				in_rig = InRig.NONE,
+				set_state = SetState.NONE,
+				query_state = QueryState.ANY,
+			),
+
+			# Only in CW mode, only when DSP filter
+			# is less than 1.0 kHz
+			'auto_zero_beat': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'CA',
 				set_format = 'CA{:01d}',
 				validity_check = self._cwAutoTuneValid,
 				range_check = self._cwAutoTuneRange,
-				depends_on = ('mode',)
+				depends_on = ('mode',),
 			),
 			'carrier_gain': KenwoodStateValue(self,
 				echoed = False,
 				query_command = 'CG',
-				set_format = 'CG{:03d}'
+				set_format = 'CG{:03d}',
 			),
 			# False turns it up, True turns it down (derp derp),
 			'turn_multi_ch_control_cown': KenwoodStateValue(self,
@@ -1086,6 +1165,9 @@ class KenwoodHF(Rig):
 				query_command = 'LT',
 				set_format = 'LT{:01d}'
 			),
+			# Memories hold the TS status for OS != 0, if
+			# a memory is recalled with TS = 1 and OS != 0,
+			# AR is disabled
 			'memory_channel': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'MC',
@@ -1163,6 +1245,7 @@ class KenwoodHF(Rig):
 				depends_on = ('control_main',)
 			),
 			# TODO: OI appears to be IF for the non-active receiver... not sure if that's PTT or CTRL
+			# If AR is enabled, you cant change OS
 			'offset_type': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'OS',
@@ -1394,6 +1477,10 @@ class KenwoodHF(Rig):
 				query_command = 'TO',
 				set_format = 'TO{:01d}'
 			),
+			# If AR is enabled, TS[01] just disables AR and
+			# does not change TS
+			# If OS != 0, TS0 does nothing, and TS1 toggles
+			# the TS state
 			'transmit_set': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'TS',
@@ -1517,6 +1604,18 @@ class KenwoodHF(Rig):
 		self._state['quick_memory_channel'] = KenwoodSingleStateValue(self, self._state['quick_memory_list'], 1,
 			echoed = True,
 		)
+		self._state['main_busy'] = KenwoodSingleStateValue(self, self._state['busy_list'], 0,
+			in_rig = InRig.MAIN,
+			set_state = SetState.NONE,
+			query_state = QueryState.ANY,
+			name = 'busy'
+		)
+		self._state['sub_busy'] = KenwoodSingleStateValue(self, self._state['busy_list'], 1,
+			in_rig = InRig.SUB,
+			set_state = SetState.NONE,
+			query_state = QueryState.ANY,
+			name = 'busy'
+		)
 		self._state['satellite_mode'] = KenwoodSingleStateValue(self, self._state['satellite_mode_list'], 0)
 		self._state['satellite_channel'] = KenwoodSingleStateValue(self, self._state['satellite_mode_list'], 1)
 		self._state['satellite_main_up_sub_down'] = KenwoodSingleStateValue(self, self._state['satellite_mode_list'], 2)
@@ -1528,7 +1627,8 @@ class KenwoodHF(Rig):
 		# Now plug the names in...
 		for a, p in self._state.items():
 			if isinstance(p, StateValue):
-				p.name = a
+				if p.name is None:
+					p.name = a
 		if self.power_on:
 			self.auto_information = 2
 		self.memories = MemoryArray(self)
@@ -1722,13 +1822,52 @@ class KenwoodHF(Rig):
 
 	# Range check methods return True or False
 	def _tuner_list_range_check(self, value):
+		# Fail if we're trying to set it to the current value
+		# Unless we're changing the tuning state and it's
+		# currently enabled
 		if value[1] == self._state['tuner_list']._cached[1]:
+			# If we're setting anything except TX enabled,
+			# TX enabled must be set as well
 			if value[1] == False:
 				if value[0] or value[2]:
 					return False
 			if value[2] == self._state['tuner_list']._cached[2]:
 				return False
+		# Fail if main TX is VHF+
+		if self._state['main_tx_frequency']._cached > 60000000:
+			return False
+		# Fail if main is not control
+		if not self._state['control_main']._cached:
+			return False
 		return True
+
+	def _antenna_connector_range_check(self, value):
+		# For VHF+, we can't set it.
+		if self._state['main_tx_frequency']._cached > 60000000:
+			return False
+		# For HF, it must be 1 or 2
+		if value < 1 or value > 2:
+			return False
+		return True
+
+	def _main_auto_simplex_check_range_check(self, value):
+		if value == self._state['main_auto_simplex_check']._cached:
+			return False
+		if self._state['main_offset_type']._cached == offset.NONE:
+			return False
+		return True
+
+	def _sub_auto_simplex_check_range_check(self, value):
+		if value == self._state['sub_auto_simplex_check']._cached:
+			return False
+		if self._state['sub_offset_type']._cached == offset.NONE:
+			return False
+		return True
+
+	def _beat_canceller_range_check(self, value):
+		# Auto beat cancel can only be enabled on some modes
+		if value == BeatCanceller.AUTO and (not self._state['mode'] in (mode.USB, mode.LSB, mode.AM)):
+			return False
 
 	# Set methods return a string to send to the rig
 	def _set_manualBeatCanceller(self, value):
@@ -1919,11 +2058,6 @@ class KenwoodHF(Rig):
 				return True
 		return False
 
-	def _antennaRangeCheck(self, value):
-		if self._state['main_frequency']._cached <= 60000000 and (value == 1 or value == 2):
-			return True
-		return False
-
 	def _antenna1Valid(self):
 		return self._antennaRangeCheck(1)
 
@@ -1941,7 +2075,7 @@ class KenwoodHF(Rig):
 			return False
 		if value:
 			return True
-		if self.cw_auto_tune:
+		if self._state['auto_zero_beat']._cached:
 			return True
 		return False
 
@@ -2083,9 +2217,9 @@ class KenwoodHF(Rig):
 	def _update_AG(self, args):
 		split = self.parse('1d3d', args)
 		if split[0] == 0:
-			self._state['main_af_gain']._cached = split[1]
+			self._state['main_audio_level']._cached = split[1]
 		else:
-			self._state['sub_af_gain']._cached = split[1]
+			self._state['sub_audio_level']._cached = split[1]
 
 	def _update_AI(self, args):
 		split = self.parse('1d', args)
@@ -2104,31 +2238,31 @@ class KenwoodHF(Rig):
 	def _update_AN(self, args):
 		split = self.parse('1d', args)
 		self._state['antenna_connector']._cached = None if split[0] == 0 else split[0]
-		self._state['antenna1']._cached = (split[0] == 1) if split[0] != 0 else None
-		self._state['antenna2']._cached = (split[0] == 2) if split[0] != 0 else None
+		#self._state['antenna1']._cached = (split[0] == 1) if split[0] != 0 else None
+		#self._state['antenna2']._cached = (split[0] == 2) if split[0] != 0 else None
 
 	def _update_AR(self, args):
 		split = self.parse('1d1d1d', args)
 		aso = bool(split[1])
 		if split[0] == 0:
-			self._state['main_auto_simplex_on']._cached = aso
+			self._state['main_auto_simplex_check']._cached = aso
 			self._state['main_simplex_possible']._cached = bool(split[2]) if aso else False
 		else:
-			self._state['sub_auto_simplex_on']._cached = aso
+			self._state['sub_auto_simplex_check']._cached = aso
 			self._state['sub_simplex_possible']._cached = bool(split[2]) if aso else False
 
 	def _update_BC(self, args):
 		split = self.parse('1d', args)
 		self._state['beat_canceller']._cached = BeatCanceller(split[0])
-		if split[0] == 0:
-			self._state['auto_beat_canceller']._cached = False
-			self._state['manual_beat_canceller']._cached = False
-		elif split[0] == 1:
-			self._state['auto_beat_canceller']._cached = True
-			self._state['manual_beat_canceller']._cached = False
-		elif split[0] == 2:
-			self._state['auto_beat_canceller']._cached = False
-			self._state['manual_beat_canceller']._cached = True
+		#if split[0] == 0:
+		#	self._state['auto_beat_canceller']._cached = False
+		#	self._state['manual_beat_canceller']._cached = False
+		#elif split[0] == 1:
+		#	self._state['auto_beat_canceller']._cached = True
+		#	self._state['manual_beat_canceller']._cached = False
+		#elif split[0] == 2:
+		#	self._state['auto_beat_canceller']._cached = False
+		#	self._state['manual_beat_canceller']._cached = True
 
 	def _update_BP(self, args):
 		split = self.parse('3d', args)
@@ -2141,7 +2275,7 @@ class KenwoodHF(Rig):
 
 	def _update_CA(self, args):
 		split = self.parse('1d', args)
-		self._state['cw_auto_tune']._cached = bool(split[0])
+		self._state['auto_zero_beat']._cached = bool(split[0])
 
 	def _update_CG(self, args):
 		split = self.parse('3d', args)
@@ -2495,9 +2629,9 @@ class KenwoodHF(Rig):
 		split = self.parse('1d', args)
 		self._state['mode']._cached = mode(split[0])
 		if not self._state['mode']._cached in (mode.CW, mode.CW_REVERSED,):
-			self._state['cw_auto_tune']._cached = None
+			self._state['auto_zero_beat']._cached = None
 		else:
-			self._state['cw_auto_tune']._cached = False
+			self._state['auto_zero_beat']._cached = False
 		if self._state['control_main']._cached == True:
 			if self._notInTransmitSet():
 				self._state['main_rx_mode']._cached = mode(split[0])
