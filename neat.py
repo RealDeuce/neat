@@ -227,8 +227,8 @@ class FreqDisplay(Label):
 		self.bind(vfo_box=self.newVFO)
 		super(FreqDisplay, self).__init__(**kwargs)
 		if rigobj.power_on:
-			if rigobj.vfoa_set_frequency is not None:
-				self.freqValue = int(rigobj.vfoa_set_frequency)
+			if rigobj.vfoa_frequency is not None:
+				self.freqValue = int(rigobj.vfoa_frequency)
 		self.cb_state = 'main_frequency'
 		rigobj.add_callback(self.cb_state, self.newFreq)
 		self.bind(rig_state=self.newRigState)
@@ -253,12 +253,12 @@ class FreqDisplay(Label):
 			rigobj.remove_callback(self.cb_state, self.newFreq)
 			if self.vfo_box is not None:
 				if self.vfo_box.vfo == vfoa:
-					self.freqValue = rigobj.vfoa_set_frequency
+					self.freqValue = rigobj.vfoa_frequency
 					self._updateFreq(self)
 					self.cb_state = 'VFOAsetFrequency'
 					rigobj.add_callback(self.cb_state, self.newFreq)
 				elif self.vfo_box.vfo == vfob:
-					self.freqValue = rigobj.vfob_set_frequency
+					self.freqValue = rigobj.vfob_frequency
 					self._updateFreq(self)
 					self.cb_state = 'VFOBsetFrequency'
 					rigobj.add_callback(self.cb_state, self.newFreq)
@@ -317,9 +317,9 @@ class FreqDisplay(Label):
 		if new % add:
 			new = math.floor(new / add) * add
 		if self.vfo_box.vfo == vfoa:
-			rigobj.vfoa_set_frequency = new
+			rigobj.vfoa_frequency = new
 		elif self.vfo_box.vfo == vfob:
-			rigobj.vfob_set_frequency = new
+			rigobj.vfob_frequency = new
 		elif self.vfo_box.vfo == mem and rigobj.main_rx_tuning_mode == kenwood_hf.tuningMode.MEMORY:
 			if up:
 				rigobj.up = True
