@@ -85,7 +85,7 @@ class KenwoodHFProtocol:
 								raise Exception('Write buffer does not contain semi-colon')
 							cmd = self._write_buffer[0:fs+1]
 							self._write_buffer = self._write_buffer[fs+1:]
-							if cmd != b'' and cmd != b';':
+							if cmd != b'' and cmd != b';' and cmd != b'\x00;':
 								wait_event = True
 								if cmd[0] == 0:
 									cmd = cmd[1:]
