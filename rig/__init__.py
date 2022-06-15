@@ -176,7 +176,7 @@ class StateValue(ABC):
 		self._set_callbacks += (cb,)
 
 	def remove_modify_callback(self, cb):
-		self._modify_callbacks = tuple(filter(lambda x: x == cb, self._modify_callbacks))
+		self._modify_callbacks = tuple(filter(lambda x: x != cb, self._modify_callbacks))
 
 	def remove_set_callback(self, cb):
-		self._set_callbacks = tuple(filter(lambda x: x is cb, self._set_callbacks))
+		self._set_callbacks = tuple(filter(lambda x: x != cb, self._set_callbacks))

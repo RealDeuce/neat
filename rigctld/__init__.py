@@ -751,14 +751,12 @@ class rigctld_connection:
 		else:
 			rxvfo = vfo.VFOA
 		if command['argv'][0] == '0':
-			print('--- Trying to set split to '+str(False))
 			self._rigctld.rig.split = False
 			self.currVFO = rxvfo
 			self.rxVFO = rxvfo
 			self.txVFO = rxvfo
 			self.bd_split = False
 		elif command['argv'][0] == '1':
-			print('--- Trying to set split to '+str(True))
 			self._rigctld.rig.split = True
 			self.currVFO = rxvfo
 			self.rxVFO = rxvfo

@@ -229,7 +229,7 @@ class FreqDisplay(Label):
 		if rigobj.power_on:
 			if rigobj.vfoa_frequency is not None:
 				self.freqValue = int(rigobj.vfoa_frequency)
-		self.cb_state = 'main_frequency'
+		self.cb_state = 'main_rx_frequency'
 		rigobj.add_callback(self.cb_state, self.newFreq)
 		self.bind(rig_state=self.newRigState)
 
@@ -264,7 +264,7 @@ class FreqDisplay(Label):
 					rigobj.add_callback(self.cb_state, self.newFreq)
 				elif self.memory_display is not None:
 					if self.vfo_box.vfo == mem:
-						self.memory_display.memoryValue = rigobj.memory_channel
+						self.memory_display.memoryValue = rigobj.main_memory_channel
 						self.memory_display._updateChannel(self.memory_display)
 					elif self.vfo_box.vfo == call:
 						self.memory_display.memoryValue = 300
@@ -343,8 +343,8 @@ class MemoryDisplay(Label):
 		self.bind(memoryValue=self._updateChannel)
 		super(MemoryDisplay, self).__init__(**kwargs)
 		if rigobj.power_on:
-			self.memoryValue = int(rigobj.memory_channel)
-		rigobj.add_callback('memory_channel', self.newChannel)
+			self.memoryValue = int(rigobj.main_memory_channel)
+		rigobj.add_callback('main_memory_channel', self.newChannel)
 		rigobj.add_callback('memory_groups', self.newGroups)
 		rigobj.memories.memories[self.memoryValue].add_modify_callback(self.updateChannel)
 		self.bind(on_ref_press=self.toggle_group)
@@ -527,7 +527,7 @@ class OPModeBoxButton(ToggleButton):
 	def on_state(self, widget, value):
 		if value == 'down':
 			if self.modeID != self.parent.mode:
-				rigobj.mode = rig.mode(self.modeID)
+				setattr(rigobj, self.parent.rig_state, rig.mode(self.modeID))
 
 class OPModeBox(GridLayout):
 	mode = NumericProperty(0)
@@ -835,7 +835,7 @@ class FilterDisplay(Widget):
 			return False
 		if (touch.pos[1] < self.pos[1]):
 			return False
-		mode = rigobj.mode
+		mode = getattr(rigobj, self.op_mode_box.rig_state)
 		if touch.button == 'left':
 			if mode == rig.mode.AM or mode == rig.mode.FM:
 				rigobj.filter_width = not rigobj.filter_width
@@ -878,19 +878,19 @@ class HighPassLabel(Label):
 
 	def __init__(self, **kwargs):
 		super(HighPassLabel, self).__init__(**kwargs)
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_high_pass_cutoff)
 		rigobj.add_callback('voice_high_pass_cutoff', self.newValue)
 		rigobj.add_callback('filter_width', self.newValue)
 
 	def on_prefix(self, widget, value):
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_high_pass_cutoff)
 		else:
-			self.newValue(FilterDisplay.filter_widths[rigobj.mode][rigobj.filter_width])
+			self.newValue(FilterDisplay.filter_widths[rigobj.main_rx_mode][rigobj.filter_width])
 
 	def on_suffix(self, widget, value):
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_high_pass_cutoff)
 		else:
 			self.newValue(rigobj.filter_width)
@@ -899,14 +899,14 @@ class HighPassLabel(Label):
 		Clock.schedule_once(lambda dt: self._refresh(), 0)
 
 	def _refresh(self):
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_high_pass_cutoff)
 		else:
 			self.newValue(rigobj.filter_width)
 
 	def newValue(self, value, *args):
 		val = ''
-		mode = rigobj.mode
+		mode = rigobj.main_rx_mode
 		if mode == rig.mode.AM:
 			if value == 0:
 				val = '10'
@@ -957,40 +957,40 @@ class LowPassLabel(Label):
 
 	def __init__(self, **kwargs):
 		super(LowPassLabel, self).__init__(**kwargs)
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_low_pass_cutoff)
 		rigobj.add_callback('voice_low_pass_cutoff', self.newValue)
 		rigobj.add_callback('if_shift', self.newValue)
 
 	def on_prefix(self, widget, value):
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_low_pass_cutoff)
-		elif rigobj.mode in self.cwModes:
+		elif rigobj.main_rx_mode in self.cwModes:
 			self.newValue(rigobj.if_shift)
 
 	def on_suffix(self, widget, value):
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_low_pass_cutoff)
-		elif rigobj.mode in self.cwModes:
+		elif rigobj.main_rx_mode in self.cwModes:
 			self.newValue(rigobj.if_shift)
 
 	def refresh(self):
 		Clock.schedule_once(lambda dt: self._refresh(), 0)
 
 	def _refresh(self):
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_low_pass_cutoff)
-		elif rigobj.mode in self.cwModes:
+		elif rigobj.main_rx_mode in self.cwModes:
 			self.newValue(rigobj.if_shift)
 		else:
 			self.text = ''
 
 	def newValue(self, value, *args):
 		val = ''
-		if rigobj.mode is None:
+		if rigobj.main_rx_mode is None:
 			mode = 0
 		else:
-			mode = int(rigobj.mode)
+			mode = int(rigobj.main_rx_mode)
 		if mode == int(rig.mode.AM):
 			if value == 0:
 				val = '2500'
@@ -1027,7 +1027,7 @@ class LowPassLabel(Label):
 			elif value == 11:
 				val = '5000'
 			val = self.prefix + val + self.suffix
-		elif rigobj.mode in self.cwModes:
+		elif rigobj.main_rx_mode in self.cwModes:
 			val = self.prefix + str(rigobj.if_shift) + self.suffix
 		self.text = val
 
@@ -1038,29 +1038,29 @@ class WideNarrowLabel(Label):
 
 	def __init__(self, **kwargs):
 		super(WideNarrowLabel, self).__init__(**kwargs)
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.filter_width)
 		rigobj.add_callback('filter_width', self.newValue)
 
 	def on_prefix(self, widget, value):
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.filter_width)
 
 	def on_suffix(self, widget, value):
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.filter_width)
 
 	def refresh(self):
 		Clock.schedule_once(lambda dt: self._refresh(), 0)
 
 	def _refresh(self):
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			self.newValue(rigobj.filter_width)
 		else:
 			self.text = ''
 
 	def newValue(self, value, *args):
-		if rigobj.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			val = 'Narrow' if value == 0 else 'Wide'
 			self.text = self.prefix + val + self.suffix
 

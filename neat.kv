@@ -139,42 +139,41 @@
 		pos: autoNotch.pos[0], autoNotch.pos[1] - self.height - 3
 		step: 1
 
-	#BoolToggle:
-	#	id: autoBeatCanceller
-	#	rig_state: 'auto_beat_canceller'
-	#	size_hint_max: 50, 25
-	#	text: 'ABC'
-	#	pos: autoNotch.pos[0] + autoNotch.width + 10, autoNotch.pos[1]
+	BoolToggle:
+		id: autoBeatCanceller
+		rig_state: 'auto_beat_canceller'
+		size_hint_max: 50, 25
+		text: 'ABC'
+		pos: autoNotch.pos[0] + autoNotch.width + 10, autoNotch.pos[1]
 
-	#BoolToggle:
-	#	id: manualBeatCanceller
-	#	rig_state: 'manual_beat_canceller'
-	#	size_hint_max: 50, 25
-	#	text: 'MBC'
-	#	pos: autoBeatCanceller.pos[0] + autoBeatCanceller.width, autoBeatCanceller.pos[1]
+	BoolToggle:
+		id: manualBeatCanceller
+		rig_state: 'manual_beat_canceller'
+		size_hint_max: 50, 25
+		text: 'MBC'
+		pos: autoBeatCanceller.pos[0] + autoBeatCanceller.width, autoBeatCanceller.pos[1]
 
-	#StateSlider:
-	#	id: manualBeatCancellerFrequency
-	#	rig_state: 'manual_beat_canceller_frequency'
-	#	min: 0
-	#	max: 63
-	#	value_track: True
-	#	size_hint_max: manualBeatCanceller.pos[0] + manualBeatCanceller.width - autoBeatCanceller.pos[0], 25
-	#	pos: autoBeatCanceller.pos[0], manualBeatCanceller.pos[1] - self.height - 3
-	#	step: 1
+	StateSlider:
+		id: manualBeatCancellerFrequency
+		rig_state: 'manual_beat_canceller_frequency'
+		min: 0
+		max: 63
+		value_track: True
+		size_hint_max: manualBeatCanceller.pos[0] + manualBeatCanceller.width - autoBeatCanceller.pos[0], 25
+		pos: autoBeatCanceller.pos[0], manualBeatCanceller.pos[1] - self.height - 3
+		step: 1
 
 	BoolToggle:
 		id: noiseReduction1
-		rig_state: 'noise_reduction1'
+		rig_state: 'main_noise_reduction1'
 		size_hint_max: 50, 25
 		text: 'NR1'
-		#pos: manualBeatCanceller.pos[0] + manualBeatCanceller.width + 10, manualBeatCanceller.pos[1] + manualBeatCanceller.height - self.height
-		pos: autoNotch.pos[0] + autoNotch.width + 10, autoNotch.pos[1] + autoNotch.height - self.height
+		pos: manualBeatCanceller.pos[0] + manualBeatCanceller.width + 10, manualBeatCanceller.pos[1] + manualBeatCanceller.height - self.height
 		on_state: noiseReductionLevel.refresh()
 
 	BoolToggle:
 		id: noiseReduction2
-		rig_state: 'noise_reduction2'
+		rig_state: 'main_noise_reduction2'
 		size_hint_max: 50, 25
 		text: 'NR2'
 		pos: noiseReduction1.pos[0] + noiseReduction1.width, noiseReduction1.pos[1]
@@ -323,7 +322,7 @@
 		max_lines: 1
 		lines: 1
 		font_name: 'DroidSansMono'
-		rig_state: 'main_rx_set_frequency'
+		rig_state: 'main_rx_frequency'
 		op_mode_box: opModeBox
 		vfo_box: vfoBox
 		memory_display: mainMemory
@@ -352,7 +351,7 @@
 		cols: 4
 		rows: 2
 		on_mode: highPassLabel.refresh(); lowPassLabel.refresh(); wideNarrowLabel.refresh(); noiseBlanker.refresh()
-		rig_state: 'mode'
+		rig_state: 'main_rx_mode'
 
 		OPModeBoxButton:
 			text: 'USB'
@@ -404,7 +403,7 @@
 
 	BoolToggle:
 		id: attenuatorButton
-		rig_state: 'attenuator'
+		rig_state: 'main_attenuator'
 		pos: (root.width - (mainSquelch.pos[0] + mainSquelch.width - self.pos[0])) / 2,  mainMemory.pos[1] - self.height - 30
 		size_hint_max: 50, 25
 		text: 'ATT'
@@ -509,30 +508,28 @@
 		rig_state: 'power_on'
 		active_color: 1, 0, 0, 1
 		size_hint_max: 50, 50
-		#pos: 10, antenna2.pos[1]
-		pos: 10, noiseBlankerLevel.pos[1] - self.height - 30
+		pos: 10, antenna2.pos[1]
 		halign: 'center'
 		text: 'POWER'
 
-	#BoolToggle:
-	#	id: antenna1
-	#	rig_state: 'antenna1'
-	#	size_hint_max: 50, 25
-	#	text: 'ANT1'
-	#	pos: (root.width - (tunerOnInRXbutton.pos[0] + tunerOnInRXbutton.width - self.pos[0])) / 2,  noiseBlankerLevel.pos[1] - self.height - 30
+	BoolToggle:
+		id: antenna1
+		rig_state: 'antenna1'
+		size_hint_max: 50, 25
+		text: 'ANT1'
+		pos: (root.width - (tunerOnInRXbutton.pos[0] + tunerOnInRXbutton.width - self.pos[0])) / 2,  noiseBlankerLevel.pos[1] - self.height - 30
 
-	#BoolToggle:
-	#	id: antenna2
-	#	rig_state: 'antenna2'
-	#	size_hint_max: 50, 25
-	#	text: 'ANT2'
-	#	pos: antenna1.pos[0], antenna1.pos[1] - self.size[1]
+	BoolToggle:
+		id: antenna2
+		rig_state: 'antenna2'
+		size_hint_max: 50, 25
+		text: 'ANT2'
+		pos: antenna1.pos[0], antenna1.pos[1] - self.size[1]
 
 	BoolToggle:
 		id: tunerButton
 		rig_state: 'tuner_tx'
-		#pos: antenna1.pos[0] + antenna1.width + 10, antenna1.pos[1]
-		pos: powerOn.pos[0] + powerOn.width + 10, powerOn.pos[1]
+		pos: antenna1.pos[0] + antenna1.width + 10, antenna1.pos[1]
 		size_hint_max: 50, 25
 		text: 'AT'
 
@@ -563,7 +560,7 @@
 
 	StateLamp:
 		id: txLamp
-		rig_state: 'main_transmitting'
+		rig_state: 'main_tx'
 		active_color: 1, 0, 0, 1
 		size_hint_max: 50, 50
 		update_meter: smeter
@@ -575,8 +572,7 @@
 		meter_on_high: '{0:.0f}'
 		meter_on_calculation: ''
 		meter_off_calculation: 'S-Level'
-		#pos: 10, antenna2.pos[1] - 50 - self.height
-		pos: 10, tuneButton.pos[1] - 50 - self.height
+		pos: 10, antenna2.pos[1] - 50 - self.height
 		text: 'TX'
 
 	Label:
@@ -587,11 +583,10 @@
 		size_hint_max: self.text_size
 		halign: 'left'
 		text: 'Output Power'
-		#pos: (root.width - (outputPower.pos[0] + outputPower.width - self.pos[0])) / 2, antenna2.pos[1] - 50 - self.height
-		pos: (root.width - (outputPower.pos[0] + outputPower.width - self.pos[0])) / 2, tuneButton.pos[1] - 50 - self.height
+		pos: (root.width - (outputPower.pos[0] + outputPower.width - self.pos[0])) / 2, antenna2.pos[1] - 50 - self.height
 
 	StateSlider:
-		rig_state: 'output_power'
+		rig_state: 'main_output_power'
 		id: outputPower
 		min: 5
 		max: 100
@@ -606,8 +601,7 @@
 
 	VFOBox:
 		id: TXvfoBox
-		#pos: (mainTXFreq.pos[0] - self.width - bandUpButton.width - 10) / 2, (mainTXFreq.pos[1] * 2 + mainTXFreq.height - self.height) / 2
-		pos: (mainTXFreq.pos[0] - self.width - 10) / 2, (mainTXFreq.pos[1] * 2 + mainTXFreq.height - self.height) / 2
+		pos: (mainTXFreq.pos[0] - self.width - bandUpButton.width - 10) / 2, (mainTXFreq.pos[1] * 2 + mainTXFreq.height - self.height) / 2
 		size_hint_max: 100, 50
 		cols: 2
 		rows: 2
@@ -637,25 +631,25 @@
 			force_disabled: True
 
 # TODO: Add a TS control method
-#	Button:
-#		id: bandUpButton
-#		size_hint_max: 50, 25
-#		text: 'UP'
-#		on_press: root.control(bandUp = True)
-#		pos: TXvfoBox.pos[0] + TXvfoBox.width + 10, mainTXFreq.pos[1] + mainTXFreq.height - self.height
+	Button:
+		id: bandUpButton
+		size_hint_max: 50, 25
+		text: 'UP'
+		on_press: root.control(bandUp = True)
+		pos: TXvfoBox.pos[0] + TXvfoBox.width + 10, mainTXFreq.pos[1] + mainTXFreq.height - self.height
 
-#	Button:
-#		id: bandDownButton
-#		size_hint_max: 50, 25
-#		text: 'DOWN'
-#		on_press: root.control(bandDown = True)
-#		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
+	Button:
+		id: bandDownButton
+		size_hint_max: 50, 25
+		text: 'DOWN'
+		on_press: root.control(bandDown = True)
+		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
 
-#	BoolToggle:
-#		rig_state: 'auto_zero_beat'
-#		size_hint_max: 50, 25
-#		text: 'CWA'
-#		pos: bandDownButton.pos[0], bandDownButton.pos[1] - self.height
+	BoolToggle:
+		rig_state: 'auto_zero_beat'
+		size_hint_max: 50, 25
+		text: 'CWA'
+		pos: bandDownButton.pos[0], bandDownButton.pos[1] - self.height
 
 	FreqDisplay:
 		id: mainTXFreq
@@ -676,7 +670,7 @@
 		op_mode_box: TXopModeBox
 		vfo_box: TXvfoBox
 		memory_display: mainTXMemory
-		rig_state: 'main_tx_offset_frequency'
+		rig_state: 'main_tx_frequency'
 
 	MemoryDisplay:
 		id: mainTXMemory
