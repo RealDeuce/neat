@@ -45,7 +45,7 @@ from rig.kenwood_hf.serial import KenwoodHFProtocol
 '''
 A basic overview of the concepts behind this
 
-The kenwood.py module is an asynchronous rig control library, and it
+The kenwood_hf.py module is an asynchronous rig control library, and it
 maintains a cache of what it believes is the current state of the rig.
 That state is populated when the Kenwood class is created, then
 maintained via the Auto Information send by the rig in AI2 mode.
@@ -72,63 +72,6 @@ state, and is not applicable.
 
 This allows the front-end to be more responsive, at the expense of a
 consistent, known rig state.
-
-There are a number of frequencies available:
-main_rx_set_frequency    - "The" frequency of the main receiver.  This is what
-                        the dial is set to, and does not include RIT if
-                        enabled.
-main_rx_frequency       - The frequency that is currently being received if
-                        the rig is not transmitting, this DOES include RIT
-main_tx_set_frequency    - "The" transmit frequency - either the same as
-                        main_rx_set_frequency if not operating split, or the
-                        set frequency of the "other VFO".  When operating
-                        in FM mode, this also doesn't include the offset
-main_tx_offset_frequency - The main_rx_set_frequency with offset applied if
-                        applicable.  Does not include XIT.
-main_tx_frequency       - The frequency that will actually be transmitted on
-                        takes into account XIT and offset
-vfoa_set_frequency    - The "set" frequency for VFOA
-vfob_set_frequency    - The "set" frequency for VFOB
-sub_set_frequency       - The "set" frequency for the sub-receiver
-                        This is always the RX frequency for the sub-recevier
-                        as it doesn't support RIT
-sub_tx_offset_frequency  - This is the frequency the sub-receiver will transmit
-                        on.  This takes into account offset
-main_frequency         - Equal to either main_rx_frequency or main_tx_frequency
-                        depending on if the radio is transmitting or not.
-sub_frequency          - Equal to either sub_set_frequency or
-                        sub_tx_offset_frequency depending on if the radio
-                        is transmitting or not.
-current_tx_frequency    - Set to either main_tx_frequency or sub_tx_offset_frequency
-current_rx_frequency    - Set to either main_rx_frequency or sub_set_frequency
-                        based on the current *TX* receiver
-
-"Tuning Mode" is what I call the VFO selection type thing... there's a
-few of these too:
-main_rx_tuning_mode
-main_tx_tuning_mode
-sub_tuning_mode
-
-And the mode (ie: CW, USB, etc...)
-main_rx_mode
-main_tx_mode
-sub_mode
-current_rx_mode
-current_tx_mode
-
-The current* ones are intended to be generic across all backends, and
-should be enough for things like loggers and wsjt-x that just want to
-get or set the basic parameters and don't care how that happens.  If
-you're hacking up a backend for that, just implementing the current*
-stuff should get it functional.
-
-current_tx_frequency    - Set to either main_tx_frequency or sub_tx_offset_frequency
-current_rx_frequency    - Set to either main_rx_frequency or sub_set_frequency
-                        based on the current *TX* receiver
-current_rx_tuning_mode
-current_tx_tuning_mode
-current_rx_mode
-current_tx_mode
 
 '''
 
@@ -829,9 +772,6 @@ class KenwoodHF(Rig):
 		self._filling_cache = False
 		self._error_count = 0
 		self._last_hack = 0
-		# TODO: The error handling repeats whatever the last command was, not the failing command
-		#       Short of only having one outstanding command at a time though, I'm not sure what
-		#       we can actually do about that.
 		self._last_power_state = None
 		self._fill_cache_state = {}
 		self._serial = KenwoodHFProtocol(**kwargs)
@@ -2496,32 +2436,6 @@ class KenwoodHF(Rig):
 
 	def _fill_cache_wait(self):
 		self._fill_cache_state['event'].wait()
-		# TODO: if on main, toggle TF-SET to get TX mode/frequency
-		#ocm = self._state['control_main']._cached
-		#if not ocm:
-			#self._set(self._state['control_main'], True)
-			#self._send_query(self._state['current_rx_tuning_mode'])
-			#self._send_query(self._state['current_tx_tuning_mode'])
-			#oldts = self._state['transmit_set']._cached
-			#if oldts is None:
-			#	oldts = False
-			#self._set(self._state['transmit_set'], not oldts)
-			#self._send_query(self._state['current_rx_tuning_mode'])
-			#self._send_query(self._state['current_tx_tuning_mode'])
-			#self._set(self._state['transmit_set'], oldts)
-			#self._set(self._state['control_main'], False)
-			#self._set(self._state['control_main'], False)
-		#else:
-			#oldts = self._state['transmit_set']._cached
-			#if oldts is None:
-			#	oldts = False
-			#self._set(self._state['transmit_set'], not oldts)
-			#self._send_query(self._state['current_rx_tuning_mode'])
-			#self._send_query(self._state['current_tx_tuning_mode'])
-			#self._set(self._state['transmit_set'], oldts)
-			#self._set(self._state['control_main'], False)
-			#self._send_query(self._state['current_rx_tuning_mode'])
-			#self._set(self._state['control_main'], True)
 		self._filling_cache = False
 
 	def _fill_cache_beep_cb(self, prop, *args):
