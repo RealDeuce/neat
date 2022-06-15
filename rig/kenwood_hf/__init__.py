@@ -369,7 +369,7 @@ class SetState(IntEnum):
 	TX = 2      # Can only be set for the current TX receiver
 	TS = 3      # Must be the current TX receiver and TS mode must be enabled
 	NOT_TS = 4  # Must be the current TX receiver and TS mode must not be enabled
-	NONE = 4    # Can't be set
+	NONE = 5    # Can't be set
 
 class QueryState(IntEnum):
 	ANY = 0     # Can always be queried
@@ -428,6 +428,28 @@ class KenwoodStateValue(StateValue):
 					suffix = ';TS1' + suffix
 		return (prefix, suffix)
 
+	def _get_set_prefix_suffix(self):
+		# First, ensure control is set correctly
+		prefix = ''
+		suffix = ''
+		if self._set_state != SetState.ANY:
+			want_main = (self._in_rig == InRig.MAIN)
+			if want_main != self._rig._state['control_main']._cached:
+				prefix += 'DC{:1d}{:1d};'.format(self._in_rig == InRig.SUB, not self._rig._state['tx_main']._cached)
+				suffix = ';DC{:1d}{:1d}'.format(self._in_rig != InRig.SUB, not self._rig._state['tx_main']._cached) + suffix
+		# Next, set TS if needed
+		if self._set_state == SetState.TS:
+			if self._in_rig == InRig.MAIN and (self._rig._state['main_rx_tuning_mode']._cached != self._rig._state['main_tx_tuning_mode']._cached):
+				if not self._rig._state['transmit_set']._cached:
+					prefix += 'TS1;'
+					suffix = ';TS0' + suffix
+		elif self._set_state == SetState.NOT_TS:
+			if self._in_rig == InRig.MAIN and (self._rig._state['main_rx_tuning_mode']._cached != self._rig._state['main_tx_tuning_mode']._cached):
+				if self._rig._state['transmit_set']._cached:
+					prefix += 'TS0;'
+					suffix = ';TS1' + suffix
+		return (prefix, suffix)
+
 	def _query_string(self):
 		if not self._valid(True):
 			self._cached = None
@@ -448,6 +470,13 @@ class KenwoodStateValue(StateValue):
 	def _do_range_check(self, value):
 		if not self._valid(False):
 			return False
+		if self._set_state == SetState.NONE:
+			return False
+		if self._set_state == SetState.TX:
+			if self._in_rig == InRig.MAIN and self._state['tx_main']._cached == False:
+				return False
+			if self._in_rig == InRig.SUB and self._state['tx_main']._cached == True:
+				return False
 		if self._range_check is not None:
 			return self._range_check(value)
 		return True
@@ -460,13 +489,19 @@ class KenwoodStateValue(StateValue):
 		if isinstance(value, list) and None in value:
 			raise Exception('Setting a list with None in '+self.name+', '+str(value))
 			return ''
+		prefix, suffix = self._get_query_prefix_suffix()
 		if self._set_format is not None:
-			return self._set_format.format(value)
+			return prefix + self._set_format.format(value) + suffix
 		elif self._set_method is not None:
-			return self._set_method(value)
+			ss = self._set_method(value)
+			if ss is None:
+				return ss
+			return prefix + self._set_method(value) + suffix
 		print('Attempt to set value "'+self.name+'" without a set command or method', file=stderr)
 
 	def _valid(self, can_query):
+		if self._query_state == QueryState.NONE:
+			return False
 		if hasattr(self, '_readThread') and get_ident() == self._readThread.ident:
 			can_query = False
 		for d in self._depends_on:
@@ -2529,7 +2564,7 @@ class KenwoodHF(Rig):
 					self._state['main_rx_frequency']._cached = self.memories.memories[self._state['main_memory_channel']._cached]._cached['Frequency']
 		elif self._state['main_rx_tuning_mode']._cached == tuningMode.CALL:
 			if self.memories.memories[300]._cached is not None:
-				self._state['main_rx_frequency']._cached = self.memories.memories[300]
+				self._state['main_rx_frequency']._cached = self.memories.memories[300]._cached['Frequency']
 		return ''
 
 	def _main_tx_frequency_query(self):
@@ -2543,7 +2578,7 @@ class KenwoodHF(Rig):
 					self._state['main_tx_frequency']._cached = self.memories.memories[self._state['main_memory_channel']._cached]._cached['Frequency']
 		elif self._state['main_tx_tuning_mode']._cached == tuningMode.CALL:
 			if self.memories.memories[300]._cached is not None:
-				self._state['main_tx_frequency']._cached = self.memories.memories[300]
+				self._state['main_tx_frequency']._cached = self.memories.memories[300]._cached['Frequency']
 		return ''
 
 	def _sub_frequency_query(self):
@@ -2557,7 +2592,7 @@ class KenwoodHF(Rig):
 					self._state['sub_frequency']._cached = self.memories.memories[self._state['sub_memory_channel']._cached]._cached['Frequency']
 		elif self._state['sub_tuning_mode']._cached == tuningMode.CALL:
 			if self.memories.memories[300]._cached is not None:
-				self._state['sub_frequency']._cached = self.memories.memories[300]
+				self._state['sub_frequency']._cached = self.memories.memories[300]._cached['Frequency']
 		return ''
 
 	# Range check methods return True or False
