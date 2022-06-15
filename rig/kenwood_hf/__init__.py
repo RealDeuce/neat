@@ -449,6 +449,8 @@ class KenwoodStateValue(StateValue):
 		# First, ensure control is set correctly
 		prefix = ''
 		suffix = ''
+		if not self._echoed:
+			prefix = prefix + '\x00'
 		if not 'control_main' in self._rig._state:
 			return (prefix, suffix)
 		if not 'tx_main' in self._rig._state:
@@ -484,8 +486,6 @@ class KenwoodStateValue(StateValue):
 			if need_ts:
 				prefix += 'TS1;'
 				suffix = ';TS0' + suffix
-		if not self._echoed:
-			prefix = prefix + '\x00'
 		return (prefix, suffix)
 
 	def _query_string(self):
@@ -1025,7 +1025,7 @@ class KenwoodHF(Rig):
 			),
 			# TODO: Should this be read-only?
 			'auto_information': KenwoodStateValue(self,
-				echoed = True,
+				echoed = False,
 				query_command = 'AI',
 				set_format = 'AI{:01d}',
 				in_rig = InRig.BOTH,

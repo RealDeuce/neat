@@ -87,7 +87,7 @@ class KenwoodHFProtocol:
 							self._write_buffer = self._write_buffer[fs+1:]
 							if cmd != b'' and cmd != b';':
 								wait_event = True
-								if cmd[0] == b'\x00':
+								if cmd[0] == 0:
 									cmd = cmd[1:]
 									wait_event = False
 								if self._verbose:
