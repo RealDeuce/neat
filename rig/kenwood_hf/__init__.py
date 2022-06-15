@@ -806,7 +806,13 @@ class MemoryArray:
 		self.memories = [None] * 301
 		self._rig = rig
 		for i in range(len(self.memories)):
-			self.memories[i] = KenwoodStateValue(rig, query_command = 'MR0{:03d};MR1{:03d}'.format(i, i))
+			self.memories[i] = KenwoodStateValue(rig, 
+				echoed = True,
+				query_command = 'MR0{:03d};MR1{:03d}'.format(i, i),
+				in_rig = InRig.BOTH,
+				query_state = QueryState.ANY,
+				set_state = SetState.NONE,
+			)
 			self.memories[i].name = 'Memory' + str(i)
 
 	def __len__(self):
@@ -1259,10 +1265,19 @@ class KenwoodHF(Rig):
 				query_state = QueryState.ANY,
 				set_state = SetState.ANY,
 			),
-			'down': KenwoodStateValue(self,
+			'main_down': KenwoodStateValue(self,
+				name = 'down',
 				echoed = True,
 				set_format = 'DN',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
+				query_state = QueryState.NONE,
+				set_state = SetState.CONTROL,
+			),
+			'sub_down': KenwoodStateValue(self,
+				name = 'down',
+				echoed = True,
+				set_format = 'DN',
+				in_rig = InRig.SUB,
 				query_state = QueryState.NONE,
 				set_state = SetState.CONTROL,
 			),
@@ -2128,10 +2143,19 @@ class KenwoodHF(Rig):
 				query_state = QueryState.ANY,
 			),
 			# TODO: UL? (PLL Unlock)
-			'up': KenwoodStateValue(self,
+			'main_up': KenwoodStateValue(self,
+				name = 'up',
 				echoed = True,
 				set_format = 'UP',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
+				query_state = QueryState.NONE,
+				set_state = SetState.CONTROL,
+			),
+			'sub_up': KenwoodStateValue(self,
+				name = 'up',
+				echoed = True,
+				set_format = 'UP',
+				in_rig = InRig.SUB,
 				query_state = QueryState.NONE,
 				set_state = SetState.CONTROL,
 			),
@@ -2405,7 +2429,8 @@ class KenwoodHF(Rig):
 		self._state['tx'] = self._state['main_tx']
 
 		if self.power_on:
-			self.auto_information = 2
+			if self.auto_information != 2:
+				self.auto_information = 2
 		self.memories = MemoryArray(self)
 		self._fill_cache()
 

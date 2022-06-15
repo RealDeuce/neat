@@ -322,14 +322,14 @@ class FreqDisplay(Label):
 			rigobj.vfob_frequency = new
 		elif self.vfo_box.vfo == mem and rigobj.main_rx_tuning_mode == kenwood_hf.tuningMode.MEMORY:
 			if up:
-				rigobj.up = True
+				rigobj.main_up = True
 			else:
-				rigobj.down = True
+				rigobj.main_down = True
 		elif self.vfo_box.vfo == call and rigobj.main_rx_tuning_mode == kenwood_hf.tuningMode.CALL:
 			if up:
-				rigobj.band_up = True
+				rigobj.main_band_up = True
 			else:
-				rigobj.band_down = True
+				rigobj.main_band_down = True
 		return True
 
 class MemoryDisplay(Label):
