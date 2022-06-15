@@ -291,14 +291,14 @@
 		id: bandUpButton
 		size_hint_max: 50, 25
 		text: 'UP'
-		on_press: root.control(band_up = True)
+		on_press: root.control(main_band_up = True)
 		pos: vfoBox.pos[0] + vfoBox.width + 10, mainFreq.pos[1] + mainFreq.height - self.height
 
 	Button:
 		id: bandDownButton
 		size_hint_max: 50, 25
 		text: 'DOWN'
-		on_press: root.control(band_down = True)
+		on_press: root.control(main_band_down = True)
 		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
 
 	BoolToggle:
@@ -541,7 +541,7 @@
 		text: 'ON-RX'
 
 	BoolToggle:
-		rig_state: 'tuner_state'
+		rig_state: 'start_tune'
 		id: tuneButton
 		pos: (tunerButton.pos[0] + (tunerOnInRXbutton.pos[0] + tunerOnInRXbutton.width)) / 2 - self.width / 2, tunerButton.pos[1] - self.height
 		size_hint_max: 50, 25
@@ -631,25 +631,25 @@
 			force_disabled: True
 
 # TODO: Add a TS control method
-	Button:
-		id: bandUpButton
-		size_hint_max: 50, 25
-		text: 'UP'
-		on_press: root.control(bandUp = True)
-		pos: TXvfoBox.pos[0] + TXvfoBox.width + 10, mainTXFreq.pos[1] + mainTXFreq.height - self.height
+	#Button:
+	#	id: bandUpButton
+	#	size_hint_max: 50, 25
+	#	text: 'UP'
+	#	on_press: root.control(bandUp = True)
+	#	pos: TXvfoBox.pos[0] + TXvfoBox.width + 10, mainTXFreq.pos[1] + mainTXFreq.height - self.height
 
-	Button:
-		id: bandDownButton
-		size_hint_max: 50, 25
-		text: 'DOWN'
-		on_press: root.control(bandDown = True)
-		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
+	#Button:
+	#	id: bandDownButton
+	#	size_hint_max: 50, 25
+	#	text: 'DOWN'
+	#	on_press: root.control(bandDown = True)
+	#	pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
 
-	BoolToggle:
-		rig_state: 'auto_zero_beat'
-		size_hint_max: 50, 25
-		text: 'CWA'
-		pos: bandDownButton.pos[0], bandDownButton.pos[1] - self.height
+	#BoolToggle:
+	#	rig_state: 'auto_zero_beat'
+	#	size_hint_max: 50, 25
+	#	text: 'CWA'
+	#	pos: bandDownButton.pos[0], bandDownButton.pos[1] - self.height
 
 	FreqDisplay:
 		id: mainTXFreq

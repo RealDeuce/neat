@@ -410,44 +410,79 @@ class KenwoodStateValue(StateValue):
 		# First, ensure control is set correctly
 		prefix = ''
 		suffix = ''
+		if not 'control_main' in self._rig._state:
+			return (prefix, suffix)
+		if not 'tx_main' in self._rig._state:
+			return (prefix, suffix)
+		if self._rig._state['control_main']._cached is None:
+			return (prefix, suffix)
+		if self._rig._state['tx_main']._cached is None:
+			return (prefix, suffix)
+		need_ts = False
+		need_control = False
+		need_tx = False
 		if self._query_state != QueryState.ANY:
-			want_main = (self._in_rig == InRig.MAIN)
-			if want_main != self._rig._state['control_main']._cached:
-				prefix += 'DC{:1d}{:1d};'.format(self._in_rig == InRig.SUB, not self._rig._state['tx_main']._cached)
-				suffix = ';DC{:1d}{:1d}'.format(self._in_rig != InRig.SUB, not self._rig._state['tx_main']._cached) + suffix
-		# Next, set TS if needed
-		if self._query_state == QueryState.TS:
-			if self._in_rig == InRig.MAIN and (self._rig._state['main_rx_tuning_mode']._cached != self._rig._state['main_tx_tuning_mode']._cached):
-				if not self._rig._state['transmit_set']._cached:
-					prefix += 'TS1;'
-					suffix = ';TS0' + suffix
-		elif self._query_state == QueryState.NOT_TS:
-			if self._in_rig == InRig.MAIN and (self._rig._state['main_rx_tuning_mode']._cached != self._rig._state['main_tx_tuning_mode']._cached):
-				if self._rig._state['transmit_set']._cached:
-					prefix += 'TS0;'
-					suffix = ';TS1' + suffix
+			if (self._in_rig == InRig.MAIN) != self._rig._state['control_main']._cached:
+				need_control = True
+			if self._query_state in (QueryState.TS, QueryState.NOT_TS):
+				if (self._in_rig == InRig.MAIN) != self._rig._state['tx_main']._cached:
+					self.need_tx = True
+				if self._rig._state['transmit_set']._cached is not None:
+					if self._rig._transmit_set_valid():
+						if self._rig._state['transmit_set']._cached != (self._query_state == QueryState.TS):
+							need_ts = True
+			otxm = self._rig._state['tx_main']._cached
+			ocm = self._rig._state['control_main']._cached
+			if need_control or need_tx:
+				prefix += 'DC{:1d}{:1d};'.format(
+					(not self._rig._state['tx_main']._cached) if need_tx else otxm,
+					self._in_rig == InRig.SUB
+				)
+				suffix = ';DC{:1d}{:1d}'.format(not otxm, not ocm) + suffix
+			# Next, set TS if needed
+			if need_ts:
+				prefix += 'TS1;'
+				suffix = ';TS0' + suffix
 		return (prefix, suffix)
 
+	# TODO: This is just a copy of above with Query changed to Set
 	def _get_set_prefix_suffix(self):
 		# First, ensure control is set correctly
 		prefix = ''
 		suffix = ''
+		if not 'control_main' in self._rig._state:
+			return (prefix, suffix)
+		if not 'tx_main' in self._rig._state:
+			return (prefix, suffix)
+		if self._rig._state['control_main']._cached is None:
+			return (prefix, suffix)
+		if self._rig._state['tx_main']._cached is None:
+			return (prefix, suffix)
+		need_ts = False
+		need_control = False
+		need_tx = False
 		if self._set_state != SetState.ANY:
-			want_main = (self._in_rig == InRig.MAIN)
-			if want_main != self._rig._state['control_main']._cached:
-				prefix += 'DC{:1d}{:1d};'.format(self._in_rig == InRig.SUB, not self._rig._state['tx_main']._cached)
-				suffix = ';DC{:1d}{:1d}'.format(self._in_rig != InRig.SUB, not self._rig._state['tx_main']._cached) + suffix
-		# Next, set TS if needed
-		if self._set_state == SetState.TS:
-			if self._in_rig == InRig.MAIN and (self._rig._state['main_rx_tuning_mode']._cached != self._rig._state['main_tx_tuning_mode']._cached):
-				if not self._rig._state['transmit_set']._cached:
-					prefix += 'TS1;'
-					suffix = ';TS0' + suffix
-		elif self._set_state == SetState.NOT_TS:
-			if self._in_rig == InRig.MAIN and (self._rig._state['main_rx_tuning_mode']._cached != self._rig._state['main_tx_tuning_mode']._cached):
-				if self._rig._state['transmit_set']._cached:
-					prefix += 'TS0;'
-					suffix = ';TS1' + suffix
+			if (self._in_rig == InRig.MAIN) != self._rig._state['control_main']._cached:
+				need_control = True
+			if self._set_state in (SetState.TS, SetState.NOT_TS):
+				if (self._in_rig == InRig.MAIN) != self._rig._state['tx_main']._cached:
+					self.need_tx = True
+				if self._rig._state['transmit_set']._cached is not None:
+					if self._rig._transmit_set_valid():
+						if self._rig._state['transmit_set']._cached != (self._set_state == SetState.TS):
+							need_ts = True
+			otxm = self._rig._state['tx_main']._cached
+			ocm = self._rig._state['control_main']._cached
+			if need_control or need_tx:
+				prefix += 'DC{:1d}{:1d};'.format(
+					(not self._rig._state['tx_main']._cached) if need_tx else otxm,
+					self._in_rig == InRig.SUB
+				)
+				suffix = ';DC{:1d}{:1d}'.format(not otxm, not ocm) + suffix
+			# Next, set TS if needed
+			if need_ts:
+				prefix += 'TS1;'
+				suffix = ';TS0' + suffix
 		return (prefix, suffix)
 
 	def _query_string(self):
@@ -468,14 +503,17 @@ class KenwoodStateValue(StateValue):
 		return None
 
 	def _do_range_check(self, value):
-		if not self._valid(False):
-			return False
 		if self._set_state == SetState.NONE:
 			return False
-		if self._set_state == SetState.TX:
-			if self._in_rig == InRig.MAIN and self._state['tx_main']._cached == False:
+		if self._cached == value:
+			return False
+		if not self._works_powered_off:
+			if not self._rig.power_on:
 				return False
-			if self._in_rig == InRig.SUB and self._state['tx_main']._cached == True:
+		if self._set_state == SetState.TX:
+			if self._in_rig == InRig.MAIN and self._rig._state['tx_main']._cached == False:
+				return False
+			if self._in_rig == InRig.SUB and self._rig._state['tx_main']._cached == True:
 				return False
 		if self._range_check is not None:
 			return self._range_check(value)
@@ -489,7 +527,7 @@ class KenwoodStateValue(StateValue):
 		if isinstance(value, list) and None in value:
 			raise Exception('Setting a list with None in '+self.name+', '+str(value))
 			return ''
-		prefix, suffix = self._get_query_prefix_suffix()
+		prefix, suffix = self._get_set_prefix_suffix()
 		if self._set_format is not None:
 			return prefix + self._set_format.format(value) + suffix
 		elif self._set_method is not None:
@@ -622,10 +660,14 @@ class KenwoodNagleStateValue(KenwoodStateValue):
 			self.lock.release()
 			return None
 		self.lock.release()
+		prefix, suffix = self._get_set_prefix_suffix()
 		if self._set_format is not None:
-			return self._set_format.format(value)
+			return prefix + self._set_format.format(value) + suffix
 		elif self._set_method is not None:
-			return self._set_method(value)
+			ss = self._set_method(value)
+			if ss is None:
+				return ss
+			return prefix + self._set_method(value) + suffix
 		print('Attempt to set value "'+self.name+'" without a set command or method', file=stderr)
 
 class KenwoodListStateValue(KenwoodStateValue):
@@ -641,6 +683,8 @@ class KenwoodListStateValue(KenwoodStateValue):
 	def _update_children(self, prop, value):
 		if self._cached_value is None:
 			self._cached_value = [None] * self.length
+		if value is None:
+			value = [None] * self.length
 		for i in range(self.length):
 			if self.children[i] is not None:
 				self.children[i]._cached = value[i]
@@ -670,7 +714,7 @@ class KenwoodListStateValue(KenwoodStateValue):
 						cb(nv)
 			if self.children[i] is not None:
 				for cb in self.children[i]._set_callbacks:
-					cb(nv)
+					cb(self.children[i], nv)
 		if modified:
 			for cb in self._modify_callbacks:
 				cb(value)
@@ -719,13 +763,17 @@ class KenwoodListStateValue(KenwoodStateValue):
 			self.lock.release()
 			return None
 		self.lock.release()
+		prefix, suffix = self._get_set_prefix_suffix()
 		if self._set_format is not None:
 			for i in range(self.length):
 				if value[i] is None and self._cached is not None:
 					value[i] = self._cached[i]
-			return self._set_format.format(value)
+			return prefix + self._set_format.format(value) + suffix
 		elif self._set_method is not None:
-			return self._set_method(value)
+			ss = self._set_method(value)
+			if ss is None:
+				return ss
+			return prefix + self._set_method(value) + suffix
 		print('Attempt to set value "'+self.name+'" without a set command or method', file=stderr)
 
 class KenwoodSingleStateValue(KenwoodStateValue):
@@ -1078,10 +1126,17 @@ class KenwoodHF(Rig):
 				query_state = QueryState.ANY,
 				range_check = self._beat_canceller_range_check
 			),
-			'band_down': KenwoodStateValue(self,
+			'main_band_down': KenwoodStateValue(self,
 				echoed = True,
 				set_format = 'BD',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.NONE,
+			),
+			'sub_band_down': KenwoodStateValue(self,
+				echoed = True,
+				set_format = 'BD',
+				in_rig = InRig.SUB,
 				set_state = SetState.CONTROL,
 				query_state = QueryState.NONE,
 			),
@@ -1093,10 +1148,17 @@ class KenwoodHF(Rig):
 				set_state = SetState.ANY,
 				query_state = QueryState.ANY,
 			),
-			'band_up': KenwoodStateValue(self,
+			'main_band_up': KenwoodStateValue(self,
 				echoed = True,
 				set_format = 'BU',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.NONE,
+			),
+			'sub_band_up': KenwoodStateValue(self,
+				echoed = True,
+				set_format = 'BU',
+				in_rig = InRig.SUB,
 				set_state = SetState.CONTROL,
 				query_state = QueryState.NONE,
 			),
@@ -1274,6 +1336,7 @@ class KenwoodHF(Rig):
 				in_rig = InRig.SUB,
 				query_state = QueryState.NOT_TS,
 				set_state = SetState.NOT_TS,
+				range_check = self._main_rx_tuning_mode_range_check
 			),
 
 			'main_fine_tuning': KenwoodStateValue(self,
@@ -1302,6 +1365,7 @@ class KenwoodHF(Rig):
 				in_rig = InRig.MAIN,
 				query_state = QueryState.CONTROL,
 				set_state = SetState.CONTROL,
+				range_check = self._main_tx_tuning_mode_range_check
 			),
 			'filter_width': KenwoodStateValue(self,
 				echoed = True,
@@ -2050,9 +2114,12 @@ class KenwoodHF(Rig):
 			'transmit_set': KenwoodStateValue(self,
 				echoed = True,
 				query_command = 'TS',
-				set_format = 'TS{:01d}',
-				validity_check = self._check_notSimplex,
-				range_check = self._check_transmitSet
+				set_method = self._set_transmit_set,
+				validity_check = self._transmit_set_valid,
+				range_check = self._check_transmitSet,
+				in_rig = InRig.MAIN,
+				set_state = SetState.NOT_TS,
+				query_state = QueryState.CONTROL,
 			),
 			'firmware_type': KenwoodStateValue(self,
 				query_command = 'TY',
@@ -2184,7 +2251,7 @@ class KenwoodHF(Rig):
 			echoed = True,
 			in_rig = InRig.MAIN,
 			query_state = QueryState.ANY,
-			set_state = SetState.CONTROL,
+			set_state = SetState.TX,
 		)
 		self._state['rig_lock'] = KenwoodSingleStateValue(self, self._state['lock_list'], 0,
 			echoed = True,
@@ -2303,8 +2370,8 @@ class KenwoodHF(Rig):
 		# Derived bools
 		self._state['antenna1'] = KenwoodDerivedBoolValue(self, self._state['antenna_connector'], 1)
 		self._state['antenna2'] = KenwoodDerivedBoolValue(self, self._state['antenna_connector'], 2)
-		self._state['auto_beat_canceller'] = KenwoodDerivedBoolValue(self, self._state['beat_canceller'], BeatCanceller.AUTO)
-		self._state['manual_beat_canceller'] = KenwoodDerivedBoolValue(self, self._state['beat_canceller'], BeatCanceller.MANUAL)
+		self._state['auto_beat_canceller'] = KenwoodDerivedBoolValue(self, self._state['beat_canceller'], BeatCanceller.AUTO, false_value = BeatCanceller.OFF)
+		self._state['manual_beat_canceller'] = KenwoodDerivedBoolValue(self, self._state['beat_canceller'], BeatCanceller.MANUAL, false_value = BeatCanceller.OFF)
 		self._state['main_rx_vfoa'] = KenwoodDerivedBoolValue(self, self._state['main_rx_tuning_mode'], tuningMode.VFOA)
 		self._state['main_rx_vfob'] = KenwoodDerivedBoolValue(self, self._state['main_rx_tuning_mode'], tuningMode.VFOB)
 		self._state['main_rx_memory'] = KenwoodDerivedBoolValue(self, self._state['main_rx_tuning_mode'], tuningMode.MEMORY)
@@ -2322,6 +2389,7 @@ class KenwoodHF(Rig):
 		self._state['main_noise_reduction1'] = KenwoodDerivedBoolValue(self, self._state['main_noise_reduction'], 1, false_value = 0)
 		self._state['main_noise_reduction2'] = KenwoodDerivedBoolValue(self, self._state['main_noise_reduction'], 2, false_value = 0)
 		self._state['sub_noise_reduction1'] = KenwoodDerivedBoolValue(self, self._state['sub_noise_reduction'], 1, false_value = 0)
+		self._state['start_tune'] = KenwoodDerivedBoolValue(self, self._state['tuner_state'], tunerState.ACTIVE, false_value = tunerState.STOPPED)
 
 		# Now plug the names in...
 		for a, p in self._state.items():
@@ -2408,7 +2476,9 @@ class KenwoodHF(Rig):
 	# impose a large performance penalty that I don't want to face.
 	def sync(self):
 		self._sync_lock.acquire()
+		print('Syncing')
 		self._query(self._state['id'])
+		print('Done Syncing')
 		self._sync_lock.release()
 
 	def _set(self, state, value):
@@ -2438,31 +2508,31 @@ class KenwoodHF(Rig):
 	def _fill_cache_wait(self):
 		self._fill_cache_state['event'].wait()
 		# TODO: if on main, toggle TF-SET to get TX mode/frequency
-		ocm = self._state['control_main']._cached
-		if not ocm:
-			self._set(self._state['control_main'], True)
+		#ocm = self._state['control_main']._cached
+		#if not ocm:
+			#self._set(self._state['control_main'], True)
 			#self._send_query(self._state['current_rx_tuning_mode'])
 			#self._send_query(self._state['current_tx_tuning_mode'])
-			oldts = self._state['transmit_set']._cached
-			if oldts is None:
-				oldts = False
-			self._set(self._state['transmit_set'], not oldts)
+			#oldts = self._state['transmit_set']._cached
+			#if oldts is None:
+			#	oldts = False
+			#self._set(self._state['transmit_set'], not oldts)
 			#self._send_query(self._state['current_rx_tuning_mode'])
 			#self._send_query(self._state['current_tx_tuning_mode'])
-			self._set(self._state['transmit_set'], oldts)
-			self._set(self._state['control_main'], False)
-			self._set(self._state['control_main'], False)
-		else:
-			oldts = self._state['transmit_set']._cached
-			if oldts is None:
-				oldts = False
-			self._set(self._state['transmit_set'], not oldts)
+			#self._set(self._state['transmit_set'], oldts)
+			#self._set(self._state['control_main'], False)
+			#self._set(self._state['control_main'], False)
+		#else:
+			#oldts = self._state['transmit_set']._cached
+			#if oldts is None:
+			#	oldts = False
+			#self._set(self._state['transmit_set'], not oldts)
 			#self._send_query(self._state['current_rx_tuning_mode'])
 			#self._send_query(self._state['current_tx_tuning_mode'])
-			self._set(self._state['transmit_set'], oldts)
-			self._set(self._state['control_main'], False)
+			#self._set(self._state['transmit_set'], oldts)
+			#self._set(self._state['control_main'], False)
 			#self._send_query(self._state['current_rx_tuning_mode'])
-			self._set(self._state['control_main'], True)
+			#self._set(self._state['control_main'], True)
 		self._filling_cache = False
 
 	def _fill_cache_beep_cb(self, prop, *args):
@@ -2479,7 +2549,7 @@ class KenwoodHF(Rig):
 				self._fill_cache_state['matched_count'] += 1
 				nxt = None
 				continue
-			if nxt[0]._cached is not None:
+			if nxt[0]._cached is not None and not isinstance(nxt[0], KenwoodListStateValue):
 				self._fill_cache_state['matched_count'] += 1
 				nxt = None
 				continue
@@ -2495,7 +2565,7 @@ class KenwoodHF(Rig):
 			self._fill_cache_state['matched_count'] += 1
 			if self._fill_cache_state['matched_count'] == self._fill_cache_state['target_count']:
 				for cb in self._fill_cache_state['call_after']:
-					cb()
+					cb[0]()
 				if self._fill_cache_state['beep'] is not None:
 					self._state['beep_output_level'].add_set_callback(self._fill_cache_beep_cb)
 					self._set(self._state['beep_output_level'], self._fill_cache_state['beep'])
@@ -2522,22 +2592,22 @@ class KenwoodHF(Rig):
 			if isinstance(p, StateValue):
 				if p._query_command is None:
 					if p._query_method is not None:
-						self._fill_cache_state['call_after'] += (p._query_method,)
+						self._fill_cache_state['call_after'] += ((p._query_method,a),)
 				else:
 					if not p._query_command in done:
 						done[p._query_command] = True
 						self._fill_cache_state['target_count'] += 1
 						if p._validity_check is not None:
-							self._fill_cache_state['todo'].append((p, self._fill_cache_cb,))
+							self._fill_cache_state['todo'].append((p, self._fill_cache_cb,a))
 						else:
-							self._fill_cache_state['todo'].insert(0, (p, self._fill_cache_cb,))
+							self._fill_cache_state['todo'].insert(0, (p, self._fill_cache_cb,a))
 		# We need control_main, main_rx_tuning_mode, and main_tx_tuning_mode first
 		self._fill_cache_state['target_count'] += 5
-		self._fill_cache_state['todo'].insert(0, (self._state['main_tx_tuning_mode'], self._fill_cache_cb,))
-		self._fill_cache_state['todo'].insert(0, (self._state['main_rx_tuning_mode'], self._fill_cache_cb,))
-		self._fill_cache_state['todo'].insert(0, (self._state['transmit_set'], self._fill_cache_cb,))
-		self._fill_cache_state['todo'].insert(0, (self._state['control_list'], self._fill_cache_cb,))
-		self._fill_cache_state['todo'].insert(0, (self._state['beep_output_level'], self._fill_cache_cb,))
+		self._fill_cache_state['todo'].insert(0, (self._state['main_tx_tuning_mode'], self._fill_cache_cb,'main_tx_tuning_mode'))
+		self._fill_cache_state['todo'].insert(0, (self._state['main_rx_tuning_mode'], self._fill_cache_cb,'main_rx_tuning_mode'))
+		self._fill_cache_state['todo'].insert(0, (self._state['transmit_set'], self._fill_cache_cb,'transmit_set'))
+		self._fill_cache_state['todo'].insert(0, (self._state['control_list'], self._fill_cache_cb,'control_list'))
+		self._fill_cache_state['todo'].insert(0, (self._state['beep_output_level'], self._fill_cache_cb,'beep_output_level'))
 		self._fill_cache_cb(None, None)
 		if get_ident() != self._readThread.ident:
 			self._fill_cache_wait()
@@ -2611,9 +2681,6 @@ class KenwoodHF(Rig):
 		# Fail if main TX is VHF+
 		if self._state['main_tx_frequency']._cached > 60000000:
 			return False
-		# Fail if main is not control
-		if not self._state['control_main']._cached:
-			return False
 		return True
 
 	def _antenna_connector_range_check(self, value):
@@ -2643,6 +2710,7 @@ class KenwoodHF(Rig):
 		# Auto beat cancel can only be enabled on some modes
 		if value == BeatCanceller.AUTO and (not self._state['main_rx_mode']._cached in (mode.USB, mode.LSB, mode.AM)):
 			return False
+		return True
 
 	def _auto_zero_beat(self, value):
 		# Only in CW and only when filter is < 1kHz wide
@@ -2726,16 +2794,28 @@ class KenwoodHF(Rig):
 			return False
 		return True
 
-	def _clear_rit_range_check(self):
+	def _clear_rit_range_check(self, value):
 		return self._state['rit']._cached or self._state['xit']._cached
 
 	def _meter_value_range_check(self, value):
 		if meter(value) == meter.COMPRESSION and not self._state['speech_processor']._cached:
 			return False
 		if meter(value) == meter.SWR:
-			if not self._state['tx_main']:
+			if not self._state['tx_main']._cached:
 				return False
-			if self._state['main_tx_frequency'] > 60000000:
+			if self._state['main_tx_frequency']._cached > 60000000:
+				return False
+		return True
+
+	def _main_tx_tuning_mode_range_check(self, value):
+		print('Value: '+str(value)+', Cached: '+str(self._state['main_tx_tuning_mode']._cached))
+		if value == self._state['main_tx_tuning_mode']._cached:
+			return False
+		return True
+
+	def _main_rx_tuning_mode_range_check(self, value):
+		if value == self._state['main_rx_tuning_mode']._cached:
+			if self._state['main_rx_tuning_mode']._cached == self._state['main_tx_tuning_mode']._cached:
 				return False
 		return True
 
@@ -2757,18 +2837,18 @@ class KenwoodHF(Rig):
 		ret = ''
 		vfo = self._state['main_rx_tuning_mode']._cached
 		if not vfo in (tuningMode.VFOA, tuningMode.VFOB):
-			ret += 'FR0;'
+			ret += self._state['main_rx_tuning_mode']._set_string(tuningMode.VFOA)
 			vfo = tuningMode.VFOA
 		if value:
 			if vfo == tuningMode.VFOA:
-				ret += 'FT1'
+				ret += self._state['main_tx_tuning_mode']._set_string(tuningMode.VFOB)
 			else:
-				ret += 'FT0'
+				ret += self._state['main_tx_tuning_mode']._set_string(tuningMode.VFOA)
 		else:
 			if vfo == tuningMode.VFOB:
-				ret += 'FT0'
+				ret += self._state['main_tx_tuning_mode']._set_string(tuningMode.VFOA)
 			else:
-				ret += 'FT1'
+				ret += self._state['main_tx_tuning_mode']._set_string(tuningMode.VFOB)
 		ret += ';FR;FT;FA;FB'
 		return ret
 
@@ -2779,19 +2859,26 @@ class KenwoodHF(Rig):
 			return self._state['vfob_frequency']._set_string(value)
 		return ''
 
-	def _set_main_tx_frequency(self):
+	def _set_main_tx_frequency(self, value):
 		if self._state['main_tx_tuning_mode']._cached == tuningMode.VFOA:
 			return self._state['vfoa_frequency']._set_string(value)
 		elif self._state['main_tx_tuning_mode']._cached == tuningMode.VFOB:
 			return self._state['vfob_frequency']._set_string(value)
 		return ''
 
-	def _set_sub_frequency(self):
+	def _set_sub_frequency(self, value):
 		if self._state['sub_tuning_mode']._cached == tuningMode.VFOA:
 			return self._state['sub_vfo_frequency']._set_string(value)
 		elif self._state['sub_tuning_mode']._cached == tuningMode.VFOB:
 			return self._state['sub_vfo_frequency']._set_string(value)
 		return ''
+
+	def _set_transmit_set(self, value):
+		if value == self._state['transmit_set']._cached:
+			return ''
+		if self._transmit_set_valid():
+			return 'TS{:1d}'.format(value)
+		self._state['transmit_set']._cached = self._state['transmit_set']._cached
 
 	# Update methods return a string to send to the rig
 	# Validity check methods return True or False
@@ -2868,15 +2955,11 @@ class KenwoodHF(Rig):
 			return True
 		return False
 
-	def _check_notSimplex(self):
+	def _transmit_set_valid(self):
 		# TODO: This is sketchy and here to avoid issues with transmitSet
-		if self._state['main_offset_frequency']._cached is None:
-			return True
-		if self._state['main_offset_type']._cached:
-			return True
-		if self._state['main_offset_frequency']._cached == 0:
-			return True
-		if self._state['main_offset_type']._cached == offset.NONE:
+		if self._state['main_tx_tuning_mode']._cached is None or self._state['main_rx_tuning_mode']._cached is None:
+			return False
+		if self._state['main_tx_tuning_mode']._cached != self._state['main_rx_tuning_mode']._cached:
 			return True
 		return False
 
@@ -2983,14 +3066,19 @@ class KenwoodHF(Rig):
 	def _update_FA(self, args):
 		split = self.parse('11d', args)
 		self._state['vfoa_frequency']._cached = split[0]
+		self._main_rx_frequency_query()
+		self._main_tx_frequency_query()
 
 	def _update_FB(self, args):
 		split = self.parse('11d', args)
 		self._state['vfob_frequency']._cached = split[0]
+		self._main_rx_frequency_query()
+		self._main_tx_frequency_query()
 
 	def _update_FC(self, args):
 		split = self.parse('11d', args)
 		self._state['sub_vfo_frequency']._cached = split[0]
+		self._sub_frequency_query()
 
 	def _update_FD(self, args):
 		split = self.parse('8x', args)
@@ -3041,6 +3129,7 @@ class KenwoodHF(Rig):
 			self._state['agc_constant']._cached = split[0]
 
 	def _update_ID(self, args):
+		print('Setting ID')
 		self._state['id']._cached = self.parse('3d', args)[0]
 
 	def _update_IF(self, args):
@@ -3088,7 +3177,7 @@ class KenwoodHF(Rig):
 				self._state['main_rx_tuning_mode']._cached = tuningMode(split[8])
 			self._state['main_scan_mode']._cached = scanMode(split[9])
 			self._state['split']._cached = bool(split[10])
-			self._state['main_tone_function'] = toneType(split[11])
+			self._state['main_tone_function']._cached = toneType(split[11])
 			self._state['main_subtone_frequency']._cached = CTCSStone(split[12])
 			self._state['main_offset_type']._cached = offset(split[13])
 			# Fun hack... in CALL mode, MC300 is updated via IF...
@@ -3106,7 +3195,7 @@ class KenwoodHF(Rig):
 			self._state['sub_mode']._cached = mode(split[7])
 			self._state['sub_tuning_mode']._cached = tuningMode(split[8])
 			self._state['sub_scan_mode']._cached = scanMode(split[9])
-			self._state['sub_tone_function'] = toneType(split[11])
+			self._state['sub_tone_function']._cached = toneType(split[11])
 			self._state['sub_subtone_frequency']._cached = CTCSStone(split[12])
 			self._state['sub_offset_type']._cached = offset(split[13])
 			# Fun hack... in CALL mode, MC300 is updated via IF...
@@ -3372,9 +3461,9 @@ class KenwoodHF(Rig):
 		elif self._state['tx_main']._cached == False and split[0] == 1:
 			self._state['tx']._cached = False
 		if split[0] == 0:
-			self._state['main_transmitting']._cached = False
+			self._state['main_tx']._cached = False
 		if split[0] == 1:
-			self._state['sub_transmitting']._cached = False
+			self._state['sub_tx']._cached = False
 
 	def _update_SA(self, args):
 		split = self.parse('1d1d1d1d1d1d1d8l', args)
@@ -3437,9 +3526,7 @@ class KenwoodHF(Rig):
 
 	def _update_TI(self, args):
 		split = self.parse('1d1d1d', args)
-		self._state['tnc_96k_led']._cached = bool(split[0])
-		self._state['tnc_sta_led']._cached = bool(split[1])
-		self._state['tnc_con_led']._cached = bool(split[2])
+		self._state['tnc_led_list']._cached = [bool(split[0]), bool(split[1]), bool(split[2])]
 
 	def _update_TN(self, args):
 		split = self.parse('2d', args)
@@ -3469,9 +3556,9 @@ class KenwoodHF(Rig):
 		else:
 			print('TX triggered for wrong receiver!', file=stderr)
 		if split[0] == 0:
-			self._state['main_transmitting']._cached = True
+			self._state['main_tx']._cached = True
 		if split[0] == 1:
-			self._state['sub_transmitting']._cached = True
+			self._state['sub_tx']._cached = True
 
 	def _update_TY(self, args):
 		split = self.parse('2d1d', args)
@@ -3504,8 +3591,9 @@ class KenwoodHF(Rig):
 		if self._serial._last_command is None:
 			self._serial.PS_works = False
 		if self._error_count < 10:
-			print('Resending: '+str(self._serial._last_command), file=stderr)
-			self._serial.writeQueue.put(self._serial._last_command)
+			if self._serial._last_command is not None:
+				print('Resending: '+str(self._serial._last_command), file=stderr)
+				self._serial.writeQueue.put(self._serial._last_command)
 		else:
 			raise Exception('Error count exceeded')
 
@@ -3514,8 +3602,9 @@ class KenwoodHF(Rig):
 		if self._serial._last_command is None:
 			self._serial.PS_works = False
 		if self._error_count < 10:
-			print('Resending: '+str(self._serial._last_command), file=stderr)
-			self._serial.writeQueue.put(self._serial._last_command)
+			if self._serial._last_command is not None:
+				print('Resending: '+str(self._serial._last_command), file=stderr)
+				self._serial.writeQueue.put(self._serial._last_command)
 		else:
 			raise Exception('Error count exceeded')
 
@@ -3524,8 +3613,9 @@ class KenwoodHF(Rig):
 		if self._serial._last_command is None:
 			self._serial.PS_works = False
 		if self._error_count < 10:
-			print('Resending: '+str(self._serial._last_command), file=stderr)
-			self._serial.writeQueue.put(self._serial._last_command)
+			if self._serial._last_command is not None:
+				print('Resending: '+str(self._serial._last_command), file=stderr)
+				self._serial.writeQueue.put(self._serial._last_command)
 		else:
 			raise Exception('Error count exceeded')
 

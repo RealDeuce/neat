@@ -118,7 +118,7 @@ class Meter(Gauge):
 			return False
 		if touch.pos[1] < (self._gauge.pos[1] + self._gauge.size[1] * 0.4):
 			return False
-		rigobj.meterType = kenwood_hf.meter(self.click_selects)
+		rigobj.meter_type = kenwood_hf.meter(self.click_selects)
 
 	def _newRigState(self, *args):
 		if self._old_rig_state != '':
@@ -447,10 +447,10 @@ class VFOBoxButton(ToggleButton):
 		if self.parent.vfo == -1:
 			self.disabled = True
 
-	def on_state(self, widget, value):
-		if value == 'down':
-			if self.vfoID != self.parent.vfo and self.parent.rig_state != '':
-				setattr(rigobj, self.parent.rig_state, kenwood_hf.tuningMode(self.vfoID))
+	def on_press(self):
+		if self.vfoID != self.parent.vfo and self.parent.rig_state != '':
+			self.state = 'normal'
+			setattr(rigobj, self.parent.rig_state, kenwood_hf.tuningMode(self.vfoID))
 
 class VFOBox(GridLayout):
 	rig_state = StringProperty()
@@ -527,6 +527,7 @@ class OPModeBoxButton(ToggleButton):
 	def on_state(self, widget, value):
 		if value == 'down':
 			if self.modeID != self.parent.mode:
+				self.state = 'normal'
 				setattr(rigobj, self.parent.rig_state, rig.mode(self.modeID))
 
 class OPModeBox(GridLayout):
@@ -605,21 +606,23 @@ class BoolToggle(ToggleButton):
 			self.disabled = True
 		else:
 			self.disabled = False
-			self.state = 'down' if st else 'normal'
+			self.remote_state = 'down' if st else 'normal'
+			self.state = self.remote_state
 
 	def toggle(self, on, *args):
 		if on == None:
 			self.disabled = True
 		else:
 			self.disabled = False
-			self.state = 'down' if on else 'normal'
-			self.remote_state = self.state
+			self.remote_state = 'down' if on else 'normal'
+			self.state = self.remote_state
 
-	def on_press(self):
-		setattr(rigobj, self.rig_state, self.state == 'down')
-		# We need the remote to tell us the state has changed,
-		# we just requested a change.
-		self.state = self.remote_state
+	def on_state(self, widget, value):
+		if self.state != self.remote_state:
+			setattr(rigobj, self.rig_state, self.state == 'down')
+			# We need the remote to tell us the state has changed,
+			# we just requested a change.
+			self.state = self.remote_state
 
 class StateSlider(Slider):
 	rig_state = StringProperty()
