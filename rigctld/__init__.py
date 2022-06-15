@@ -952,7 +952,6 @@ class rigctld_connection:
 	def handle(self, cmd):
 		cmd = self.shorten(cmd)
 		while len(cmd):
-			self._rigctld.rig.sync()
 			if self._rigctld.verbose:
 				print('Raw command: '+str(cmd), file=sys.stderr)
 			command = self.parse_command_line(cmd)
