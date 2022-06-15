@@ -381,7 +381,6 @@ class QueryState(IntEnum):
 class KenwoodStateValue(StateValue):
 	def __init__(self, rig, **kwargs):
 		super().__init__(rig, **kwargs)
-		self._depends_on = kwargs.get('depends_on')
 		self._echoed = kwargs.get('echoed')
 		self._query_command = kwargs.get('query_command')
 		self._query_method = kwargs.get('query_method')
@@ -399,8 +398,6 @@ class KenwoodStateValue(StateValue):
 			self._set_state = SetState.ANY
 		if self._query_state is None:
 			self._query_state = QueryState.ANY
-		if self._depends_on is None:
-			self._depends_on = ()
 		if self._set_format is not None and self._set_method is not None:
 			raise Exception('Only one of set_method or set_format may be specified')
 		if self._query_command is not None and self._query_method is not None:
@@ -544,17 +541,6 @@ class KenwoodStateValue(StateValue):
 			return False
 		if hasattr(self, '_readThread') and get_ident() == self._readThread.ident:
 			can_query = False
-		for d in self._depends_on:
-			if isinstance(d, StateValue):
-				if StateValue._cached is None:
-					if (not can_query) or (getattr(self._rig, 'value') == None):
-						self._cached_value = None
-						return
-			else:
-				if self._rig._state[d]._cached is None:
-					if (not can_query) or (getattr(self._rig, d) == None):
-						self._cached_value = None
-						return
 		if not self._works_powered_off:
 			if not self._rig.power_on:
 				return False
@@ -590,7 +576,6 @@ class KenwoodDerivedBoolValue(KenwoodStateValue):
 		self._derived_from = derived_from
 		self._derived_from.add_set_callback(self._set_callback)
 		self._cached_value = self._derived_from._cached
-		self._depends_on = self._derived_from._depends_on
 		self._echoed = self._derived_from._echoed
 		self._query_command = self._derived_from._query_command
 		self._query_method = self._derived_from._query_method
@@ -781,7 +766,6 @@ class KenwoodListStateValue(KenwoodStateValue):
 class KenwoodSingleStateValue(KenwoodStateValue):
 	def __init__(self, rig, parent, offset, **kwargs):
 		super().__init__(rig, **kwargs)
-		self._depends_on = self._depends_on + (self,)
 		self._parent = parent
 		self._offset = offset
 		self._parent.children[self._offset] = self
