@@ -8,9 +8,6 @@ from threading import Event
 # TODO: Do we need our own handler/callback here?
 
 class KenwoodHFProtocol:
-	# This is all the set commands that don't trigger a response from the rig.
-	non_event_tuple = (b'AG', b'AL', b'BP', b'CG', b'KS', b'MG', b'ML', b'MU', b'NL', b'PC', b'PL', b'RG', b'RL', b'SQ', b'TN', b'TO', b'VD', b'VG', b'VX', b'XT', b'EX')
-
 	def __init__(self, port = "/dev/ttyU0", speed = 4800, stopbits = 2, **kwargs):
 		kwargs = {'verbose': False, **kwargs}
 		self._verbose = kwargs.get('verbose')
@@ -36,14 +33,12 @@ class KenwoodHFProtocol:
 		self._serial.open()
 		self._write_buffer = b''
 		self._event = None
-		self._waiting_for = None
 
 	def terminate(self):
 		self._terminate = True
 
 	def _set_event(self):
 		if self._event is not None:
-			print('Done wait')
 			self._event.set()
 
 	def read(self):
@@ -56,8 +51,6 @@ class KenwoodHFProtocol:
 					if self._verbose:
 						print("Read: "+str(ret), file=stderr)
 					ret = ret.replace(b'^[^A-Z]*', b'')
-					#if ret[0:2] == self._waiting_for:
-					#	self._set_event()
 					self._set_event()
 					return ret
 				else:
@@ -96,14 +89,14 @@ class KenwoodHFProtocol:
 							cmd = self._write_buffer[0:fs+1]
 							self._write_buffer = self._write_buffer[fs+1:]
 							if cmd != b'' and cmd != b';':
+								wait_event = True
+								if cmd[0] == b'\x00':
+									cmd = cmd[1:]
+									wait_event = False
 								if self._verbose:
 									print('Writing ' + str(cmd), file=stderr)
 								self._serial.write(cmd)
-								# TODO: This should still wait for query commands, just
-								# not set commands.  Too tricky right now though (maybe a
-								# tag in the write buffer?)
-								if cmd[0:2] not in self.non_event_tuple:
-									self._waiting_for = cmd[0:2]
+								if wait_event:
 									self._event = Event()
 								self._serial.rts = True
 								# Another power-related hack...

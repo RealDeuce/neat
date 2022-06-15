@@ -483,6 +483,8 @@ class KenwoodStateValue(StateValue):
 			if need_ts:
 				prefix += 'TS1;'
 				suffix = ';TS0' + suffix
+		if not self._echoed:
+			prefix = prefix + '\x00'
 		return (prefix, suffix)
 
 	def _query_string(self):
