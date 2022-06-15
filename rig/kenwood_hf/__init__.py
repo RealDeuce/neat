@@ -423,7 +423,7 @@ class KenwoodStateValue(StateValue):
 				need_control = True
 			if self._query_state in (QueryState.TS, QueryState.NOT_TS):
 				if (self._in_rig == InRig.MAIN) != self._rig._state['tx_main']._cached:
-					self.need_tx = True
+					need_tx = True
 				if self._rig._state['transmit_set']._cached is not None:
 					if self._rig._transmit_set_valid():
 						if self._rig._state['transmit_set']._cached != (self._query_state == QueryState.TS):
@@ -432,10 +432,12 @@ class KenwoodStateValue(StateValue):
 			ocm = self._rig._state['control_main']._cached
 			if need_control or need_tx:
 				prefix += 'DC{:1d}{:1d};'.format(
-					(not self._rig._state['tx_main']._cached) if need_tx else otxm,
+					self._in_rig == InRig.SUB if need_tx else otxm,
 					self._in_rig == InRig.SUB
 				)
 				suffix = ';DC{:1d}{:1d}'.format(not otxm, not ocm) + suffix
+				if need_tx and (not need_control):
+					suffix = ';DC{:1d}{:1d}'.format(not otxm, not ocm) + suffix
 			# Next, set TS if needed
 			if need_ts:
 				prefix += 'TS1;'
@@ -463,7 +465,7 @@ class KenwoodStateValue(StateValue):
 				need_control = True
 			if self._set_state in (SetState.TS, SetState.NOT_TS):
 				if (self._in_rig == InRig.MAIN) != self._rig._state['tx_main']._cached:
-					self.need_tx = True
+					need_tx = True
 				if self._rig._state['transmit_set']._cached is not None:
 					if self._rig._transmit_set_valid():
 						if self._rig._state['transmit_set']._cached != (self._set_state == SetState.TS):
@@ -472,10 +474,12 @@ class KenwoodStateValue(StateValue):
 			ocm = self._rig._state['control_main']._cached
 			if need_control or need_tx:
 				prefix += 'DC{:1d}{:1d};'.format(
-					(not self._rig._state['tx_main']._cached) if need_tx else otxm,
+					self._in_rig == InRig.SUB if need_tx else otxm,
 					self._in_rig == InRig.SUB
 				)
 				suffix = ';DC{:1d}{:1d}'.format(not otxm, not ocm) + suffix
+				if need_tx and (not need_control):
+					suffix = ';DC{:1d}{:1d}'.format(not otxm, not ocm) + suffix
 			# Next, set TS if needed
 			if need_ts:
 				prefix += 'TS1;'
@@ -1243,6 +1247,8 @@ class KenwoodHF(Rig):
 				query_state = QueryState.CONTROL,
 				set_state = SetState.CONTROL,
 			),
+			# NOTE: If you change the TX, the control is 
+			# always changed to match.
 			'control_list': KenwoodListStateValue(self, 2,
 				echoed = True,
 				query_command = 'DC',
