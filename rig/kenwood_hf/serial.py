@@ -16,9 +16,6 @@ class KenwoodHFProtocol:
 		self._last_hack = 0
 		self.PS_works = None
 		self.power_on = False
-		# TODO: The error handling repeats whatever the last command was, not the failing command
-		#       Short of only having one outstanding command at a time though, I'm not sure what
-		#       we can actually do about that.
 		self._last_command = None
 		self._serial = Serial(baudrate = speed, stopbits = stopbits, rtscts = False, timeout = 0.01, inter_byte_timeout = 0.5)
 		# Kenwood mostly uses RTR/CTS flow control, but with a
