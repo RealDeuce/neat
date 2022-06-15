@@ -1109,8 +1109,7 @@ class KenwoodHF(Rig):
 				echoed = True,
 				query_command = 'CA',
 				set_format = 'CA{:01d}',
-				validity_check = self._cwAutoTuneValid,
-				range_check = self._auto_zero_beat,
+				range_check = self._auto_zero_beat_range_check,
 				in_rig = InRig.MAIN,
 				set_state = SetState.CONTROL,
 				query_state = QueryState.ANY
@@ -2615,9 +2614,9 @@ class KenwoodHF(Rig):
 			return False
 		return True
 
-	def _auto_zero_beat(self, value):
+	def _auto_zero_beat_range_check(self, value):
 		# Only in CW and only when filter is < 1kHz wide
-		if not self._state['main_rx_mode']._cached not in (mode.CW, mode.CW_REVERSED):
+		if self._state['main_rx_mode']._cached not in (mode.CW, mode.CW_REVERSED):
 			return False
 		if self._state['filter_width']._cached >= 1000:
 			return False
@@ -2844,11 +2843,6 @@ class KenwoodHF(Rig):
 		for r in ranges:
 			if value >= ranges[r][0] and value <= ranges[r][1]:
 				return True
-		return False
-
-	def _cwAutoTuneValid(self):
-		if self._state['main_rx_mode']._cached in (mode.CW, mode.CW_REVERSED, ):
-			return True
 		return False
 
 	def _check_transmitSet(self, value):
