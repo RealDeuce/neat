@@ -22,16 +22,17 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import getopt
-import sys
+from getopt import getopt
+from sys import argv
 
-opts, args = getopt.getopt(sys.argv[1:], "d", ["debug"])
+opts, args = getopt(argv[1:], "d", ["debug"])
 verbose = False
 for o, a in opts:
 	if o in ('-d', '--debug'):
 		verbose = True
 
-import kenwood
+import rig
+import rig.kenwood_hf as kenwood_hf
 import rigctld
 import math
 import re
@@ -54,13 +55,13 @@ from kivy.uix.widget import Widget
 import kivy.utils
 from gardengauge import Gauge
 
-rig = None
+rigobj = None
 rigctldThread = None
 rigctl = None
-vfoa = int(kenwood.tuningMode.VFOA)
-vfob = int(kenwood.tuningMode.VFOB)
-mem = int(kenwood.tuningMode.MEMORY)
-call = int(kenwood.tuningMode.CALL)
+vfoa = int(kenwood_hf.tuningMode.VFOA)
+vfob = int(kenwood_hf.tuningMode.VFOB)
+mem = int(kenwood_hf.tuningMode.MEMORY)
+call = int(kenwood_hf.tuningMode.CALL)
 
 # See https://new.reddit.com/r/kivy/comments/v5joow/labeltext_can_no_longer_be_updated_after_f1/
 # Monkey patch hack
@@ -74,7 +75,7 @@ settings.SettingTitle = SettingTitle
 class Neat(FloatLayout):
 	def control(self, **kwargs):
 		for k in kwargs.keys():
-			setattr(rig, k, kwargs[k])
+			setattr(rigobj, k, kwargs[k])
 
 class Meter(Gauge):
 	rig_state = StringProperty()
@@ -86,7 +87,7 @@ class Meter(Gauge):
 	accel_up_mult = NumericProperty(1.1)
 	accel_down_initial = NumericProperty(-0.02)
 	accel_down_mult = NumericProperty(1.1)
-	click_selects = NumericProperty(int(kenwood.meter.UNSELECTED))
+	click_selects = NumericProperty(int(kenwood_hf.meter.UNSELECTED))
 	calculation = StringProperty()
 
 	def __init__(self, **kwargs):
@@ -98,8 +99,8 @@ class Meter(Gauge):
 		self.pos = (10, 10)
 		super(Meter, self).__init__(**kwargs)
 		if self.rig_state != '':
-			rig.add_callback('self.rig_state', self.stateUpdate)
-			self.value = getattr(rig, self.rig_state)
+			rigobj.add_callback(self.rig_state, self.stateUpdate)
+			self.value = getattr(rigobj, self.rig_state)
 		self._old_rig_state = self.rig_state
 		self._turn()
 		self.bind(low_format=self._turn)
@@ -107,7 +108,7 @@ class Meter(Gauge):
 		self.bind(rig_state=self._newRigState)
 
 	def on_touch_down(self, touch):
-		if self.click_selects == kenwood.meter.UNSELECTED:
+		if self.click_selects == kenwood_hf.meter.UNSELECTED:
 			return False
 		if not 'button' in touch.profile:
 			return False
@@ -117,12 +118,12 @@ class Meter(Gauge):
 			return False
 		if touch.pos[1] < (self._gauge.pos[1] + self._gauge.size[1] * 0.4):
 			return False
-		rig.meterType = kenwood.meter(self.click_selects)
+		rigobj.meter_type = kenwood_hf.meter(self.click_selects)
 
 	def _newRigState(self, *args):
 		if self._old_rig_state != '':
-			getattr(rig, self._old_rig_state).remove_callback(self.stateUpdate)
-		rig.add_callback(self.rig_state, self.stateUpdate)
+			rigobj.remove_callback(self._old_rig_state, self.stateUpdate)
+		rigobj.add_callback(self.rig_state, self.stateUpdate)
 		self._old_rig_state = self.rig_state
 
 	def target(self):
@@ -225,15 +226,16 @@ class FreqDisplay(Label):
 		self.bind(freqValue=self._updateFreq)
 		self.bind(vfo_box=self.newVFO)
 		super(FreqDisplay, self).__init__(**kwargs)
-		if rig.powerOn:
-			self.freqValue = int(rig.VFOAsetFrequency)
-		self.cb_state = 'mainFrequency'
-		rig.add_callback(self.cb_state, self.newFreq)
+		if rigobj.power_on:
+			if rigobj.vfoa_frequency is not None:
+				self.freqValue = int(rigobj.vfoa_frequency)
+		self.cb_state = 'main_rx_frequency'
+		rigobj.add_callback(self.cb_state, self.newFreq)
 		self.bind(rig_state=self.newRigState)
 
 	def newRigState(self, widget, value):
-		rig.remove_callback(self.cb_state, self.newFreq)
-		rig.add_callback(self.rig_state, self.newFreq)
+		rigobj.remove_callback(self.cb_state, self.newFreq)
+		rigobj.add_callback(self.rig_state, self.newFreq)
 		self._updateFreq()
 
 	def newVFO(self, widget, value):
@@ -248,21 +250,21 @@ class FreqDisplay(Label):
 
 	def setVFOCallback(self):
 		if self.rig_state == '':
-			rig.remove_callback(self.cb_state, self.newFreq)
+			rigobj.remove_callback(self.cb_state, self.newFreq)
 			if self.vfo_box is not None:
 				if self.vfo_box.vfo == vfoa:
-					self.freqValue = rig.VFOAsetFrequency
+					self.freqValue = rigobj.vfoa_frequency
 					self._updateFreq(self)
 					self.cb_state = 'VFOAsetFrequency'
-					rig.add_callback(self.cb_state, self.newFreq)
+					rigobj.add_callback(self.cb_state, self.newFreq)
 				elif self.vfo_box.vfo == vfob:
-					self.freqValue = rig.VFOBsetFrequency
+					self.freqValue = rigobj.vfob_frequency
 					self._updateFreq(self)
 					self.cb_state = 'VFOBsetFrequency'
-					rig.add_callback(self.cb_state, self.newFreq)
+					rigobj.add_callback(self.cb_state, self.newFreq)
 				elif self.memory_display is not None:
 					if self.vfo_box.vfo == mem:
-						self.memory_display.memoryValue = rig.memoryChannel
+						self.memory_display.memoryValue = rigobj.main_memory_channel
 						self.memory_display._updateChannel(self.memory_display)
 					elif self.vfo_box.vfo == call:
 						self.memory_display.memoryValue = 300
@@ -315,19 +317,19 @@ class FreqDisplay(Label):
 		if new % add:
 			new = math.floor(new / add) * add
 		if self.vfo_box.vfo == vfoa:
-			rig.VFOAsetFrequency = new
+			rigobj.vfoa_frequency = new
 		elif self.vfo_box.vfo == vfob:
-			rig.VFOBsetFrequency = new
-		elif self.vfo_box.vfo == mem and rig.mainRXtuningMode == kenwood.tuningMode.MEMORY:
+			rigobj.vfob_frequency = new
+		elif self.vfo_box.vfo == mem and rigobj.main_rx_tuning_mode == kenwood_hf.tuningMode.MEMORY:
 			if up:
-				rig.up = True
+				rigobj.main_up = True
 			else:
-				rig.down = True
-		elif self.vfo_box.vfo == call and rig.mainRXtuningMode == kenwood.tuningMode.CALL:
+				rigobj.main_down = True
+		elif self.vfo_box.vfo == call and rigobj.main_rx_tuning_mode == kenwood_hf.tuningMode.CALL:
 			if up:
-				rig.bandUp = True
+				rigobj.main_band_up = True
 			else:
-				rig.bandDown = True
+				rigobj.main_band_down = True
 		return True
 
 class MemoryDisplay(Label):
@@ -340,13 +342,13 @@ class MemoryDisplay(Label):
 		self.markup = True
 		self.bind(memoryValue=self._updateChannel)
 		super(MemoryDisplay, self).__init__(**kwargs)
-		if rig.powerOn:
-			self.memoryValue = int(rig.memoryChannel)
-		rig.add_callback('memoryChannel', self.newChannel)
-		rig.add_callback('memoryGroups', self.newGroups)
-		rig.memories.memories[self.memoryValue].add_callback(self.updateChannel)
+		if rigobj.power_on:
+			self.memoryValue = int(rigobj.main_memory_channel)
+		rigobj.add_callback('main_memory_channel', self.newChannel)
+		rigobj.add_callback('memory_groups', self.newGroups)
+		rigobj.memories.memories[self.memoryValue].add_modify_callback(self.updateChannel)
 		self.bind(on_ref_press=self.toggle_group)
-		rig.memories.memories[300].add_callback(self.updateChannel)
+		rigobj.memories.memories[300].add_modify_callback(self.updateChannel)
 		self.bind(freq_display=self.newFreqDisplay)
 		self.bind(vfo_box=self.newVFOBox)
 		self.bind(is_tx=self.newIsTX)
@@ -371,12 +373,12 @@ class MemoryDisplay(Label):
 
 	def newChannel(self, channel, *args):
 		if self.memoryValue is not None:
-			rig.memories.memories[self.memoryValue].remove_callback(self.updateChannel)
+			rigobj.memories.memories[self.memoryValue].remove_modify_callback(self.updateChannel)
 			if self.memoryValue == channel and channel == 300:
 				self._updateChannel()
 		if channel is not None:
 			self.memoryValue = int(channel)
-			rig.memories.memories[self.memoryValue].add_callback(self.updateChannel)
+			rigobj.memories.memories[self.memoryValue].add_modify_callback(self.updateChannel)
 
 	def newGroups(self, groups, *args):
 		self._updateChannel()
@@ -393,12 +395,14 @@ class MemoryDisplay(Label):
 
 	def toggle_group(self, widget, value):
 		v = int(value)
-		memGroups = rig.memoryGroups
+		memGroups = rigobj.memory_groups
 		memGroups[v] = not memGroups[v]
-		rig.memoryGroups = memGroups
+		rigobj.memory_groups = memGroups
 
 	def _doUpdateChannel(self, dt):
-		memData = rig.memories[self.memoryValue]
+		memData = rigobj.memories[self.memoryValue]
+		if memData is None:
+			return
 		if self.vfo_box is not None and self.freq_display is not None:
 			if self.vfo_box.vfo == mem or self.vfo_box.vfo == call:
 				if self.is_tx and ('TXfrequency' in memData):
@@ -406,7 +410,7 @@ class MemoryDisplay(Label):
 				else:
 					self.freq_display.freqValue = memData['Frequency']
 		new = 'Memory: {:1d}-{:03d} {:8s} {:10s}'.format(memData['MemoryGroup'], memData['Channel'], memData['MemoryName'], 'Locked Out ' if memData['LockedOut'] else ' ')
-		memGroups = rig.memoryGroups
+		memGroups = rigobj.memory_groups
 		if memGroups is not None:
 			for i in range(len(memGroups)):
 				if memGroups[i]:
@@ -443,10 +447,10 @@ class VFOBoxButton(ToggleButton):
 		if self.parent.vfo == -1:
 			self.disabled = True
 
-	def on_state(self, widget, value):
-		if value == 'down':
-			if self.vfoID != self.parent.vfo and self.parent.rig_state != '':
-				setattr(rig, self.parent.rig_state, kenwood.tuningMode(self.vfoID))
+	def on_press(self):
+		if self.vfoID != self.parent.vfo and self.parent.rig_state != '':
+			self.state = 'normal'
+			setattr(rigobj, self.parent.rig_state, kenwood_hf.tuningMode(self.vfoID))
 
 class VFOBox(GridLayout):
 	rig_state = StringProperty()
@@ -461,10 +465,10 @@ class VFOBox(GridLayout):
 		super(VFOBox, self).__init__(**kwargs)
 		self.bind(vfo=self._updateVFO)
 		if self.rig_state != '':
-			if getattr(rig, self.rig_state) is None:
+			if getattr(rigobj, self.rig_state) is None:
 				self.disable_children()
 			else:
-				self.vfo = int(getattr(rig, self.rig_state))
+				self.vfo = int(getattr(rigobj, self.rig_state))
 		if (self.rig_state != ''):
 			self.on_rig_state(self, self.rig_state)
 		self.bind(freq_display=self.newFreqDisplay)
@@ -474,10 +478,10 @@ class VFOBox(GridLayout):
 
 	def on_rig_state(self, widget, value):
 		Clock.schedule_once(lambda dt: self.refresh(), 0)
-		rig.add_callback(self.rig_state, self.newVFO)
+		rigobj.add_callback(self.rig_state, self.newVFO)
 
 	def refresh(self):
-		st = getattr(rig, self.rig_state)
+		st = getattr(rigobj, self.rig_state)
 		if st is None:
 			self.vfo = -1
 			self.disable_children()
@@ -523,7 +527,8 @@ class OPModeBoxButton(ToggleButton):
 	def on_state(self, widget, value):
 		if value == 'down':
 			if self.modeID != self.parent.mode:
-				rig.mode = kenwood.mode(self.modeID)
+				self.state = 'normal'
+				setattr(rigobj, self.parent.rig_state, rig.mode(self.modeID))
 
 class OPModeBox(GridLayout):
 	mode = NumericProperty(0)
@@ -534,8 +539,8 @@ class OPModeBox(GridLayout):
 		self.new_mode = self.mode
 		self.cb_installed = self.rig_state
 		if self.rig_state != '':
-			rig.add_callback(self.rig_state, self.newMode)
-			rm = getattr(rig, self.rig_state)
+			rigobj.add_callback(self.rig_state, self.newMode)
+			rm = getattr(rigobj, self.rig_state)
 			if rm is not None:
 				self.mode = int(rm)
 		self.bind(mode=self._updateMode)
@@ -543,13 +548,13 @@ class OPModeBox(GridLayout):
 
 	def newRigState(self, widget, value):
 		if self.cb_installed != '':
-			rig.remove_callback(self.rig_state, self.newMode)
-		rig.add_callback(self.rig_state, self.newMode)
-		nm = getattr(rig, self.rig_state)
+			rigobj.remove_callback(self.rig_state, self.newMode)
+		rigobj.add_callback(self.rig_state, self.newMode)
+		nm = getattr(rigobj, self.rig_state)
 		if nm is None:
 			self.mode = -1
 		else:
-			self.mode = int(getattr(rig, self.rig_state))
+			self.mode = int(getattr(rigobj, self.rig_state))
 
 	def disable_children(self):
 		for c in self.children:
@@ -589,28 +594,35 @@ class BoolToggle(ToggleButton):
 		super(BoolToggle, self).__init__(**kwargs)
 		if (self.rig_state != ''):
 			self.on_rig_state(self, self.rig_state)
+		self.remote_state = self.state
 
 	def on_rig_state(self, widget, value):
 		Clock.schedule_once(lambda dt: self.refresh(), 0)
-		rig.add_callback(self.rig_state, self.toggle)
+		rigobj.add_callback(self.rig_state, self.toggle)
 
 	def refresh(self):
-		st = getattr(rig, self.rig_state)
+		st = getattr(rigobj, self.rig_state)
 		if st == None:
 			self.disabled = True
 		else:
 			self.disabled = False
-			self.state = 'down' if st else 'normal'
+			self.remote_state = 'down' if st else 'normal'
+			self.state = self.remote_state
 
 	def toggle(self, on, *args):
 		if on == None:
 			self.disabled = True
 		else:
 			self.disabled = False
-			self.state = 'down' if on else 'normal'
+			self.remote_state = 'down' if on else 'normal'
+			self.state = self.remote_state
 
-	def on_press(self):
-		setattr(rig, self.rig_state, self.state == 'down')
+	def on_state(self, widget, value):
+		if self.state != self.remote_state:
+			setattr(rigobj, self.rig_state, self.state == 'down')
+			# We need the remote to tell us the state has changed,
+			# we just requested a change.
+			self.state = self.remote_state
 
 class StateSlider(Slider):
 	rig_state = StringProperty()
@@ -625,16 +637,16 @@ class StateSlider(Slider):
 		Clock.schedule_once(lambda dt: self._refresh(), 0)
 
 	def _refresh(self):
-		st = getattr(rig, self.rig_state)
+		st = getattr(rigobj, self.rig_state)
 		self.newValue(st)
 
 	def on_rig_state(self, widget, value):
-		val = getattr(rig, self.rig_state)
+		val = getattr(rigobj, self.rig_state)
 		if val is None:
 			self.disabled = True
 		else:
 			self.value = val
-		rig.add_callback(self.rig_state, self.newValue)
+		rigobj.add_callback(self.rig_state, self.newValue)
 
 	def newValue(self, value, *args):
 		if value is None:
@@ -646,22 +658,22 @@ class StateSlider(Slider):
 
 	def on_value(self, *args):
 		if self._latest != self.value:
-			setattr(rig, self.rig_state, int(self.value))
+			setattr(rigobj, self.rig_state, int(self.value))
 
 class RITSlider(StateSlider):
 	def __init__(self, **kwargs):
 		super(RITSlider, self).__init__(**kwargs)
 		if self.rig_state != '':
-			self._latest = getattr(rig, self.rig_state)
+			self._latest = getattr(rigobj, self.rig_state)
 		if self._latest == None:
 			self._latest = 0
 
 	def on_rig_state(self, widget, value):
-		val = getattr(rig, self.rig_state)
+		val = getattr(rigobj, self.rig_state)
 		if val is not None:
 			self._latest = val
 			self.value = self._latest
-		rig.add_callback(self.rig_state, self.newValue)
+		rigobj.add_callback(self.rig_state, self.newValue)
 
 	def refresh(self):
 		pass
@@ -699,19 +711,19 @@ class StateLamp(Label):
 
 	def on_active_color(self, widget, value):
 		if self.rig_state != '':
-			self.col.rgba = self.active_color if getattr(rig, self.rig_state) else self.inactive_color
+			self.col.rgba = self.active_color if getattr(rigobj, self.rig_state) else self.inactive_color
 
 	def on_inactive_color(self, widget, value):
 		if self.rig_state != '':
-			self.col.rgba = self.active_color if getattr(rig, self.rig_state) else self.inactive_color
+			self.col.rgba = self.active_color if getattr(rigobj, self.rig_state) else self.inactive_color
 
 	def on_rig_state(self, widget, value):
 		if hasattr(rig, self._old_rig_state):
-			rig.remove_callback(self._old_rig_state, self.newValue)
+			rigobj.remove_callback(self._old_rig_state, self.newValue)
 		self._old_rig_state = self.rig_state
-		st = getattr(rig, self.rig_state)
+		st = getattr(rigobj, self.rig_state)
 		self.col.rgba = self.active_color if st else self.inactive_color
-		rig.add_callback(self.rig_state, self.newValue)
+		rigobj.add_callback(self.rig_state, self.newValue)
 
 	def on_pos(self, *args):
 		self.rect.pos = self.pos
@@ -725,7 +737,7 @@ class StateLamp(Label):
 
 	def _newValue(self, dt):
 		self.col.rgba = self.background_color
-		st = getattr(rig, self.rig_state)
+		st = getattr(rigobj, self.rig_state)
 		if st is None:
 			return
 		self.col.rgba = self.active_color if st else self.inactive_color
@@ -754,12 +766,12 @@ class FilterDisplay(Widget):
 	#       in this file really.  It should be handled/exposed by the
 	#       kenwood module.
 	filter_widths = {
-		kenwood.mode.CW: [50, 80, 100, 150, 200, 300, 400, 500, 600, 1000, 2000],
-		kenwood.mode.CW_REVERSED: [50, 80, 100, 150, 200, 300, 400, 500, 600, 1000, 2000],
-		kenwood.mode.FSK: [250, 500, 1000, 1500],
-		kenwood.mode.FSK_REVERSED: [250, 500, 1000, 1500],
-		kenwood.mode.FM: [0, 1],
-		kenwood.mode.AM: [0, 1],
+		rig.mode.CW: [50, 80, 100, 150, 200, 300, 400, 500, 600, 1000, 2000],
+		rig.mode.CW_REVERSED: [50, 80, 100, 150, 200, 300, 400, 500, 600, 1000, 2000],
+		rig.mode.FSK: [250, 500, 1000, 1500],
+		rig.mode.FSK_REVERSED: [250, 500, 1000, 1500],
+		rig.mode.FM: [0, 1],
+		rig.mode.AM: [0, 1],
 	}
 	filter_shifts = [400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 950, 1000]
 
@@ -768,9 +780,9 @@ class FilterDisplay(Widget):
 		self.lines = Line(points = self.points, width = self.line_width)
 		self.canvas.add(Color(rgba=(1,1,1,1)))
 		self.canvas.add(self.lines)
-		if rig.powerOn:
-			self.points = rig.filterDisplayPattern
-		rig.add_callback('filterDisplayPattern', self.newValue)
+		if rigobj.power_on:
+			self.points = rigobj.filter_display_pattern
+		rigobj.add_callback('filter_display_pattern', self.newValue)
 
 	def on_pos(self, *args):
 		self.on_points(*args)
@@ -806,13 +818,13 @@ class FilterDisplay(Widget):
 		if self.op_mode_box is None:
 			return 11
 		else:
-			if self.op_mode_box.mode == int(kenwood.mode.AM):
+			if self.op_mode_box.mode == int(rig.mode.AM):
 				return 3
-			elif self.op_mode_box.mode == int(kenwood.mode.FM):
+			elif self.op_mode_box.mode == int(rig.mode.FM):
 				return 11
-			elif self.op_mode_box.mode == int(kenwood.mode.LSB):
+			elif self.op_mode_box.mode == int(rig.mode.LSB):
 				return 11
-			elif self.op_mode_box.mode == int(kenwood.mode.USB):
+			elif self.op_mode_box.mode == int(rig.mode.USB):
 				return 11
 
 	def on_touch_down(self, touch):
@@ -826,79 +838,79 @@ class FilterDisplay(Widget):
 			return False
 		if (touch.pos[1] < self.pos[1]):
 			return False
-		mode = rig.mode
+		mode = getattr(rigobj, self.op_mode_box.rig_state)
 		if touch.button == 'left':
-			if mode == kenwood.mode.AM or mode == kenwood.mode.FM:
-				rig.filterWidth = not rig.filterWidth
+			if mode == rig.mode.AM or mode == rig.mode.FM:
+				rigobj.filter_width = not rigobj.filter_width
 		if not touch.button in ('scrollup', 'scrolldown'):
 			return False
 		highpass = True if touch.pos[0] < self.pos[0] + self.width / 2 else False
 		up = True if touch.button == 'scrolldown' else False
 		# TODO: Packet Filter (Menu No. 50A) changes behaviour in ??? mode
-		if mode in (kenwood.mode.USB, kenwood.mode.LSB, kenwood.mode.FM, kenwood.mode.AM):
-			stateName = 'voiceHighPassCutoff' if highpass else 'voiceLowPassCutoff'
-			newVal = getattr(rig, stateName) + (1 if up else -1)
+		if mode in (rig.mode.USB, rig.mode.LSB, rig.mode.FM, rig.mode.AM):
+			stateName = 'voice_high_pass_cutoff' if highpass else 'voice_low_pass_cutoff'
+			newVal = getattr(rigobj, stateName) + (1 if up else -1)
 			maxVal = self._get_max()
 			if newVal < 0:
 				newVal = 0
 			if newVal > maxVal:
 				newVal = maxVal
-			setattr(rig, stateName, newVal)
-		elif mode == kenwood.mode.CW and not highpass:
-			newVal = self.filter_shifts.index(rig.IFshift)
+			setattr(rigobj, stateName, newVal)
+		elif mode == rig.mode.CW and not highpass:
+			newVal = self.filter_shifts.index(rigobj.if_shift)
 			newVal += (1 if up else -1)
 			if newVal < 0:
 				newVal = 0
 			elif newVal >= len(self.filter_shifts):
 				newVal = len(self.filter_shifts) - 1
-			rig.IFshift = self.filter_shifts[newVal]
+			rigobj.if_shift = self.filter_shifts[newVal]
 		elif mode in self.filter_widths:
-			newVal = self.filter_widths[mode].index(rig.filterWidth)
+			newVal = self.filter_widths[mode].index(rigobj.filter_width)
 			newVal += (1 if up else -1)
 			if newVal < 0:
 				newVal = 0
 			elif newVal >= len(self.filter_widths[mode]):
 				newVal = len(self.filter_widths[mode]) - 1
-			rig.filterWidth = self.filter_widths[mode][newVal]
+			rigobj.filter_width = self.filter_widths[mode][newVal]
 		return True
 
 class HighPassLabel(Label):
 	prefix = StringProperty()
 	suffix = StringProperty()
-	supportedModes = (kenwood.mode.AM, kenwood.mode.FM, kenwood.mode.LSB, kenwood.mode.USB,)
+	supportedModes = (rig.mode.AM, rig.mode.FM, rig.mode.LSB, rig.mode.USB,)
 
 	def __init__(self, **kwargs):
 		super(HighPassLabel, self).__init__(**kwargs)
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.voiceHighPassCutoff)
-		rig.add_callback('voiceHighPassCutoff', self.newValue)
-		rig.add_callback('filterWidth', self.newValue)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.voice_high_pass_cutoff)
+		rigobj.add_callback('voice_high_pass_cutoff', self.newValue)
+		rigobj.add_callback('filter_width', self.newValue)
 
 	def on_prefix(self, widget, value):
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.voiceHighPassCutoff)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.voice_high_pass_cutoff)
 		else:
-			self.newValue(FilterDisplay.filter_widths[rig.mode][rig.filterWidth])
+			self.newValue(FilterDisplay.filter_widths[rigobj.main_rx_mode][rigobj.filter_width])
 
 	def on_suffix(self, widget, value):
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.voiceHighPassCutoff)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.voice_high_pass_cutoff)
 		else:
-			self.newValue(rig.filterWidth)
+			self.newValue(rigobj.filter_width)
 
 	def refresh(self):
 		Clock.schedule_once(lambda dt: self._refresh(), 0)
 
 	def _refresh(self):
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.voiceHighPassCutoff)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.voice_high_pass_cutoff)
 		else:
-			self.newValue(rig.filterWidth)
+			self.newValue(rigobj.filter_width)
 
 	def newValue(self, value, *args):
 		val = ''
-		mode = rig.mode
-		if mode == kenwood.mode.AM:
+		mode = rigobj.main_rx_mode
+		if mode == rig.mode.AM:
 			if value == 0:
 				val = '10'
 			elif value == 1:
@@ -908,7 +920,7 @@ class HighPassLabel(Label):
 			elif value == 3:
 				val = '500'
 			val = self.prefix + val + self.suffix
-		elif mode == int(kenwood.mode.FM) or mode == int(kenwood.mode.LSB) or mode == int(kenwood.mode.USB):
+		elif mode == int(rig.mode.FM) or mode == int(rig.mode.LSB) or mode == int(rig.mode.USB):
 			if value == 0:
 				val = '10'
 			elif value == 1:
@@ -943,46 +955,46 @@ class HighPassLabel(Label):
 class LowPassLabel(Label):
 	prefix = StringProperty()
 	suffix = StringProperty()
-	supportedModes = (kenwood.mode.AM, kenwood.mode.FM, kenwood.mode.LSB, kenwood.mode.USB, kenwood.mode.CW,)
-	cwModes = (kenwood.mode.CW, kenwood.mode.CW_REVERSED,)
+	supportedModes = (rig.mode.AM, rig.mode.FM, rig.mode.LSB, rig.mode.USB, rig.mode.CW,)
+	cwModes = (rig.mode.CW, rig.mode.CW_REVERSED,)
 
 	def __init__(self, **kwargs):
 		super(LowPassLabel, self).__init__(**kwargs)
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.voiceLowPassCutoff)
-		rig.add_callback('voiceLowPassCutoff', self.newValue)
-		rig.add_callback('IFshift', self.newValue)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.voice_low_pass_cutoff)
+		rigobj.add_callback('voice_low_pass_cutoff', self.newValue)
+		rigobj.add_callback('if_shift', self.newValue)
 
 	def on_prefix(self, widget, value):
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.voiceLowPassCutoff)
-		elif rig.mode in self.cwModes:
-			self.newValue(rig.IFshift)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.voice_low_pass_cutoff)
+		elif rigobj.main_rx_mode in self.cwModes:
+			self.newValue(rigobj.if_shift)
 
 	def on_suffix(self, widget, value):
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.voiceLowPassCutoff)
-		elif rig.mode in self.cwModes:
-			self.newValue(rig.IFshift)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.voice_low_pass_cutoff)
+		elif rigobj.main_rx_mode in self.cwModes:
+			self.newValue(rigobj.if_shift)
 
 	def refresh(self):
 		Clock.schedule_once(lambda dt: self._refresh(), 0)
 
 	def _refresh(self):
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.voiceLowPassCutoff)
-		elif rig.mode in self.cwModes:
-			self.newValue(rig.IFshift)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.voice_low_pass_cutoff)
+		elif rigobj.main_rx_mode in self.cwModes:
+			self.newValue(rigobj.if_shift)
 		else:
 			self.text = ''
 
 	def newValue(self, value, *args):
 		val = ''
-		if rig.mode is None:
+		if rigobj.main_rx_mode is None:
 			mode = 0
 		else:
-			mode = int(rig.mode)
-		if mode == int(kenwood.mode.AM):
+			mode = int(rigobj.main_rx_mode)
+		if mode == int(rig.mode.AM):
 			if value == 0:
 				val = '2500'
 			elif value == 1:
@@ -992,7 +1004,7 @@ class LowPassLabel(Label):
 			elif value == 3:
 				val = '5000'
 			val = self.prefix + val + self.suffix
-		elif mode == int(kenwood.mode.FM) or mode == int(kenwood.mode.LSB) or mode == int(kenwood.mode.USB):
+		elif mode == int(rig.mode.FM) or mode == int(rig.mode.LSB) or mode == int(rig.mode.USB):
 			if value == 0:
 				val = '1400'
 			elif value == 1:
@@ -1018,40 +1030,40 @@ class LowPassLabel(Label):
 			elif value == 11:
 				val = '5000'
 			val = self.prefix + val + self.suffix
-		elif rig.mode in self.cwModes:
-			val = self.prefix + str(rig.IFshift) + self.suffix
+		elif rigobj.main_rx_mode in self.cwModes:
+			val = self.prefix + str(rigobj.if_shift) + self.suffix
 		self.text = val
 
 class WideNarrowLabel(Label):
 	prefix = StringProperty()
 	suffix = StringProperty()
-	supportedModes = (kenwood.mode.AM, kenwood.mode.FM,)
+	supportedModes = (rig.mode.AM, rig.mode.FM,)
 
 	def __init__(self, **kwargs):
 		super(WideNarrowLabel, self).__init__(**kwargs)
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.filterWidth)
-		rig.add_callback('filterWidth', self.newValue)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.filter_width)
+		rigobj.add_callback('filter_width', self.newValue)
 
 	def on_prefix(self, widget, value):
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.filterWidth)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.filter_width)
 
 	def on_suffix(self, widget, value):
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.filterWidth)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.filter_width)
 
 	def refresh(self):
 		Clock.schedule_once(lambda dt: self._refresh(), 0)
 
 	def _refresh(self):
-		if rig.mode in self.supportedModes:
-			self.newValue(rig.filterWidth)
+		if rigobj.main_rx_mode in self.supportedModes:
+			self.newValue(rigobj.filter_width)
 		else:
 			self.text = ''
 
 	def newValue(self, value, *args):
-		if rig.mode in self.supportedModes:
+		if rigobj.main_rx_mode in self.supportedModes:
 			val = 'Narrow' if value == 0 else 'Wide'
 			self.text = self.prefix + val + self.suffix
 
@@ -1066,16 +1078,16 @@ class StateLabel(Label):
 		self.old_rig_state = self.rig_state
 		self.last_text = self.text
 		if self.rig_state != '':
-			rig.add_callback(self.rig_state, self.setLabel)
+			rigobj.add_callback(self.rig_state, self.setLabel)
 		self.bind(rig_state=self.newRigState)
 		self.bind(prefix=self._setLabel)
 		self.bind(suffix=self._setLabel)
 
 	def newRigState(self, widget, value):
 		if self.old_rig_state != '':
-			rig.remove_callback(self.old_rig_state, self.setLabel)
+			rigobj.remove_callback(self.old_rig_state, self.setLabel)
 		self.old_rig_state = value
-		rig.add_callback(self.old_rig_state, self.setLabel)
+		rigobj.add_callback(self.old_rig_state, self.setLabel)
 
 	def _setLabel(self, *args, **kwargs):
 		self.setLabel(self.last_text)
@@ -1150,14 +1162,14 @@ class NeatApp(App):
 		settings.add_json_panel('Neat', self.config, data = jsondata)
 
 	def build(self):
-		global rig, rigctl
+		global rigobj, rigctl
 		self.config = ConfigParser()
 		self.build_config(self.config)
 		self.config.read('neat.ini')
-		rig = kenwood.Kenwood(self.config.get('SerialPort', 'device'), self.config.getint('SerialPort', 'speed'), self.config.getint('SerialPort', 'stopBits'), verbose = self.config.getboolean('Neat', 'verbose'))
-		self.rig = rig
+		rigobj = kenwood_hf.KenwoodHF(port = self.config.get('SerialPort', 'device'), speed = self.config.getint('SerialPort', 'speed'), stopbits = self.config.getint('SerialPort', 'stopBits'), verbose = self.config.getboolean('Neat', 'verbose'))
+		self.rig = rigobj
 		if self.config.getboolean('Neat', 'rigctld'):
-			rigctl = rigctld.rigctld(rig, address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port'), verbose = self.config.getboolean('Neat', 'verbose'))
+			rigctl = rigctld.rigctld(rigobj, address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port'), verbose = self.config.getboolean('Neat', 'verbose'))
 			rigctldThread = threading.Thread(target = rigctl.rigctldThread, name = 'rigctld')
 			rigctldThread.start()
 		ui = Neat()
@@ -1167,11 +1179,11 @@ class NeatApp(App):
 	def on_config_change(self, config, section, key, value):
 		if config is self.config:
 			if ('Neat', 'verbose') == (section, key):
-				rig._verbose = bool(int(value))
+				rigobj._verbose = bool(int(value))
 				rigctl.verbose = bool(int(value))
 
 if __name__ == '__main__':
 	NeatApp().run()
-	rig.terminate()
+	rigobj.terminate()
 	if rigctldThread is not None:
 		rigctldThread.join()
