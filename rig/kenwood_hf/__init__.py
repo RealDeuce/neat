@@ -764,6 +764,31 @@ class MemoryArray:
 		for x in self.memories:
 			yield self.memories[x].value
 
+class KenwoodHFSubRig(Rig):
+	def __init__(self, **kwargs):
+		self._state = {}
+		self._terminate = False
+
+	def add_property(self, name, state_value):
+		self._state[name] = state_value
+
+	def __getattr__(self, name):
+		if name in self._state:
+			if hasattr(self, '_readThread') and get_ident() == self._readThread.ident:
+				return self._state[name]._cached
+			return self._state[name].value
+		return super().__getattr__(name)
+
+	def __setattr__(self, name, value):
+		if name[:1] != '_':
+			if name in self._state:
+				self._state[name].value = value
+				return
+		super().__setattr__(name ,value)
+
+	def terminate(self):
+		self._terminate = True
+
 class KenwoodHF(Rig):
 	def __init__(self, **kwargs):
 		super().__init__(**kwargs)
@@ -791,6 +816,7 @@ class KenwoodHF(Rig):
 		self._readThread.start()
 		self._aliveWait.wait()
 		self._aliveWait = None
+		self.rigs = (self,)
 
 		resp = None
 		while resp is None:
@@ -1063,6 +1089,7 @@ class KenwoodHF(Rig):
 				range_check = self._beat_canceller_range_check
 			),
 			'main_band_down': KenwoodStateValue(self,
+				name = 'band_down',
 				echoed = True,
 				set_format = 'BD',
 				in_rig = InRig.MAIN,
@@ -1070,6 +1097,7 @@ class KenwoodHF(Rig):
 				query_state = QueryState.NONE,
 			),
 			'sub_band_down': KenwoodStateValue(self,
+				name = 'band_down',
 				echoed = True,
 				set_format = 'BD',
 				in_rig = InRig.SUB,
@@ -1085,6 +1113,7 @@ class KenwoodHF(Rig):
 				query_state = QueryState.ANY,
 			),
 			'main_band_up': KenwoodStateValue(self,
+				name = 'band_up',
 				echoed = True,
 				set_format = 'BU',
 				in_rig = InRig.MAIN,
@@ -1092,6 +1121,7 @@ class KenwoodHF(Rig):
 				query_state = QueryState.NONE,
 			),
 			'sub_band_up': KenwoodStateValue(self,
+				name = 'band_up',
 				echoed = True,
 				set_format = 'BU',
 				in_rig = InRig.SUB,
@@ -1124,18 +1154,36 @@ class KenwoodHF(Rig):
 				query_state = QueryState.ANY,
 			),
 			# False turns it up, True turns it down (derp derp),
-			'turn_multi_ch_control': KenwoodStateValue(self,
+			'main_turn_multi_ch_control': KenwoodStateValue(self,
+				name = 'turn_multi_ch_control',
 				echoed = True,
 				set_format = 'CH{:01d}',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.NONE,
+			),
+			'sub_turn_multi_ch_control': KenwoodStateValue(self,
+				name = 'turn_multi_ch_control',
+				echoed = True,
+				set_format = 'CH{:01d}',
+				in_rig = InRig.SUB,
 				set_state = SetState.CONTROL,
 				query_state = QueryState.NONE,
 			),
 			# Sets the current frequency to be the CALL frequency for the band
-			'store_as_call_frequency': KenwoodStateValue(self,
+			'main_store_as_call_frequency': KenwoodStateValue(self,
+				name = 'store_as_call_frequency',
 				echoed = True,
 				set_format = 'CI',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
+				set_state = SetState.CONTROL,
+				query_state = QueryState.NONE,
+			),
+			'sub_store_as_call_frequency': KenwoodStateValue(self,
+				name = 'store_as_call_frequency',
+				echoed = True,
+				set_format = 'CI',
+				in_rig = InRig.SUB,
 				set_state = SetState.CONTROL,
 				query_state = QueryState.NONE,
 			),
@@ -1145,7 +1193,7 @@ class KenwoodHF(Rig):
 				echoed = True,
 				query_command = 'CM',
 				set_format = 'CM{:01d}',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
 				set_state = SetState.ANY,
 				query_state = QueryState.ANY,
 				range_check = self._packet_cluster_tune_range_check
@@ -1249,6 +1297,7 @@ class KenwoodHF(Rig):
 				set_state = SetState.ANY,
 			),
 			'sub_vfo_frequency': KenwoodStateValue(self,
+				name = 'vfo_frequency',
 				echoed = True,
 				query_command = 'FC',
 				set_format = 'FC{:011d}',
@@ -1394,14 +1443,14 @@ class KenwoodHF(Rig):
 			),
 			'keyer_buffer_full': KenwoodStateValue(self,
 				query_command = 'KY',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
 				query_state = QueryState.ANY,
 				set_state = SetState.NONE,
 			),
 			'keyer_buffer': KenwoodStateValue(self,
 				echoed = True,
 				set_format = 'KY {:24}',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
 				query_state = QueryState.NONE,
 				set_state = SetState.ANY,
 			),
@@ -1409,7 +1458,7 @@ class KenwoodHF(Rig):
 				echoed = True,
 				query_command = 'LK',
 				set_format = 'LK{0[0]:1d}{0[1]:1d}',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
 				query_state = QueryState.ANY,
 				set_state = SetState.ANY,
 			),
@@ -1470,7 +1519,7 @@ class KenwoodHF(Rig):
 				set_state = SetState.TS,
 			),
 			'sub_mode': KenwoodStateValue(self,
-				name = 'rx_mode',
+				name = 'mode',
 				echoed = True,
 				query_command = 'MD',
 				set_format = 'MD{:01d}',
@@ -1580,6 +1629,7 @@ class KenwoodHF(Rig):
 			# TODO: OI appears to be IF for the non-active receiver... that's CTRL
 			# If AR is enabled, you cant change OS
 			'main_offset_type': KenwoodStateValue(self,
+				name = 'offset_type',
 				echoed = True,
 				query_command = 'OS',
 				set_format = 'OS{:01d}',
@@ -1589,6 +1639,7 @@ class KenwoodHF(Rig):
 				range_check = self._main_offset_type_range_check,
 			),
 			'sub_offset_type': KenwoodStateValue(self,
+				name = 'offset_type',
 				echoed = True,
 				query_command = 'OS',
 				set_format = 'OS{:01d}',
@@ -1684,7 +1735,7 @@ class KenwoodHF(Rig):
 				query_command = 'PS',
 				set_format = 'PS{:01d}',
 				works_powered_off = True,
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
 				query_state = QueryState.ANY,
 				set_state = SetState.ANY,
 			),
@@ -1856,6 +1907,7 @@ class KenwoodHF(Rig):
 				set_state = SetState.ANY,
 			),
 			'sub_receiver': KenwoodStateValue(self,
+				name = 'power_on',
 				echoed = True,
 				query_command = 'SB',
 				set_format = 'SB{:01d}',
@@ -1972,7 +2024,7 @@ class KenwoodHF(Rig):
 				echoed = True,
 				query_command = 'ST',
 				set_format = 'ST{:02d}',
-				in_rig = InRig.MAIN,
+				in_rig = InRig.SUB,
 				set_state = SetState.CONTROL,
 				query_state = QueryState.CONTROL,
 				validity_check = self._sub_multi_ch_frequency_steps_valid,
@@ -2004,11 +2056,20 @@ class KenwoodHF(Rig):
 				set_state = SetState.ANY,
 				query_state = QueryState.ANY,
 			),
-			'send_dtmf_memory_data': KenwoodStateValue(self,
+			'main_send_dtmf_memory_data': KenwoodStateValue(self,
+				name = 'send_dtmf_memory_data',
 				echoed = True,
 				set_format = 'TD{:02d}',
-				in_rig = InRig.BOTH,
-				set_state = SetState.ANY,
+				in_rig = InRig.MAIN,
+				set_state = SetState.TX,
+				query_state = QueryState.ANY,
+			),
+			'sub_send_dtmf_memory_data': KenwoodStateValue(self,
+				name = 'send_dtmf_memory_data',
+				echoed = True,
+				set_format = 'TD{:02d}',
+				in_rig = InRig.SUB,
+				set_state = SetState.TX,
 				query_state = QueryState.ANY,
 			),
 			'tnc_led_list': KenwoodListStateValue(self, 3,
@@ -2148,7 +2209,7 @@ class KenwoodHF(Rig):
 				echoed = False,
 				query_command = 'EX0060100',
 				set_format = 'EX0060100{:01d}',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
 				query_state = QueryState.ANY,
 				set_state = SetState.ANY,
 			),
@@ -2156,7 +2217,7 @@ class KenwoodHF(Rig):
 				echoed = False,
 				query_command = 'EX0270000',
 				set_format = 'EX0270000{:01d}',
-				in_rig = InRig.BOTH,
+				in_rig = InRig.MAIN,
 				query_state = QueryState.ANY,
 				set_state = SetState.ANY,
 			),
@@ -2210,13 +2271,13 @@ class KenwoodHF(Rig):
 		)
 		self._state['rig_lock'] = KenwoodSingleStateValue(self, self._state['lock_list'], 0,
 			echoed = True,
-			in_rig = InRig.BOTH,
+			in_rig = InRig.MAIN,
 			query_state = QueryState.ANY,
 			set_state = SetState.ANY,
 		)
 		self._state['rc2000_lock'] = KenwoodSingleStateValue(self, self._state['lock_list'], 1,
 			echoed = True,
-			in_rig = InRig.BOTH,
+			in_rig = InRig.MAIN,
 			query_state = QueryState.ANY,
 			set_state = SetState.ANY,
 		)
@@ -2327,23 +2388,82 @@ class KenwoodHF(Rig):
 		self._state['antenna2'] = KenwoodDerivedBoolValue(self, self._state['antenna_connector'], 2)
 		self._state['auto_beat_canceller'] = KenwoodDerivedBoolValue(self, self._state['beat_canceller'], BeatCanceller.AUTO, false_value = BeatCanceller.OFF)
 		self._state['manual_beat_canceller'] = KenwoodDerivedBoolValue(self, self._state['beat_canceller'], BeatCanceller.MANUAL, false_value = BeatCanceller.OFF)
-		self._state['main_rx_vfoa'] = KenwoodDerivedBoolValue(self, self._state['main_rx_tuning_mode'], tuningMode.VFOA)
-		self._state['main_rx_vfob'] = KenwoodDerivedBoolValue(self, self._state['main_rx_tuning_mode'], tuningMode.VFOB)
-		self._state['main_rx_memory'] = KenwoodDerivedBoolValue(self, self._state['main_rx_tuning_mode'], tuningMode.MEMORY)
-		self._state['main_rx_call'] = KenwoodDerivedBoolValue(self, self._state['main_rx_tuning_mode'], tuningMode.CALL)
-		self._state['main_tx_vfoa'] = KenwoodDerivedBoolValue(self, self._state['main_tx_tuning_mode'], tuningMode.VFOA)
-		self._state['main_tx_vfob'] = KenwoodDerivedBoolValue(self, self._state['main_tx_tuning_mode'], tuningMode.VFOB)
-		self._state['main_tx_memory'] = KenwoodDerivedBoolValue(self, self._state['main_tx_tuning_mode'], tuningMode.MEMORY)
-		self._state['main_tx_call'] = KenwoodDerivedBoolValue(self, self._state['main_tx_tuning_mode'], tuningMode.CALL)
-		self._state['sub_vfo'] = KenwoodDerivedBoolValue(self, self._state['sub_tuning_mode'], tuningMode.VFOA)
-		self._state['sub_memory'] = KenwoodDerivedBoolValue(self, self._state['sub_tuning_mode'], tuningMode.MEMORY)
-		self._state['sub_call'] = KenwoodDerivedBoolValue(self, self._state['sub_tuning_mode'], tuningMode.CALL)
+		self._state['main_rx_vfoa'] = KenwoodDerivedBoolValue(self,
+			self._state['main_rx_tuning_mode'],
+			tuningMode.VFOA,
+			name = 'rx_vfoa',
+		)
+		self._state['main_rx_vfob'] = KenwoodDerivedBoolValue(self,
+			self._state['main_rx_tuning_mode'],
+			tuningMode.VFOB,
+			name = 'rx_vfob',
+		)
+		self._state['main_rx_memory'] = KenwoodDerivedBoolValue(self,
+			self._state['main_rx_tuning_mode'],
+			tuningMode.MEMORY,
+			name = 'rx_memory',
+		)
+		self._state['main_rx_call'] = KenwoodDerivedBoolValue(self,
+			self._state['main_rx_tuning_mode'],
+			tuningMode.CALL,
+			name = 'rx_call',
+		)
+		self._state['main_tx_vfoa'] = KenwoodDerivedBoolValue(self,
+			self._state['main_tx_tuning_mode'],
+			tuningMode.VFOA,
+			name = 'tx_vfoa',
+		)
+		self._state['main_tx_vfob'] = KenwoodDerivedBoolValue(self,
+			self._state['main_tx_tuning_mode'],
+			tuningMode.VFOB,
+			name = 'tx_vfob',
+		)
+		self._state['main_tx_memory'] = KenwoodDerivedBoolValue(self,
+			self._state['main_tx_tuning_mode'],
+			tuningMode.MEMORY,
+			name = 'tx_memory',
+		)
+		self._state['main_tx_call'] = KenwoodDerivedBoolValue(self,
+			self._state['main_tx_tuning_mode'],
+			tuningMode.CALL,
+			name = 'tx_call',
+		)
+		self._state['sub_vfo'] = KenwoodDerivedBoolValue(self,
+			self._state['sub_tuning_mode'],
+			tuningMode.VFOA,
+			name = 'vfo',
+		)
+		self._state['sub_memory'] = KenwoodDerivedBoolValue(self,
+			self._state['sub_tuning_mode'],
+			tuningMode.MEMORY,
+			name = 'memory',
+		)
+		self._state['sub_call'] = KenwoodDerivedBoolValue(self,
+			self._state['sub_tuning_mode'],
+			tuningMode.CALL,
+			name = 'call',
+		)
 		self._state['lock_frequency'] = KenwoodDerivedBoolValue(self, self._state['rig_lock'], rigLock.F_LOCK)
 		self._state['lock_rig'] = KenwoodDerivedBoolValue(self, self._state['rig_lock'], rigLock.A_LOCK)
 		self._state['lock_rc2000'] = KenwoodDerivedBoolValue(self, self._state['rig_lock'], True)
-		self._state['main_noise_reduction1'] = KenwoodDerivedBoolValue(self, self._state['main_noise_reduction'], 1, false_value = 0)
-		self._state['main_noise_reduction2'] = KenwoodDerivedBoolValue(self, self._state['main_noise_reduction'], 2, false_value = 0)
-		self._state['sub_noise_reduction1'] = KenwoodDerivedBoolValue(self, self._state['sub_noise_reduction'], 1, false_value = 0)
+		self._state['main_noise_reduction1'] = KenwoodDerivedBoolValue(self,
+			self._state['main_noise_reduction'],
+			1,
+			false_value = 0,
+			name = 'noise_reduction1',
+		)
+		self._state['main_noise_reduction2'] = KenwoodDerivedBoolValue(self,
+			self._state['main_noise_reduction'],
+			2,
+			false_value = 0,
+			name = 'noise_reduction2',
+		)
+		self._state['sub_noise_reduction1'] = KenwoodDerivedBoolValue(self,
+			self._state['sub_noise_reduction'],
+			1,
+			false_value = 0,
+			name = 'noise_reduction1',
+		)
 		self._state['start_tune'] = KenwoodDerivedBoolValue(self, self._state['tuner_state'], tunerState.ACTIVE, false_value = tunerState.STOPPED)
 
 		# Now plug the names in...
@@ -2352,12 +2472,49 @@ class KenwoodHF(Rig):
 				if p.name is None:
 					p.name = a
 
+		# Now build the two sub-receivers as Rig instances
+		main = KenwoodHFSubRig()
+		sub = KenwoodHFSubRig()
+		for a, p in self._state.items():
+			if isinstance(p, StateValue):
+				if p.name[0:5] == 'main_':
+					raise Exception('Property '+a+' name starts with "main_"')
+				if p.name[0:4] == 'sub_':
+					raise Exception('Property '+a+' name starts with "sub_"')
+				if p._in_rig == InRig.BOTH:
+					if p.name in main._state:
+						raise Exception('Duplicate main name '+p.name+' ('+a+')')
+					if p.name in sub._state:
+						raise Exception('Duplicate sub name '+p.name+' ('+a+')')
+					main.add_property(p.name, p)
+					sub.add_property(p.name, p)
+				elif p._in_rig == InRig.MAIN:
+					if p.name in main._state:
+						raise Exception('Duplicate main name '+p.name+' ('+a+')')
+					main.add_property(p.name, p)
+				elif p._in_rig == InRig.SUB:
+					if p.name in sub._state:
+						raise Exception('Duplicate sub name '+p.name+' ('+a+')')
+					sub.add_property(p.name, p)
+
 		# Aliases for standard rig interface
 		self._state['rx_frequency'] = self._state['main_rx_frequency']
 		self._state['tx_frequency'] = self._state['main_tx_frequency']
 		self._state['rx_mode'] = self._state['main_rx_mode']
 		self._state['tx_mode'] = self._state['main_tx_mode']
 		self._state['tx'] = self._state['main_tx']
+		sub._state['rx_frequency'] = sub._state['frequency']
+		sub._state['tx_frequency'] = sub._state['frequency']
+		sub._state['rx_mode'] = sub._state['mode']
+		sub._state['tx_mode'] = sub._state['mode']
+		sub.add_property('split', KenwoodStateValue(self,
+			name='split',
+			in_rig = InRig.SUB,
+			query_state = QueryState.NONE,
+			set_state = SetState.NONE,
+		))
+
+		self.rigs = (main, sub)
 
 		if self.power_on:
 			if self.auto_information != 2:
@@ -2429,6 +2586,11 @@ class KenwoodHF(Rig):
 			self.auto_information = 0
 		if hasattr(self, '_terminate'):
 			self._terminate = True
+		if hasattr(self, 'rigs'):
+			if hasattr(self.rigs[0], '_terminate'):
+				self.rigs[0]._terminate = True
+			if hasattr(self.rigs[1], '_terminate'):
+				self.rigs[1]._terminate = True
 		self._serial.terminate()
 		if hasattr(self, 'readThread'):
 			self._readThread.join()

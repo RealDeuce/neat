@@ -56,8 +56,10 @@ import kivy.utils
 from gardengauge import Gauge
 
 rigobj = None
-rigctldThread = None
-rigctl = None
+rigctldThread_main = None
+rigctldThread_sub = None
+rigctl_main = None
+rigctl_sub = None
 vfoa = int(kenwood_hf.tuningMode.VFOA)
 vfob = int(kenwood_hf.tuningMode.VFOB)
 mem = int(kenwood_hf.tuningMode.MEMORY)
@@ -1162,28 +1164,35 @@ class NeatApp(App):
 		settings.add_json_panel('Neat', self.config, data = jsondata)
 
 	def build(self):
-		global rigobj, rigctl
+		global rigobj, rigctl_main, rigctl_sub
 		self.config = ConfigParser()
 		self.build_config(self.config)
 		self.config.read('neat.ini')
 		rigobj = kenwood_hf.KenwoodHF(port = self.config.get('SerialPort', 'device'), speed = self.config.getint('SerialPort', 'speed'), stopbits = self.config.getint('SerialPort', 'stopBits'), verbose = self.config.getboolean('Neat', 'verbose'))
 		self.rig = rigobj
 		if self.config.getboolean('Neat', 'rigctld'):
-			rigctl = rigctld.rigctld(rigobj, address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port'), verbose = self.config.getboolean('Neat', 'verbose'))
-			rigctldThread = threading.Thread(target = rigctl.rigctldThread, name = 'rigctld')
-			rigctldThread.start()
+			rigctl_main = rigctld.rigctld(rigobj.rigs[0], address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port'), verbose = self.config.getboolean('Neat', 'verbose'))
+			rigctldThread_main = threading.Thread(target = rigctl_main.rigctldThread, name = 'rigctld')
+			rigctldThread_main.start()
+			rigctl_sub = rigctld.rigctld(rigobj.rigs[0], address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port') + 1, verbose = self.config.getboolean('Neat', 'verbose'))
+			rigctldThread_sub = threading.Thread(target = rigctl_sub.rigctldThread, name = 'rigctld')
+			rigctldThread_sub.start()
 		ui = Neat()
 		Window.size = ui.size
 		return ui
 
 	def on_config_change(self, config, section, key, value):
+		global rigobj, rigctl_main, rigctl_sub
 		if config is self.config:
 			if ('Neat', 'verbose') == (section, key):
 				rigobj._verbose = bool(int(value))
-				rigctl.verbose = bool(int(value))
+				rigctl_main.verbose = bool(int(value))
+				rigctl_sub.verbose = bool(int(value))
 
 if __name__ == '__main__':
 	NeatApp().run()
 	rigobj.terminate()
-	if rigctldThread is not None:
-		rigctldThread.join()
+	if rigctldThread_main is not None:
+		rigctldThread_main.join()
+	if rigctldThread_sub is not None:
+		rigctldThread_sub.join()

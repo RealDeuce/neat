@@ -48,6 +48,8 @@ are all expected to be overridden
 	If False, rx_* and tx_* will always have the same value. 
 	Setting either will always set both.
 
+	If None, split is not supported
+
 	When split is changed from False to True, rx_* and tx_* values
 	will be the same as each other.  When split is changed from True
 	to False, if the radio is currently transmitting, it will be

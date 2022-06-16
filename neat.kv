@@ -576,6 +576,54 @@
 		text: 'TX'
 
 	Label:
+		id: voxGainLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'VOX Gain'
+		pos: txLamp.pos[0] + txLamp.width + 10, txLamp.pos[1] + txLamp.height - self.height
+
+	StateSlider:
+		rig_state: 'vox_gain'
+		id: voxGain
+		min: 0
+		max: 9
+		value_track: True
+		size_hint_max: (self.cursor_width + (self.max - self.min)) * 2, 30
+		pos: voxGainLabel.pos[0], voxGainLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: voxDelayLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'VOX Delay'
+		pos: voxGainLabel.pos[0] + voxGain.width + 10, voxGainLabel.pos[1]
+
+	StateSlider:
+		rig_state: 'vox_delay_time'
+		id: voxDelay
+		min: 0
+		max: 9
+		value_track: True
+		size_hint_max: (self.cursor_width + (self.max - self.min)) * 2, 30
+		pos: voxDelayLabel.pos[0], voxDelayLabel.pos[1] - self.height
+		step: 1
+
+	BoolToggle:
+		id: vox
+		rig_state: 'vox'
+		size_hint_max: 50, 25
+		text: 'VOX'
+		pos: voxDelay.pos[0] + voxDelay.width + 10, voxDelayLabel.pos[1] + voxDelayLabel.height - self.height
+		on_state: noiseReductionLevel.refresh()
+
+	Label:
 		id: outputPowerLabel
 		color: 0.8,0.8,0.8,1
 		font_size: 15
