@@ -2818,6 +2818,9 @@ class KenwoodHF(Rig):
 	def _filter_width_valid(self):
 		if self._state['main_rx_mode']._cached in (mode.LSB, mode.USB,):
 			return False
+		# Don't query filter width when tuning
+		if self._state['start_tune']._cached:
+			return False
 		return True
 
 
