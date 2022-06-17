@@ -734,7 +734,7 @@ class KenwoodSingleStateValue(KenwoodStateValue):
 		newval[self._offset] = value
 		self._parent.value = newval
 
-class MemoryArray:
+class MemoryArray(list):
 	def __init__(self, rig, **kwargs):
 		self.memories = [None] * 301
 		self._rig = rig
