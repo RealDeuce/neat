@@ -761,7 +761,7 @@ class MemoryArray:
 		self.memories[key].value = value
 
 	def __iter__(self):
-		for x in self.memories:
+		for x in range(len(self.memories)):
 			yield self.memories[x].value
 
 class KenwoodHFSubRig(Rig):
@@ -3345,33 +3345,34 @@ class KenwoodHF(Rig):
 		newVal = deepcopy(self.memories.memories[split[1]]._cached)
 		if newVal is None:
 			newVal = {}
-		newVal['Channel'] = split[1]
-		if split[1] < 290 or split[1] > 299:
-			if split[0]:
-				newVal['TXfrequency'] = split[2]
+		if split[3] != 0:
+			newVal['Channel'] = split[1]
+			if split[1] < 290 or split[1] > 299:
+				if split[0]:
+					newVal['TXfrequency'] = split[2]
+				else:
+					newVal['Frequency'] = split[2]
+				if split[0]:
+					newVal['TXmode'] = mode(split[3])
+				else:
+					newVal['Mode'] = mode(split[3])
 			else:
-				newVal['Frequency'] = split[2]
-			if split[0]:
-				newVal['TXmode'] = mode(split[3])
-			else:
+				if split[0]:
+					newVal['EndFrequency'] = split[2]
+				else:
+					newVal['StartFrequency'] = split[2]
 				newVal['Mode'] = mode(split[3])
-		else:
-			if split[0]:
-				newVal['EndFrequency'] = split[2]
-			else:
-				newVal['StartFrequency'] = split[2]
-			newVal['Mode'] = mode(split[3])
-		newVal['LockedOut'] = bool(split[4])
-		newVal['ToneType'] = toneType(split[5])
-		newVal['ToneNumber'] = CTCSStone(split[6])
-		newVal['CTCSStoneNumber'] = CTCSStone(split[7])
-		newVal['dcs_code'] = DCScode(split[8])
-		newVal['Reverse'] = bool(split[9])
-		newVal['OffsetType'] = offset(split[10])
-		newVal['OffsetFrequency'] = split[11]
-		newVal['StepSize'] = split[12]
-		newVal['MemoryGroup'] = split[13]
-		newVal['MemoryName'] = split[14]
+			newVal['LockedOut'] = bool(split[4])
+			newVal['ToneType'] = toneType(split[5])
+			newVal['ToneNumber'] = CTCSStone(split[6])
+			newVal['CTCSStoneNumber'] = CTCSStone(split[7])
+			newVal['dcs_code'] = DCScode(split[8])
+			newVal['Reverse'] = bool(split[9])
+			newVal['OffsetType'] = offset(split[10])
+			newVal['OffsetFrequency'] = split[11]
+			newVal['StepSize'] = split[12]
+			newVal['MemoryGroup'] = split[13]
+			newVal['MemoryName'] = split[14]
 		self.memories.memories[split[1]]._cached = newVal
 		if split[1] == 300:
 			self._main_rx_frequency_query()
