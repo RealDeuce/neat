@@ -244,7 +244,8 @@ class rigctld_connection:
 				'noVFO': False,
 				'fullLineCommand': False,
 				'in_args':["Mem/VFO Op"],
-				'out_args':[]
+				'out_args':[],
+				'handler': self._vfo_op
 			},
 			b'g': {
 				'long': "scan",
@@ -615,6 +616,17 @@ class rigctld_connection:
 		self.rxVFO = self.currVFO
 		self.txVFO = self.currVFO
 
+	def _vfo_op(self, command):
+		if command['argv'][0] == '?':
+			self.send_supported_vfo_ops()
+			return
+		if command['argv'][0] == 'TUNE':
+			self._rigctld.rig.tuner_tx = 1
+			self._rigctld.rig.tuner_list = [0, 1, 1]
+			self.append(b'RPRT 0\n')
+			return
+		self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
+
 	def _chk_vfo(self, command):
 		# Indicates that VFO parameters must be sent
 		if self._vfo_mode is None:
@@ -623,9 +635,9 @@ class rigctld_connection:
 
 	def _dump_state(self, command):
 		# TODO: Flesh this out
-		self.append(b"0\n")                   # Protocol version
+		self.append(b"1\n")                   # Protocol version
 		self.append(b"2\n")                   # Rig model (dummy)
-		self.append(b"2\n")                   # ITU region (!)
+		self.append(b"0\n")                   # ITU region (!)
 		# RX info: lowest/highest freq, modes available, low power, high power, VFOs, antennas
 		#self.append(b"30000 60000000 0x1ff -1 -1 0x6c000003 0x03\n") # Low limit, high limit, ?, ?, ? VFOs, ?
 		#self.append(b"142000000 151999999 0x1ff -1 -1 0xfc000007 0x00\n") # Low limit, high limit, ?, ?, ? VFOs, ?
@@ -637,7 +649,7 @@ class rigctld_connection:
 		#self.append(b"30000 60000000 0x1ff 5 100 0x7c000003 0x03\n") # Low limit, high limit, ?, ?, ? VFOs, ?
 		#self.append(b"142000000 151999999 0x1ff 5 100 0xfc000007 0x00\n") # Low limit, high limit, ?, ?, ? VFOs, ?
 		#self.append(b"420000000 449999999 0x1ff 5 50 0xfc000007 0x00\n") # Low limit, high limit, ?, ?, ? VFOs, ?
-		self.append(b"-1 -1 0x1ff -1 -1 0x03 0\n")
+		self.append(b"-1 -1 0x1ff 1 100 0x03 0\n")
 		self.append(b"0 0 0 0 0 0 0\n")
 		self.append(b"0 0\n")                 # Tuning steps available, modes, steps (nobody cares, direct tune)
 		self.append(b"0 0\n")                 # Filter sizes, mode, bandwidth (too many to list sanely)
@@ -659,6 +671,8 @@ class rigctld_connection:
 		self.append(b"0\n")
 		self.append(b"0\n")
 		self.append(b"0\n")
+		self.append(b"vfo_ops=0x800\n")
+		self.append(b'done\n')
 
 	def _set_vfo(self, command):
 		vfo = self.parse_vfo(command['argv'][0])
@@ -697,6 +711,9 @@ class rigctld_connection:
 
 	def send_supported_modes(self):
 		self.append(bytes('USB LSB CW CWR RTTY RTTYR AM FM\n', 'ascii'))
+
+	def send_supported_vfo_ops(self):
+		self.append(bytes('TUNE\n', 'ascii'))
 
 	def get_rig_mode(self, mode):
 		ret = None
