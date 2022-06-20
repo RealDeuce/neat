@@ -1,5 +1,7 @@
 # Copyright (c) 2022 Stephen Hurd
 # Copyright (c) 2022 Stephen Hurd
+# Copyright (c) 2022 Stephen Hurd
+# Copyright (c) 2022 Stephen Hurd
 # Developers:
 # Stephen Hurd (W8BSD/VE5BSD) <shurd@sasktel.net>
 # 
@@ -964,7 +966,8 @@ class KenwoodHF(Rig):
 			'tuner_list': KenwoodListStateValue(self,
 				echoed = True,
 				query_command = 'AC',
-				set_format = 'AC{0[0]:1d}{0[1]:1d}{0[2]:1d}',
+				#set_format = 'AC{0[0]:1d}{0[1]:1d}{0[2]:1d}',
+				set_method = self._set_tuner_list,
 				length = 3,
 				range_check = self._tuner_list_range_check,
 				in_rig = InRig.MAIN,
@@ -1322,6 +1325,7 @@ class KenwoodHF(Rig):
 				in_rig = InRig.MAIN,
 				query_state = QueryState.NOT_TS,
 				set_state = SetState.NOT_TS,
+				range_check = self._main_rx_tuning_mode_range_check
 			),
 			'sub_tuning_mode': KenwoodStateValue(self,
 				name = 'rx_tuning_mode',
@@ -1331,7 +1335,7 @@ class KenwoodHF(Rig):
 				in_rig = InRig.SUB,
 				query_state = QueryState.NOT_TS,
 				set_state = SetState.NOT_TS,
-				range_check = self._main_rx_tuning_mode_range_check
+				range_check = self._sub_rx_tuning_mode_range_check
 			),
 
 			'main_fine_tuning': KenwoodStateValue(self,
@@ -1526,6 +1530,7 @@ class KenwoodHF(Rig):
 				in_rig = InRig.SUB,
 				query_state = QueryState.CONTROL,
 				set_state = SetState.CONTROL,
+				range_check = self._sub_mode_range_check
 			),
 			'menu_ab': KenwoodStateValue(self,
 				echoed = True,
@@ -1666,6 +1671,7 @@ class KenwoodHF(Rig):
 				in_rig = InRig.SUB,
 				query_state = QueryState.ANY,
 				set_state = SetState.CONTROL,
+				range_check = self._sub_preamp_range_check,
 			),
 			'playback_channel': KenwoodStateValue(self,
 				echoed = True,
@@ -2514,12 +2520,15 @@ class KenwoodHF(Rig):
 			set_state = SetState.NONE,
 		))
 
+		# And place the memories in both...
+		self.memories = MemoryArray(self)
+		main.memories = self.memories
+		sub.memories = self.memories
 		self.rigs = (main, sub)
 
 		if self.power_on:
 			if self.auto_information != 2:
 				self.auto_information = 2
-		self.memories = MemoryArray(self)
 		self._fill_cache()
 
 	def _readThread(self):
@@ -2711,16 +2720,20 @@ class KenwoodHF(Rig):
 
 	def _sub_frequency_query(self):
 		if self._state['sub_tuning_mode']._cached == tuningMode.VFOA:
-			self._state['sub_frequency']._cached = self._state['vfoa_frequency']._cached
+			self._state['sub_frequency']._cached = self._state['sub_vfo_frequency']._cached
 		elif self._state['sub_tuning_mode']._cached == tuningMode.VFOB:
-			self._state['sub_frequency']._cached = self._state['vfob_frequency']._cached
+			self._state['sub_frequency']._cached = self._state['sub_vfo_frequency']._cached
 		elif self._state['sub_tuning_mode']._cached == tuningMode.MEMORY:
 			if self._state['sub_memory_channel']._cached is not None:
 				if self.memories.memories[self._state['sub_memory_channel']._cached]._cached is not None:
 					self._state['sub_frequency']._cached = self.memories.memories[self._state['sub_memory_channel']._cached]._cached['Frequency']
+				else:
+					self._state['sub_frequency']._cached = None
 		elif self._state['sub_tuning_mode']._cached == tuningMode.CALL:
 			if self.memories.memories[300]._cached is not None:
 				self._state['sub_frequency']._cached = self.memories.memories[300]._cached['Frequency']
+			else:
+				self._state['sub_frequency']._cached = None
 		return ''
 
 	# Range check methods return True or False
@@ -2728,15 +2741,20 @@ class KenwoodHF(Rig):
 		# Fail if we're trying to set it to the current value
 		# Unless we're changing the tuning state and it's
 		# currently enabled
+		#
+		# Unfortunately, for an external tuner, we can only turn
+		# the tuner on when we're also starting tuning...
 		if value[1] == self._state['tuner_list']._cached[1]:
 			# If we're setting anything except TX enabled,
 			# TX enabled must be set as well
-			if value[1] == False:
-				if value[0] or value[2]:
+			if value[2] != tunerState.ACTIVE:
+				if value[1] == False:
+					if value[0] or value[2]:
+						return False
+				if value[2] == self._state['tuner_list']._cached[2]:
 					return False
-			if value[2] == self._state['tuner_list']._cached[2]:
-				return False
 		# Fail if main TX is VHF+
+		# With exernal tuners, this should be over 30MHz... :(
 		if self._state['main_tx_frequency']._cached > 60000000:
 			return False
 		return True
@@ -2866,7 +2884,6 @@ class KenwoodHF(Rig):
 		return True
 
 	def _main_tx_tuning_mode_range_check(self, value):
-		print('Value: '+str(value)+', Cached: '+str(self._state['main_tx_tuning_mode']._cached))
 		if value == self._state['main_tx_tuning_mode']._cached:
 			return False
 		return True
@@ -2876,6 +2893,25 @@ class KenwoodHF(Rig):
 			if self._state['main_rx_tuning_mode']._cached == self._state['main_tx_tuning_mode']._cached:
 				return False
 		return True
+
+	def _sub_rx_tuning_mode_range_check(self, value):
+		if value == self._state['sub_tuning_mode']._cached:
+			return False
+		return True
+
+	def _sub_mode_range_check(self, value):
+		return value in (mode.AM, mode.FM)
+
+	def _sub_preamp_range_check(self, value):
+		if value == False:
+			return True
+		sf = self._state['sub_frequency']._cached
+		if sf >= 118000000 and sf <= 135999999:
+			return False
+		if sf >= 155000000 and sf <= 173999999:
+			return False
+		if sf >= 220000000 and sf <= 229999999:
+			return False
 
 	# Set methods return a string to send to the rig
 	def _set_tx(self, value):
@@ -2938,6 +2974,11 @@ class KenwoodHF(Rig):
 			return 'TS{:1d}'.format(value)
 		self._state['transmit_set']._cached = self._state['transmit_set']._cached
 
+	def _set_tuner_list(self, value):
+		if value[2] == tunerState.ACTIVE:
+			value[1] = True
+		return 'AC{0[0]:1d}{0[1]:1d}{0[2]:1d}'.format(value)
+
 	# Update methods return a string to send to the rig
 	# Validity check methods return True or False
 	def _rit_up_down_valid(self):
@@ -2996,7 +3037,8 @@ class KenwoodHF(Rig):
 
 	def _checkSubFrequencyValid(self, value):
 		ranges = {
-			'VHF': [142000000, 151999999],
+			'VHF': [118000000, 173995000],
+			'VHFH': [220000000, 511995000],
 			'UHF': [420000000, 449999999],
 		}
 		for r in ranges:
@@ -3153,7 +3195,6 @@ class KenwoodHF(Rig):
 			self._main_tx_frequency_query()
 		else:
 			self._state['sub_tuning_mode']._cached = tuning_mode
-			self._state['sub_tuning_mode']._cached = tuning_mode
 			self._sub_frequency_query()
 
 	def _update_FS(self, args):
@@ -3185,7 +3226,6 @@ class KenwoodHF(Rig):
 			self._state['agc_constant']._cached = split[0]
 
 	def _update_ID(self, args):
-		print('Setting ID')
 		self._state['id']._cached = self.parse('3d', args)[0]
 
 	def _update_IF(self, args):
@@ -3219,7 +3259,9 @@ class KenwoodHF(Rig):
 					self._set(self._state['rit_xit_frequency'], self._state['rit_xit_frequency']._queued['value'])
 				self._state['rit_xit_frequency']._pending = None
 			self._state['rit_xit_frequency'].lock.release()
-			self._state['main_multi_ch_frequency_steps']._cached = split[1]
+			# This is not the enum from ST (sigh)
+			#if split[1] is not None:
+			#	self._state['main_multi_ch_frequency_steps']._cached = split[1]
 			self._state['rit_xit_frequency']._cached = split[2]
 			self._state['rit']._cached = bool(split[3])
 			self._state['xit']._cached = bool(split[4])
@@ -3245,7 +3287,9 @@ class KenwoodHF(Rig):
 				self._state['main_memory_channel']._cached_value = None
 				self._state['main_memory_channel']._cached = 300
 		else:
-			self._state['sub_multi_ch_frequency_steps']._cached = split[1]
+			# This is not the enum from ST (sigh)
+			#if split[1] is not None:
+			#	self._state['sub_multi_ch_frequency_steps']._cached = split[1]
 			self._state['sub_memory_channel']._cached = split[5]
 			self._state['sub_tx']._cached = bool(split[6])
 			self._state['sub_mode']._cached = mode(split[7])

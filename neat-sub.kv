@@ -1,0 +1,489 @@
+# Copyright (c) 2022 Stephen Hurd
+# Developers:
+# Stephen Hurd (W8BSD/VE5BSD) <shurd@sasktel.net>
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice, developer list, and this permission notice shall
+# be included in all copies or substantial portions of the Software. If you meet
+# us some day, and you think this stuff is worth it, you can buy us a beer in
+# return
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+#:kivy 2.1.0
+#:import tuningMode rig.kenwood_hf.tuningMode
+#:import mode rig.mode
+#:import meter rig.kenwood_hf.meter
+
+Neat:
+	size: 1074, 750
+
+	Meter:
+		id: smeter
+		min_value: 0
+		max_value: 30
+		size_gauge: 256
+		size_text: 20
+		rig_state: 's_meter'
+		file_gauge: 'gardengauge/smeter.png'
+		pos: (root.width - self.size_gauge * 4 - 10 * 3) / 2, root.size[1] - self.size_gauge - 10
+		low_format: 'S[b]{0:.0f}[/b]'
+		high_format: '+[b]{0:.0f}[/b]'
+		calculation: 'S-Level'
+
+	Meter:
+		id: SWRmeter
+		min_value: 0
+		max_value: 30
+		size_gauge: 256
+		size_text: 20
+		rig_state: 'swr_meter'
+		peak_hold: 0
+		accel_down_initial: -3
+		file_gauge: 'gardengauge/SWR.png'
+		pos: smeter.pos[0] + self.size_gauge + 10, smeter.pos[1]
+		click_selects: int(meter.SWR)
+		low_format: '\nSWR'
+		high_format: '\nSWR'
+
+	Meter:
+		id: ALCmeter
+		min_value: 0
+		max_value: 30
+		size_gauge: 256
+		size_text: 20
+		rig_state: 'alc_meter'
+		file_gauge: 'gardengauge/ALC.png'
+		pos: SWRmeter.pos[0] + self.size_gauge + 10, SWRmeter.pos[1]
+		low_format: '\nALC'
+		high_format: '[color=#F00][b]Over[/b][/color]'
+		click_selects: int(meter.ALC)
+
+	Meter:
+		id: COMPmeter
+		min_value: 0
+		max_value: 30
+		size_gauge: 256
+		size_text: 20
+		rig_state: 'compression_meter'
+		file_gauge: 'gardengauge/comp.png'
+		pos: ALCmeter.pos[0] + self.size_gauge + 10, ALCmeter.pos[1]
+		low_cutoff: 11
+		low_format: '{0:.0f}\nCompression'
+		high_format: '[color=#F00]{0:.0f}[/color]\nCompression'
+		click_selects: int(meter.COMPRESSION)
+
+###
+
+	BoolToggle:
+		id: noiseReduction1
+		rig_state: 'noise_reduction1'
+		size_hint_max: 50, 25
+		text: 'NR1'
+		pos: (root.width - (mainAFgain.pos[0] + mainAFgain.width - self.pos[0])) / 2, COMPmeter._progress.pos[1] - 30 - self.size[1]
+		#pos: filterDisplay.pos[0] + filterDisplay.width + 10, autoNotchLevel.pos[1] + autoNotchLevel.height - self.height
+
+	Label:
+		id: mainAFgainLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'AF Gain'
+		pos: noiseReduction1.pos[0] + noiseReduction1.width + 10, noiseReduction1.pos[1] + noiseReduction1.height - self.height
+
+	StateSlider:
+		rig_state: 'audio_level'
+		id: mainAFgain
+		min: 0
+		max: 255
+		value_track: True
+		size_hint_max: 256, 30
+		pos: mainAFgainLabel.pos[0], mainAFgainLabel.pos[1] - self.height
+		step: 1
+
+###
+
+	VFOBox:
+		id: vfoBox
+		pos: (mainFreq.pos[0] - self.width - bandUpButton.width - 10) / 2, (mainFreq.pos[1] * 2 + mainFreq.height - self.height) / 2
+		size_hint_max: 100, 50
+		cols: 2
+		rows: 2
+		rig_state: 'rx_tuning_mode'
+		freq_display: mainFreq
+
+		VFOBoxButton:
+			text: 'VFO A'
+			vfoID: int(tuningMode.VFOA)
+			state: 'down' if self.parent.vfo == int(tuningMode.VFOA) else 'normal'
+
+		VFOBoxButton:
+			text: 'MEM'
+			vfoID: int(tuningMode.MEMORY)
+			state: 'down' if self.parent.vfo == int(tuningMode.MEMORY) else 'normal'
+
+		VFOBoxButton:
+			text: 'CALL'
+			vfoID: int(tuningMode.CALL)
+			state: 'down' if self.parent.vfo == int(tuningMode.CALL) else 'normal'
+
+	Button:
+		id: bandUpButton
+		size_hint_max: 50, 25
+		text: 'UP'
+		on_press: root.control(band_up = True)
+		pos: vfoBox.pos[0] + vfoBox.width + 10, vfoBox.pos[1] + vfoBox.height - self.height
+
+	Button:
+		id: bandDownButton
+		size_hint_max: 50, 25
+		text: 'DOWN'
+		on_press: root.control(band_down = True)
+		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
+
+	FreqDisplay:
+		id: mainFreq
+		activeColour: 1.0, 1.0, 1.0, 1.0
+		inactiveColour: 0.45, 0.45, 0.45, 1.0
+		zeroColour: 0.2, 0.2, 0.2, 1.0
+		font_size: 70
+		halign: 'right'
+		valign: 'top'
+		text_size: 588, 70
+		size_hint_min: self.text_size
+		size_hint_max: self.text_size
+		pos: (root.width - self.width) / 2, mainAFgain.pos[1] - self.height
+		max_lines: 1
+		lines: 1
+		font_name: 'DroidSansMono'
+		rig_state: 'frequency'
+		op_mode_box: opModeBox
+		vfo_box: vfoBox
+		memory_display: mainMemory
+		step_display: mainStepSize
+
+	MemoryDisplay:
+		id: mainMemory
+		markup: True
+		color: 1,1,1,1
+		font_size: 20
+		halign: 'left'
+		valign: 'top'
+		text_size: 588, 24
+		size_hint_min: self.text_size
+		size_hint_max: self.text_size
+		pos: mainFreq.pos[0], mainFreq.pos[1] - 30
+		max_lines: 1
+		lines: 1
+		font_name: 'DroidSansMono'
+		freq_display: mainFreq
+		vfo_box: vfoBox
+
+	StepSizeDisplay:
+		id: mainStepSize
+		markup: True
+		color: 1,1,1,1
+		font_size: 17
+		halign: 'center'
+		valign: 'top'
+		text_size: 588, 24
+		size_hint_min: self.text_size
+		size_hint_max: self.text_size
+		pos: mainFreq.pos[0], mainFreq.pos[1] - 30
+		max_lines: 1
+		lines: 1
+		font_name: 'DroidSansMono'
+		freq_display: mainFreq
+
+	OPModeBox:
+		id: opModeBox
+		pos: (root.width + mainFreq.pos[0] + mainFreq.width - self.width) / 2, vfoBox.pos[1]
+		size_hint_max: 50, 50
+		cols: 1
+		rows: 2
+		rig_state: 'mode'
+
+		OPModeBoxButton:
+			text: 'AM'
+			modeID: int(mode.AM)
+			state: 'down' if self.parent.mode == int(mode.AM) else 'normal'
+
+		OPModeBoxButton:
+			text: 'FM'
+			modeID: int(mode.FM)
+			state: 'down' if self.parent.mode == int(mode.FM) else 'normal'
+
+###
+
+	BoolToggle:
+		id: attenuatorButton
+		rig_state: 'attenuator'
+		pos: (root.width - (mainSquelch.pos[0] + mainSquelch.width - self.pos[0])) / 2,  mainMemory.pos[1] - self.height - 30
+		size_hint_max: 50, 25
+		text: 'ATT'
+
+	BoolToggle:
+		id: preAmpButton
+		rig_state: 'preamp'
+		pos: attenuatorButton.pos[0], attenuatorButton.pos[1] - self.size[1]
+		size_hint_max: 50, 25
+		text: 'PRE'
+
+	Label:
+		id: mainSquelchLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Squelch'
+		pos: preAmpButton.pos[0] + preAmpButton.width + 10, attenuatorButton.pos[1] + attenuatorButton.height - self.height
+
+	StateSlider:
+		id: mainSquelch
+		rig_state: 'squelch'
+		min: 0
+		max: 255
+		value_track: True
+		size_hint_max: 256, 30
+		pos: mainSquelchLabel.pos[0], mainSquelchLabel.pos[1] - self.height
+		step: 1
+
+	StateLamp:
+		id: rxLamp
+		rig_state: 'busy'
+		active_color: 0, 1, 0, 1
+		size_hint_max: 50, 50
+		pos: 10, mainSquelchLabel.pos[1] + mainSquelchLabel.height - self.height
+		text: 'RX'
+
+#####
+
+	BoolToggle:
+		id: powerOn
+		rig_state: 'power_on'
+		active_color: 1, 0, 0, 1
+		size_hint_max: 50, 50
+		pos: 10, rxLamp.pos[1] - self.height - 30
+		halign: 'center'
+		text: 'POWER'
+
+###
+
+	# TODO: RIT (offset?)
+	# TODO: Scan stuff
+	# TODO: CTCSS/DCS RX stuff
+	# TODO: Store and recall various memory types (Quick, Progammable, CALL, "Regular", Range, etc)
+
+	############
+	# TX Block #
+	############
+
+	StateLamp:
+		id: txLamp
+		rig_state: 'tx'
+		active_color: 1, 0, 0, 1
+		size_hint_max: 50, 50
+		update_meter: smeter
+		meter_on: 'gardengauge/cadran.png'
+		meter_off: 'gardengauge/smeter.png'
+		meter_off_low: 'S[b]{0:.0f}[/b]'
+		meter_off_high: '+[b]{0:.0f}[/b]'
+		meter_on_low: '{0:.0f}'
+		meter_on_high: '{0:.0f}'
+		meter_on_calculation: ''
+		meter_off_calculation: 'S-Level'
+		pos: 10, powerOn.pos[1] - 50 - self.height
+		text: 'TX'
+
+	Label:
+		id: voxGainLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'VOX Gain'
+		pos: txLamp.pos[0] + txLamp.width + 10, txLamp.pos[1] + txLamp.height - self.height
+
+	StateSlider:
+		rig_state: 'vox_gain'
+		id: voxGain
+		min: 0
+		max: 9
+		value_track: True
+		size_hint_max: (self.cursor_width + (self.max - self.min)) * 2, 30
+		pos: voxGainLabel.pos[0], voxGainLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: voxDelayLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'VOX Delay'
+		pos: voxGainLabel.pos[0] + voxGain.width + 10, voxGainLabel.pos[1]
+
+	StateSlider:
+		rig_state: 'vox_delay_time'
+		id: voxDelay
+		min: 0
+		max: 9
+		value_track: True
+		size_hint_max: (self.cursor_width + (self.max - self.min)) * 2, 30
+		pos: voxDelayLabel.pos[0], voxDelayLabel.pos[1] - self.height
+		step: 1
+
+	BoolToggle:
+		id: vox
+		rig_state: 'vox'
+		size_hint_max: 50, 25
+		text: 'VOX'
+		pos: voxDelay.pos[0] + voxDelay.width + 10, voxDelayLabel.pos[1] + voxDelayLabel.height - self.height
+
+	Label:
+		id: outputPowerLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Output Power'
+		pos: (root.width - (outputPower.pos[0] + outputPower.width - self.pos[0])) / 2, powerOn.pos[1] - 50 - self.height
+
+	StateSlider:
+		rig_state: 'output_power'
+		id: outputPower
+		min: 5
+		max: 100
+		value_track: True
+		size_hint_max: self.cursor_width + (self.max - self.min), 30
+		pos: outputPowerLabel.pos[0], outputPowerLabel.pos[1] - self.height
+		step: 1
+
+
+###
+
+
+	Label:
+		id: micGainLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Microphone Gain'
+		pos: (root.width - (monitorLevel.pos[0] + monitorLevel.width - self.pos[0])) / 2, outputPower.pos[1] - 30 - self.height
+
+	StateSlider:
+		rig_state: 'microphone_gain'
+		id: microphoneGain
+		min: 0
+		max: 100
+		value_track: True
+		size_hint_max: self.cursor_width + self.max, 30
+		pos: micGainLabel.pos[0], micGainLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: carGainLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Carrier Gain'
+		pos: microphoneGain.pos[0] + microphoneGain.width + 10, micGainLabel.pos[1]
+
+	StateSlider:
+		rig_state: 'carrier_gain'
+		id: carrierGain
+		min: 0
+		max: 100
+		value_track: True
+		size_hint_max: self.cursor_width + self.max, 30
+		pos: carGainLabel.pos[0], carGainLabel.pos[1] - self.height
+		step: 1
+
+	BoolToggle:
+		id: speechProcessor
+		rig_state: 'speech_processor'
+		size_hint_max: 50, 25
+		text: 'PROC'
+		pos: carrierGain.pos[0] + carrierGain.width + 10 + speechProcessorInputLevel.width + 5 - self.width / 2, carGainLabel.pos[1] + carGainLabel.height - self.height
+
+	Label:
+		id: speechProcessorInputLevelLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Input Level'
+		pos: carrierGain.pos[0] + carrierGain.width + 10, speechProcessor.pos[1]
+
+	StateSlider:
+		rig_state: 'speech_processor_input_level'
+		id: speechProcessorInputLevel
+		min: 0
+		max: 100
+		value_track: True
+		size_hint_max: self.cursor_width + self.max, 30
+		pos: speechProcessorInputLevelLabel.pos[0], speechProcessorInputLevelLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: speechProcessorOutputLevelLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: speechProcessorOutputLevel.width, 15
+		size_hint_max: self.text_size
+		halign: 'right'
+		text: 'Output Level'
+		pos: speechProcessorInputLevel.pos[0] + speechProcessorInputLevel.width + 10, speechProcessorInputLevelLabel.pos[1]
+
+	StateSlider:
+		rig_state: 'speech_processor_output_level'
+		id: speechProcessorOutputLevel
+		min: 0
+		max: 100
+		value_track: True
+		size_hint_max: self.cursor_width + self.max, 30
+		pos: speechProcessorOutputLevelLabel.pos[0], speechProcessorOutputLevelLabel.pos[1] - self.height
+		step: 1
+
+	Label:
+		id: monitorLevelLabel
+		color: 0.8,0.8,0.8,1
+		font_size: 15
+		text_size: 588, 15
+		size_hint_max: self.text_size
+		halign: 'left'
+		text: 'Monitor Level'
+		pos: speechProcessorOutputLevel.pos[0] + speechProcessorOutputLevel.width + 10, carGainLabel.pos[1]
+
+	StateSlider:
+		rig_state: 'monitor_level'
+		id: monitorLevel
+		min: 0
+		max: 9
+		value_track: True
+		size_hint_max: self.cursor_width + self.max * 7, 30
+		pos: monitorLevelLabel.pos[0], monitorLevelLabel.pos[1] - self.height
+		step: 1

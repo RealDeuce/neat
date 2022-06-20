@@ -7,6 +7,7 @@ import json
 import socket
 import selectors
 import sys
+import bitarray
 
 class NeatDCallback:
 	def __init__(self, neatd_connection, prop, name, **kwargs):
@@ -32,9 +33,10 @@ class NeatDCallback:
 			self._neatd_connection.append(b'watched ' + bytes(self._name, 'ascii') + b'=null\n')
 
 class NeatDConnection:
-	def __init__(self, neatd, conn):
+	def __init__(self, rig, neatd, conn):
 		self._neatd = neatd
 		self._conn = conn
+		self._rig = rig
 		self.inbuf = b''
 		self.outbuf = b''
 		self.mask = selectors.EVENT_READ | selectors.EVENT_WRITE
@@ -57,10 +59,10 @@ class NeatDConnection:
 			name = bname
 			index = None
 		if index == None:
-			if not name in self._neatd.rigobj._state:
+			if not name in self._rig._state:
 				return None
-			return self._neatd.rigobj._state[name]
-		a = getattr(self._neatd.rigobj, name)
+			return self._rig._state[name]
+		a = getattr(self._rig, name)
 		if isinstance(a, list):
 			if index == None:
 				return a
@@ -83,16 +85,20 @@ class NeatDConnection:
 						sv.value = json.loads(cmd[eq+1:].decode('ascii'))
 					except:
 						print('5Exception ignored: ', sys.exc_info()[0])
+				else:
+					print('Not done, sv = '+str(sv)+', isinstance(sv, list) = '+isinstance(sv, list))
 		elif cmd[0:4] == b'get ':
 			cmd = cmd[4:]
 			sv = self._getsv(cmd)
 			if sv is not None:
 				val = sv.value
+				if isinstance(val, bitarray.bitarray):
+					val = list(val)
 			else:
 				val = None
 			try:
-				if isinstance(val, list):
-					cmd += bytest('[0:'+str(len(val))+']', 'ascii')
+				if isinstance(sv, list):
+					cmd += bytes('[0:'+str(len(val))+']', 'ascii')
 				self.append(cmd + bytes('=' + json.dumps(val), 'ascii') + b'\n')
 			except:
 				print('6Exception ignored: ', sys.exc_info()[0])
@@ -117,13 +123,13 @@ class NeatDConnection:
 				del self._callbacks[sv]
 		elif cmd == b'list':
 			self.append(b'list')
-			for a, p in self._neatd.rigobj._state.items():
+			for a, p in self._rig._state.items():
 				if isinstance(p, rig.StateValue):
 					self.append(b' ' + bytes(a, 'ascii'))
-			for a, p in self._neatd.rigobj.__dict__.items():
+			for a, p in self._rig.__dict__.items():
 				if a[0:1] != '_':
 					if isinstance(p, list):
-						self.append(b' ' + bytes(a+'['+str(len(getattr(self._neatd.rigobj, a)))+']', 'ascii'))
+						self.append(b' ' + bytes(a+'['+str(len(getattr(self._rig, a)))+']', 'ascii'))
 			self.append(b'\n')
 
 	def append(self, buf):
@@ -150,20 +156,25 @@ class NeatDConnection:
 			self.close()
 
 	def write(self):
-		sent = self._conn.send(self.outbuf)
-		if sent > 0:
-			if self._neatd.verbose:
-				print('NeatD response: '+str(self.outbuf[:sent]), file=sys.stderr)
-			self.outbuf = self.outbuf[sent:]
-		if len(self.outbuf) == 0:
-			self.mask &= ~selectors.EVENT_WRITE
-			self._neatd.sel.modify(self._conn, self.mask, data = self)
+		try:
+			sent = self._conn.send(self.outbuf)
+			if sent > 0:
+				if self._neatd.verbose:
+					print('NeatD response: '+str(self.outbuf[:sent]), file=sys.stderr)
+				self.outbuf = self.outbuf[sent:]
+			if len(self.outbuf) == 0:
+				self.mask &= ~selectors.EVENT_WRITE
+				self._neatd.sel.modify(self._conn, self.mask, data = self)
+		except BrokenPipeError:
+			print('Connection unexpectedly closed', file=sys.stderr)
+			self.close()
 
 class NeatD:
 	def accept(self, sock):
 		conn, addr = sock.accept()
 		conn.setblocking(False)
-		rconn = NeatDConnection(self, conn)
+		laddr = conn.getsockname()
+		rconn = NeatDConnection(self.rigobj.rigs[laddr[1] - self._base_port], self, conn)
 		self.sel.register(conn, rconn.mask, data = rconn)
 
 	def __init__(self, **kwargs):
@@ -179,26 +190,30 @@ class NeatD:
 				'rigctld_address': 'localhost',
 				'rigctld_port': 4532,
 				'neatd_address': 'localhost',
-				'neatd_port': 4531,
+				'neatd_port': 3532,
 			}
 		})
 		config.read('neat.ini')
 		self.verbose = config.getboolean('Neat', 'verbose')
+		self._base_port = config.getint('Neat', 'neatd_port')
 		self.rigobj = kenwood_hf.KenwoodHF(port = config['SerialPort']['device'], speed = config.getint('SerialPort', 'speed'), stopbits = config.getint('SerialPort', 'stopBits'), verbose = config.getboolean('Neat', 'verbose'))
 		if config.getboolean('Neat', 'rigctld'):
 			rigctl_main = rigctld.rigctld(self.rigobj.rigs[0], address = config['Neat']['rigctld_address'], port = config.getint('Neat', 'rigctld_port'), verbose = config.getboolean('Neat', 'verbose'))
 			rigctldThread_main = threading.Thread(target = rigctl_main.rigctldThread, name = 'rigctld')
 			rigctldThread_main.start()
-			rigctl_sub = rigctld.rigctld(self.rigobj.rigs[0], address = config['Neat']['rigctld_address'], port = config.getint('Neat', 'rigctld_port') + 1, verbose = config.getboolean('Neat', 'verbose'))
+			rigctl_sub = rigctld.rigctld(self.rigobj.rigs[1], address = config['Neat']['rigctld_address'], port = config.getint('Neat', 'rigctld_port') + 1, verbose = config.getboolean('Neat', 'verbose'))
 			rigctldThread_sub = threading.Thread(target = rigctl_sub.rigctldThread, name = 'rigctld')
 			rigctldThread_sub.start()
-		
-		sock = socket.socket()
-		sock.bind((config['Neat']['neatd_address'], config.getint('Neat', 'neatd_port')))
-		sock.listen(100)
-		sock.setblocking(False)
+
+		port = self._base_port
 		self.sel = selectors.DefaultSelector()
-		self.sel.register(sock, selectors.EVENT_READ)
+		for subrig in self.rigobj.rigs:
+			sock = socket.socket()
+			sock.bind((config['Neat']['neatd_address'], port))
+			sock.listen(100)
+			sock.setblocking(False)
+			self.sel.register(sock, selectors.EVENT_READ)
+			port += 1
 		while not self.rigobj._terminate:
 			events = self.sel.select(0.1)
 			for key, mask in events:

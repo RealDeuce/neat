@@ -74,6 +74,8 @@ class KenwoodHFProtocol:
 								if wr['msgType'] == 'query':
 									wr['stateValue']._cached = None
 							else:
+								if newcmd == '':
+									wr['stateValue']._cached = wr['stateValue']._cached
 								self._write_buffer = bytes(newcmd + ';', 'ascii')
 								if wr['msgType'] == 'set' and (not wr['stateValue']._echoed):
 									newcmd = wr['stateValue']._query_string()

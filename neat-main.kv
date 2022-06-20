@@ -27,7 +27,7 @@
 #:import mode rig.mode
 #:import meter rig.kenwood_hf.meter
 
-<Neat>:
+Neat:
 	size: 1074, 950
 
 	Meter:
@@ -36,7 +36,7 @@
 		max_value: 30
 		size_gauge: 256
 		size_text: 20
-		rig_state: 'main_s_meter'
+		rig_state: 's_meter'
 		file_gauge: 'gardengauge/smeter.png'
 		pos: (root.width - self.size_gauge * 4 - 10 * 3) / 2, root.size[1] - self.size_gauge - 10
 		low_format: 'S[b]{0:.0f}[/b]'
@@ -165,7 +165,7 @@
 
 	BoolToggle:
 		id: noiseReduction1
-		rig_state: 'main_noise_reduction1'
+		rig_state: 'noise_reduction1'
 		size_hint_max: 50, 25
 		text: 'NR1'
 		pos: manualBeatCanceller.pos[0] + manualBeatCanceller.width + 10, manualBeatCanceller.pos[1] + manualBeatCanceller.height - self.height
@@ -173,7 +173,7 @@
 
 	BoolToggle:
 		id: noiseReduction2
-		rig_state: 'main_noise_reduction2'
+		rig_state: 'noise_reduction2'
 		size_hint_max: 50, 25
 		text: 'NR2'
 		pos: noiseReduction1.pos[0] + noiseReduction1.width, noiseReduction1.pos[1]
@@ -200,7 +200,7 @@
 		pos: noiseReduction2.pos[0] + noiseReduction2.width + 10, noiseReduction2.pos[1] + noiseReduction2.height - self.height
 
 	StateSlider:
-		rig_state: 'main_audio_level'
+		rig_state: 'audio_level'
 		id: mainAFgain
 		min: 0
 		max: 255
@@ -264,7 +264,7 @@
 		size_hint_max: 100, 50
 		cols: 2
 		rows: 2
-		rig_state: 'main_rx_tuning_mode'
+		rig_state: 'rx_tuning_mode'
 		freq_display: mainFreq
 
 		VFOBoxButton:
@@ -291,14 +291,14 @@
 		id: bandUpButton
 		size_hint_max: 50, 25
 		text: 'UP'
-		on_press: root.control(main_band_up = True)
+		on_press: root.control(band_up = True)
 		pos: vfoBox.pos[0] + vfoBox.width + 10, mainFreq.pos[1] + mainFreq.height - self.height
 
 	Button:
 		id: bandDownButton
 		size_hint_max: 50, 25
 		text: 'DOWN'
-		on_press: root.control(main_band_down = True)
+		on_press: root.control(band_down = True)
 		pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
 
 	BoolToggle:
@@ -322,7 +322,7 @@
 		max_lines: 1
 		lines: 1
 		font_name: 'DroidSansMono'
-		rig_state: 'main_rx_frequency'
+		rig_state: 'rx_frequency'
 		op_mode_box: opModeBox
 		vfo_box: vfoBox
 		memory_display: mainMemory
@@ -351,7 +351,7 @@
 		cols: 4
 		rows: 2
 		on_mode: highPassLabel.refresh(); lowPassLabel.refresh(); wideNarrowLabel.refresh(); noiseBlanker.refresh()
-		rig_state: 'main_rx_mode'
+		rig_state: 'rx_mode'
 
 		OPModeBoxButton:
 			text: 'USB'
@@ -403,14 +403,14 @@
 
 	BoolToggle:
 		id: attenuatorButton
-		rig_state: 'main_attenuator'
+		rig_state: 'attenuator'
 		pos: (root.width - (mainSquelch.pos[0] + mainSquelch.width - self.pos[0])) / 2,  mainMemory.pos[1] - self.height - 30
 		size_hint_max: 50, 25
 		text: 'ATT'
 
 	BoolToggle:
 		id: preAmpButton
-		rig_state: 'main_preamp'
+		rig_state: 'preamp'
 		pos: attenuatorButton.pos[0], attenuatorButton.pos[1] - self.size[1]
 		size_hint_max: 50, 25
 		text: 'PRE'
@@ -485,7 +485,7 @@
 
 	StateSlider:
 		id: mainSquelch
-		rig_state: 'main_squelch'
+		rig_state: 'squelch'
 		min: 0
 		max: 255
 		value_track: True
@@ -495,7 +495,7 @@
 
 	StateLamp:
 		id: rxLamp
-		rig_state: 'main_busy'
+		rig_state: 'busy'
 		active_color: 0, 1, 0, 1
 		size_hint_max: 50, 50
 		pos: 10, mainSquelchLabel.pos[1] + mainSquelchLabel.height - self.height
@@ -560,7 +560,7 @@
 
 	StateLamp:
 		id: txLamp
-		rig_state: 'main_tx'
+		rig_state: 'tx'
 		active_color: 1, 0, 0, 1
 		size_hint_max: 50, 50
 		update_meter: smeter
@@ -634,7 +634,7 @@
 		pos: (root.width - (outputPower.pos[0] + outputPower.width - self.pos[0])) / 2, antenna2.pos[1] - 50 - self.height
 
 	StateSlider:
-		rig_state: 'main_output_power'
+		rig_state: 'output_power'
 		id: outputPower
 		min: 5
 		max: 100
@@ -653,7 +653,7 @@
 		size_hint_max: 100, 50
 		cols: 2
 		rows: 2
-		rig_state: 'main_tx_tuning_mode'
+		rig_state: 'tx_tuning_mode'
 		freq_display: mainTXFreq
 
 		VFOBoxButton:
@@ -718,7 +718,7 @@
 		op_mode_box: TXopModeBox
 		vfo_box: TXvfoBox
 		memory_display: mainTXMemory
-		rig_state: 'main_tx_frequency'
+		rig_state: 'tx_frequency'
 
 	MemoryDisplay:
 		id: mainTXMemory
@@ -745,7 +745,7 @@
 		cols: 4
 		rows: 2
 		on_mode: highPassLabel.refresh(); lowPassLabel.refresh(); wideNarrowLabel.refresh(); noiseBlanker.refresh()
-		rig_state: 'main_tx_mode'
+		rig_state: 'tx_mode'
 
 		OPModeBoxButton:
 			text: 'USB'

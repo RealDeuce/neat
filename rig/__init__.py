@@ -130,7 +130,6 @@ class Rig(ABC):
 		if (ob == -1) != (cb == -1) or cb < ob:
 			raise Exception('Invalid list indexing')
 		if ob == -1:
-			print('Prop: '+prop)
 			self._state[prop].add_modify_callback(callback)
 			return
 		self._state[prop[:ob]][int(prop[ob+1:cb])].add_modify_callback(callback)

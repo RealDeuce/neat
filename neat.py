@@ -25,11 +25,9 @@
 from getopt import getopt
 from sys import argv
 
-opts, args = getopt(argv[1:], "d", ["debug"])
 verbose = False
-for o, a in opts:
-	if o in ('-d', '--debug'):
-		verbose = True
+client_port = 3532
+kv_file = 'neat.kv'
 
 import rig
 import rig.kenwood_hf as kenwood_hf
@@ -45,6 +43,7 @@ from kivy.config import ConfigParser
 from kivy.core.window import Window
 from kivy.factory import Factory
 from kivy.graphics import Color, Line, Rectangle
+from kivy.lang import Builder
 from kivy.properties import BooleanProperty, BoundedNumericProperty, ColorProperty, ListProperty, NumericProperty, ObjectProperty, StringProperty
 from kivy.uix.checkbox import CheckBox
 from kivy.uix.floatlayout import FloatLayout
@@ -222,6 +221,7 @@ class FreqDisplay(Label):
 	op_mode_box = ObjectProperty()
 	memory_display = ObjectProperty()
 	rig_state = StringProperty()
+	step_display = ObjectProperty()
 
 	# TODO: Change frequency if appropriate when TXing
 	def __init__(self, **kwargs):
@@ -230,9 +230,9 @@ class FreqDisplay(Label):
 		self.bind(vfo_box=self.newVFO)
 		super(FreqDisplay, self).__init__(**kwargs)
 		if rigobj.power_on:
-			if rigobj.vfoa_frequency is not None:
-				self.freqValue = int(rigobj.vfoa_frequency)
-		self.cb_state = 'main_rx_frequency'
+			if rigobj.rx_frequency is not None:
+				self.freqValue = int(rigobj.rx_frequency)
+		self.cb_state = 'rx_frequency'
 		rigobj.add_callback(self.cb_state, self.newFreq)
 		self.bind(rig_state=self.newRigState)
 
@@ -256,18 +256,24 @@ class FreqDisplay(Label):
 			rigobj.remove_callback(self.cb_state, self.newFreq)
 			if self.vfo_box is not None:
 				if self.vfo_box.vfo == vfoa:
-					self.freqValue = rigobj.vfoa_frequency
+					if hasattr(rigobj, vfoa_frequency):
+						self.freqValue = rigobj.vfoa_frequency
+					else:
+						self.freqValue = rigobj.vfo_frequency
 					self._updateFreq(self)
 					self.cb_state = 'VFOAsetFrequency'
 					rigobj.add_callback(self.cb_state, self.newFreq)
 				elif self.vfo_box.vfo == vfob:
-					self.freqValue = rigobj.vfob_frequency
+					if hasattr(rigobj, vfoa_frequency):
+						self.freqValue = rigobj.vfob_frequency
+					else:
+						self.freqValue = rigobj.vfo_frequency
 					self._updateFreq(self)
 					self.cb_state = 'VFOBsetFrequency'
 					rigobj.add_callback(self.cb_state, self.newFreq)
 				elif self.memory_display is not None:
 					if self.vfo_box.vfo == mem:
-						self.memory_display.memoryValue = rigobj.main_memory_channel
+						self.memory_display.memoryValue = rigobj.memory_channel
 						self.memory_display._updateChannel(self.memory_display)
 					elif self.vfo_box.vfo == call:
 						self.memory_display.memoryValue = 300
@@ -314,25 +320,40 @@ class FreqDisplay(Label):
 		elif touch.button == 'scrolldown':
 			up = True
 		add = int(math.pow(10, cell))
+		# Detect sub-receiver and ensure step size
 		if up == False:
 			add = 0 - add
 		new = self.freqValue + add
 		if new % add:
 			new = math.floor(new / add) * add
+		if not hasattr(rigobj, 'vfoa_frequency'):
+			# TODO: Should be in the rig API, not here...
+			stepsize = (5000, 6250, 10000, 12500, 15000, 20000, 25000, 30000, 50000, 100000)[rigobj.multi_ch_frequency_steps]
+			if abs(new - self.freqValue) < stepsize:
+				if up:
+					new = self.freqValue + stepsize
+				else:
+					new = self.freqValue - stepsize
 		if self.vfo_box.vfo == vfoa:
-			rigobj.vfoa_frequency = new
+			if hasattr(rigobj, 'vfoa_frequency'):
+				rigobj.vfoa_frequency = new
+			else:
+				rigobj.vfo_frequency = new
 		elif self.vfo_box.vfo == vfob:
-			rigobj.vfob_frequency = new
-		elif self.vfo_box.vfo == mem and rigobj.main_rx_tuning_mode == kenwood_hf.tuningMode.MEMORY:
-			if up:
-				rigobj.main_up = True
+			if hasattr(rigobj, 'vfoa_frequency'):
+				rigobj.vfob_frequency = new
 			else:
-				rigobj.main_down = True
-		elif self.vfo_box.vfo == call and rigobj.main_rx_tuning_mode == kenwood_hf.tuningMode.CALL:
+				rigobj.vfo_frequency = new
+		elif self.vfo_box.vfo == mem and rigobj.rx_tuning_mode == kenwood_hf.tuningMode.MEMORY:
 			if up:
-				rigobj.main_band_up = True
+				rigobj.up = True
 			else:
-				rigobj.main_band_down = True
+				rigobj.down = True
+		elif self.vfo_box.vfo == call and rigobj.rx_tuning_mode == kenwood_hf.tuningMode.CALL:
+			if up:
+				rigobj.band_up = True
+			else:
+				rigobj.band_down = True
 		return True
 
 class MemoryDisplay(Label):
@@ -346,8 +367,8 @@ class MemoryDisplay(Label):
 		self.bind(memoryValue=self._updateChannel)
 		super(MemoryDisplay, self).__init__(**kwargs)
 		if rigobj.power_on:
-			self.memoryValue = int(rigobj.main_memory_channel)
-		rigobj.add_callback('main_memory_channel', self.newChannel)
+			self.memoryValue = int(rigobj.memory_channel)
+		rigobj.add_callback('memory_channel', self.newChannel)
 		rigobj.add_callback('memory_groups', self.newGroups)
 		rigobj.memories[self.memoryValue].add_modify_callback(self.updateChannel)
 		self.bind(on_ref_press=self.toggle_group)
@@ -398,6 +419,7 @@ class MemoryDisplay(Label):
 
 	def toggle_group(self, widget, value):
 		v = int(value)
+		print('Toggling '+str(v))
 		memGroups = rigobj.memory_groups
 		memGroups[v] = not memGroups[v]
 		rigobj.memory_groups = memGroups
@@ -405,6 +427,14 @@ class MemoryDisplay(Label):
 	def _doUpdateChannel(self, dt):
 		memData = rigobj.memories[self.memoryValue].value
 		if memData is None:
+			return
+		if not 'MemoryGroup' in memData:
+			return
+		if not 'Channel' in memData:
+			return
+		if not 'MemoryName' in memData:
+			return
+		if not 'LockedOut' in memData:
 			return
 		if self.vfo_box is not None and self.freq_display is not None:
 			if self.vfo_box.vfo == mem or self.vfo_box.vfo == call:
@@ -429,6 +459,73 @@ class MemoryDisplay(Label):
 	#def on_touch_down(self, touch):
 	#	# TODO: Deal with clicks...
 	#	return False
+
+class StepSizeDisplay(Label):
+	afm_width = (5000, 6250, 10000, 12500, 15000, 20000, 25000, 30000, 50000, 100000)
+	other_width = (1000, 2500, 5000, 10000)
+	stepSize = BoundedNumericProperty(0, min=0, max=9, errorvalue=0)
+	freq_display = ObjectProperty()
+	is_tx = BooleanProperty(False)
+
+	def __init__(self, **kwargs):
+		self.markup = True
+		self.bind(stepSize=self._updateSteps)
+		super(StepSizeDisplay, self).__init__(**kwargs)
+		if rigobj.power_on:
+			self.stepSize = int(rigobj.multi_ch_frequency_steps)
+		rigobj.add_callback('multi_ch_frequency_steps', self.newStepSize)
+		self.bind(on_ref_press=self.set_step_size)
+		self.bind(freq_display=self.newFreqDisplay)
+		self.bind(is_tx=self.newIsTX)
+
+	def newIsTX(self, widget, value):
+		Clock.schedule_once(self._doUpdateStepSize, 0)
+
+	def newFreqDisplay(self, widget, value):
+		Clock.schedule_once(self._doUpdateStepSize, 0)
+
+	def setVisibility(self):
+		if self.freq_display is None or self.freq_display.vfo_box is None or self.freq_display.vfo_box.vfo == call or self.freq_display.vfo_box.vfo == mem:
+			self.opacity = 0
+			self.disabled = True
+		else:
+			self.opacity = 1
+			self.disabled = False
+
+	def newStepSize(self, stepSize, *args):
+		if stepSize is not None:
+			self.stepSize = int(stepSize)
+
+	def _updateSteps(self, *args):
+		# We can't query the rig in here because we're already
+		# blocking the read method if we're called via a
+		# callback
+		Clock.schedule_once(self._doUpdateStepSize, 0)
+
+	def set_step_size(self, widget, value):
+		v = int(value)
+		rigobj.multi_ch_frequency_steps = v
+
+	def _doUpdateStepSize(self, dt):
+		if self.freq_display == None or self.freq_display.op_mode_box == None:
+			return
+		stepSize = rigobj.multi_ch_frequency_steps
+		if stepSize is None:
+			return
+		new = ''
+		if self.freq_display.op_mode_box.mode in (rig.mode.AM, rig.mode.FM):
+			t = self.afm_width
+		else:
+			t = self.other_width
+		for i in range(len(t)):
+			new += '[ref='+str(i)+']'
+			if i == rigobj.multi_ch_frequency_steps:
+				new += '[color=' + kivy.utils.get_hex_from_color(self.freq_display.activeColour)  + ']'
+			else:
+				new += '[color=' + kivy.utils.get_hex_from_color(self.freq_display.inactiveColour)  + ']'
+			new += str(t[i])
+			new += '[/color][/ref] '
+		self.text = new
 
 class VFOBoxButton(ToggleButton):
 	allow_no_selection = False
@@ -503,6 +600,8 @@ class VFOBox(GridLayout):
 		if self.freq_display is not None:
 			if self.freq_display.memory_display is not None:
 				Clock.schedule_once(lambda dt: self.freq_display.memory_display.setVisibility(), 0)
+			if self.freq_display.step_display is not None:
+				Clock.schedule_once(lambda dt: self.freq_display.step_display.setVisibility(), 0)
 			Clock.schedule_once(lambda dt: self.freq_display.setVFOCallback(), 0)
 		for c in self.children:
 			if self.vfo == -1:
@@ -785,7 +884,7 @@ class FilterDisplay(Widget):
 		self.canvas.add(self.lines)
 		if rigobj.power_on:
 			self.points = rigobj.filter_display_pattern
-		rigobj.add_callback('filter_display_pattern', self.newValue)
+			rigobj.add_callback('filter_display_pattern', self.newValue)
 
 	def on_pos(self, *args):
 		self.on_points(*args)
@@ -884,19 +983,19 @@ class HighPassLabel(Label):
 
 	def __init__(self, **kwargs):
 		super(HighPassLabel, self).__init__(**kwargs)
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_high_pass_cutoff)
 		rigobj.add_callback('voice_high_pass_cutoff', self.newValue)
 		rigobj.add_callback('filter_width', self.newValue)
 
 	def on_prefix(self, widget, value):
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_high_pass_cutoff)
 		else:
-			self.newValue(FilterDisplay.filter_widths[rigobj.main_rx_mode][rigobj.filter_width])
+			self.newValue(FilterDisplay.filter_widths[rigobj.rx_mode][rigobj.filter_width])
 
 	def on_suffix(self, widget, value):
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_high_pass_cutoff)
 		else:
 			self.newValue(rigobj.filter_width)
@@ -905,14 +1004,14 @@ class HighPassLabel(Label):
 		Clock.schedule_once(lambda dt: self._refresh(), 0)
 
 	def _refresh(self):
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_high_pass_cutoff)
 		else:
 			self.newValue(rigobj.filter_width)
 
 	def newValue(self, value, *args):
 		val = ''
-		mode = rigobj.main_rx_mode
+		mode = rigobj.rx_mode
 		if mode == rig.mode.AM:
 			if value == 0:
 				val = '10'
@@ -963,40 +1062,40 @@ class LowPassLabel(Label):
 
 	def __init__(self, **kwargs):
 		super(LowPassLabel, self).__init__(**kwargs)
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_low_pass_cutoff)
 		rigobj.add_callback('voice_low_pass_cutoff', self.newValue)
 		rigobj.add_callback('if_shift', self.newValue)
 
 	def on_prefix(self, widget, value):
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_low_pass_cutoff)
-		elif rigobj.main_rx_mode in self.cwModes:
+		elif rigobj.rx_mode in self.cwModes:
 			self.newValue(rigobj.if_shift)
 
 	def on_suffix(self, widget, value):
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_low_pass_cutoff)
-		elif rigobj.main_rx_mode in self.cwModes:
+		elif rigobj.rx_mode in self.cwModes:
 			self.newValue(rigobj.if_shift)
 
 	def refresh(self):
 		Clock.schedule_once(lambda dt: self._refresh(), 0)
 
 	def _refresh(self):
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.voice_low_pass_cutoff)
-		elif rigobj.main_rx_mode in self.cwModes:
+		elif rigobj.rx_mode in self.cwModes:
 			self.newValue(rigobj.if_shift)
 		else:
 			self.text = ''
 
 	def newValue(self, value, *args):
 		val = ''
-		if rigobj.main_rx_mode is None:
+		if rigobj.rx_mode is None:
 			mode = 0
 		else:
-			mode = int(rigobj.main_rx_mode)
+			mode = int(rigobj.rx_mode)
 		if mode == int(rig.mode.AM):
 			if value == 0:
 				val = '2500'
@@ -1033,7 +1132,7 @@ class LowPassLabel(Label):
 			elif value == 11:
 				val = '5000'
 			val = self.prefix + val + self.suffix
-		elif rigobj.main_rx_mode in self.cwModes:
+		elif rigobj.rx_mode in self.cwModes:
 			val = self.prefix + str(rigobj.if_shift) + self.suffix
 		self.text = val
 
@@ -1044,29 +1143,29 @@ class WideNarrowLabel(Label):
 
 	def __init__(self, **kwargs):
 		super(WideNarrowLabel, self).__init__(**kwargs)
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.filter_width)
 		rigobj.add_callback('filter_width', self.newValue)
 
 	def on_prefix(self, widget, value):
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.filter_width)
 
 	def on_suffix(self, widget, value):
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.filter_width)
 
 	def refresh(self):
 		Clock.schedule_once(lambda dt: self._refresh(), 0)
 
 	def _refresh(self):
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			self.newValue(rigobj.filter_width)
 		else:
 			self.text = ''
 
 	def newValue(self, value, *args):
-		if rigobj.main_rx_mode in self.supportedModes:
+		if rigobj.rx_mode in self.supportedModes:
 			val = 'Narrow' if value == 0 else 'Wide'
 			self.text = self.prefix + val + self.suffix
 
@@ -1165,20 +1264,13 @@ class NeatApp(App):
 		settings.add_json_panel('Neat', self.config, data = jsondata)
 
 	def build(self):
-		global rigobj, rigctl_main, rigctl_sub
+		global rigobj, rigctl_main, rigctl_sub, client_port, kv_file
 		self.config = ConfigParser()
 		self.build_config(self.config)
 		self.config.read('neat.ini')
-		rigobj = NeatC()
+		rigobj = NeatC(port=client_port)
 		self.rig = rigobj
-		#if self.config.getboolean('Neat', 'rigctld'):
-		#	rigctl_main = rigctld.rigctld(rigobj.rigs[0], address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port'), verbose = self.config.getboolean('Neat', 'verbose'))
-		#	rigctldThread_main = threading.Thread(target = rigctl_main.rigctldThread, name = 'rigctld')
-		#	rigctldThread_main.start()
-		#	rigctl_sub = rigctld.rigctld(rigobj.rigs[0], address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port') + 1, verbose = self.config.getboolean('Neat', 'verbose'))
-		#	rigctldThread_sub = threading.Thread(target = rigctl_sub.rigctldThread, name = 'rigctld')
-		#	rigctldThread_sub.start()
-		ui = Neat()
+		ui = Builder.load_file(kv_file)
 		Window.size = ui.size
 		return ui
 
@@ -1191,6 +1283,17 @@ class NeatApp(App):
 				rigctl_sub.verbose = bool(int(value))
 
 if __name__ == '__main__':
+	try:
+		myargs = argv.index('--')
+	except ValueError:
+		myargs = 0
+	opts, args = getopt(argv[myargs + 1:], "k:p:", ["kv=", "port="])
+	for o, a in opts:
+		if o in ('-k', '--kv'):
+			kv_file = a
+		elif o in ('-p', '--port'):
+			client_port = int(a)
+
 	NeatApp().run()
 	rigobj.terminate()
 	#if rigctldThread_main is not None:
