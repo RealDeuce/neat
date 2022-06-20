@@ -463,6 +463,8 @@ class KenwoodStateValue(StateValue):
 				return False
 			if self._in_rig == InRig.SUB and self._rig._state['tx_main']._cached == True:
 				return False
+		if self._in_rig == InRig.SUB and self._rig._state['sub_receiver']._cached == False and not self._works_powered_off:
+			return False
 		if self._range_check is not None:
 			return self._range_check(value)
 		return True
@@ -493,6 +495,8 @@ class KenwoodStateValue(StateValue):
 		if not self._works_powered_off:
 			if not self._rig.power_on:
 				return False
+		if self._in_rig == InRig.SUB and self._rig._state['sub_receiver']._cached == False and not self._works_powered_off:
+			return False
 		if self._validity_check is not None:
 			if not self._validity_check():
 				self._cached = None
@@ -1920,6 +1924,7 @@ class KenwoodHF(Rig):
 				in_rig = InRig.SUB,
 				query_state = QueryState.ANY,
 				set_state = SetState.ANY,
+				works_powered_off = True,
 			),
 			'main_scan_mode': KenwoodStateValue(self,
 				name = 'scan_mode',
