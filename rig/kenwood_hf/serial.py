@@ -28,6 +28,8 @@ class KenwoodHFProtocol:
 		self._serial.rts = True
 		self._serial.port = port
 		self._serial.open()
+		self._serial.reset_output_buffer()
+		self._serial.reset_input_buffer()
 		self._write_buffer = b''
 		self._event = None
 
