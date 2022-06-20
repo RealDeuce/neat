@@ -33,7 +33,8 @@ for o, a in opts:
 
 import rig
 import rig.kenwood_hf as kenwood_hf
-import rigctld
+from neatc import NeatC
+#import rigctld
 import math
 import re
 import time
@@ -56,8 +57,8 @@ import kivy.utils
 from gardengauge import Gauge
 
 rigobj = None
-rigctldThread_main = None
-rigctldThread_sub = None
+#rigctldThread_main = None
+#rigctldThread_sub = None
 rigctl_main = None
 rigctl_sub = None
 vfoa = int(kenwood_hf.tuningMode.VFOA)
@@ -348,9 +349,9 @@ class MemoryDisplay(Label):
 			self.memoryValue = int(rigobj.main_memory_channel)
 		rigobj.add_callback('main_memory_channel', self.newChannel)
 		rigobj.add_callback('memory_groups', self.newGroups)
-		rigobj.memories.memories[self.memoryValue].add_modify_callback(self.updateChannel)
+		rigobj.memories[self.memoryValue].add_modify_callback(self.updateChannel)
 		self.bind(on_ref_press=self.toggle_group)
-		rigobj.memories.memories[300].add_modify_callback(self.updateChannel)
+		rigobj.memories[300].add_modify_callback(self.updateChannel)
 		self.bind(freq_display=self.newFreqDisplay)
 		self.bind(vfo_box=self.newVFOBox)
 		self.bind(is_tx=self.newIsTX)
@@ -375,12 +376,12 @@ class MemoryDisplay(Label):
 
 	def newChannel(self, channel, *args):
 		if self.memoryValue is not None:
-			rigobj.memories.memories[self.memoryValue].remove_modify_callback(self.updateChannel)
+			rigobj.memories[self.memoryValue].remove_modify_callback(self.updateChannel)
 			if self.memoryValue == channel and channel == 300:
 				self._updateChannel()
 		if channel is not None:
 			self.memoryValue = int(channel)
-			rigobj.memories.memories[self.memoryValue].add_modify_callback(self.updateChannel)
+			rigobj.memories[self.memoryValue].add_modify_callback(self.updateChannel)
 
 	def newGroups(self, groups, *args):
 		self._updateChannel()
@@ -402,7 +403,7 @@ class MemoryDisplay(Label):
 		rigobj.memory_groups = memGroups
 
 	def _doUpdateChannel(self, dt):
-		memData = rigobj.memories[self.memoryValue]
+		memData = rigobj.memories[self.memoryValue].value
 		if memData is None:
 			return
 		if self.vfo_box is not None and self.freq_display is not None:
@@ -1168,15 +1169,15 @@ class NeatApp(App):
 		self.config = ConfigParser()
 		self.build_config(self.config)
 		self.config.read('neat.ini')
-		rigobj = kenwood_hf.KenwoodHF(port = self.config.get('SerialPort', 'device'), speed = self.config.getint('SerialPort', 'speed'), stopbits = self.config.getint('SerialPort', 'stopBits'), verbose = self.config.getboolean('Neat', 'verbose'))
+		rigobj = NeatC()
 		self.rig = rigobj
-		if self.config.getboolean('Neat', 'rigctld'):
-			rigctl_main = rigctld.rigctld(rigobj.rigs[0], address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port'), verbose = self.config.getboolean('Neat', 'verbose'))
-			rigctldThread_main = threading.Thread(target = rigctl_main.rigctldThread, name = 'rigctld')
-			rigctldThread_main.start()
-			rigctl_sub = rigctld.rigctld(rigobj.rigs[0], address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port') + 1, verbose = self.config.getboolean('Neat', 'verbose'))
-			rigctldThread_sub = threading.Thread(target = rigctl_sub.rigctldThread, name = 'rigctld')
-			rigctldThread_sub.start()
+		#if self.config.getboolean('Neat', 'rigctld'):
+		#	rigctl_main = rigctld.rigctld(rigobj.rigs[0], address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port'), verbose = self.config.getboolean('Neat', 'verbose'))
+		#	rigctldThread_main = threading.Thread(target = rigctl_main.rigctldThread, name = 'rigctld')
+		#	rigctldThread_main.start()
+		#	rigctl_sub = rigctld.rigctld(rigobj.rigs[0], address = self.config.get('Neat', 'rigctld_address'), port = self.config.getint('Neat', 'rigctld_port') + 1, verbose = self.config.getboolean('Neat', 'verbose'))
+		#	rigctldThread_sub = threading.Thread(target = rigctl_sub.rigctldThread, name = 'rigctld')
+		#	rigctldThread_sub.start()
 		ui = Neat()
 		Window.size = ui.size
 		return ui
@@ -1192,7 +1193,7 @@ class NeatApp(App):
 if __name__ == '__main__':
 	NeatApp().run()
 	rigobj.terminate()
-	if rigctldThread_main is not None:
-		rigctldThread_main.join()
-	if rigctldThread_sub is not None:
-		rigctldThread_sub.join()
+	#if rigctldThread_main is not None:
+	#	rigctldThread_main.join()
+	#if rigctldThread_sub is not None:
+	#	rigctldThread_sub.join()

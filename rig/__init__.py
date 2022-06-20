@@ -100,10 +100,12 @@ class Rig(ABC):
 
 	def __getattr__(self, name):
 		if name in self._state:
+			if isinstance(self._state[name], list):
+				return self._state[name]
 			return self._state[name].value
 		elif name in ('split', 'rx_frequency', 'tx_frequency', 'rx_mode', 'tx_mode', 'tx'):
 			raise NotImplementedError('Rig types require ' + name)
-		raise AttributeError('No state named ' + name + ' found in Kenwood object')
+		raise AttributeError('No state named ' + name + ' found in Rig object')
 
 	def __setattr__(self, name, value):
 		if name[:1] != '_':
@@ -120,11 +122,30 @@ class Rig(ABC):
 	def terminate(self):
 		raise NotImplementedError('Rig types require terminate')
 
-	def add_callback(self, prop, cb):
-		self._state[prop].add_modify_callback(cb)
+	def add_callback(self, prop, callback):
+		if isinstance(self._state[prop], list):
+			raise Exception('Unable to add callback for entire list')
+		ob = prop.find('[')
+		cb = prop.find(']')
+		if (ob == -1) != (cb == -1) or cb < ob:
+			raise Exception('Invalid list indexing')
+		if ob == -1:
+			print('Prop: '+prop)
+			self._state[prop].add_modify_callback(callback)
+			return
+		self._state[prop[:ob]][int(prop[ob+1:cb])].add_modify_callback(callback)
 
-	def remove_callback(self, prop, cb):
-		self._state[prop].remove_modify_callback(cb)
+	def remove_callback(self, prop, callback):
+		if isinstance(self._state[prop], list):
+			raise Exception('Unable to add callback for entire list')
+		ob = prop.find('[')
+		cb = prop.find(']')
+		if (ob == -1) != (cb == -1) or cb < ob:
+			raise Exception('Invalid list indexing')
+		if ob == -1:
+			self._state[prop].remove_modify_callback(callback)
+			return
+		self._state[prop[:ob]][int(prop[ob+1:cb])].remove_modify_callback(callback)
 
 """
 This class implements the caching layer.
@@ -172,9 +193,13 @@ class StateValue(ABC):
 		raise NotImplementedError('value setter not defined')
 
 	def add_modify_callback(self, cb):
+		if not callable(cb):
+			raise Exception('Adding uncallable modify callback: '+str(cb))
 		self._modify_callbacks += (cb,)
 
 	def add_set_callback(self, cb):
+		if not callable(cb):
+			raise Exception('Adding uncallable set callback: '+str(cb))
 		self._set_callbacks += (cb,)
 
 	def remove_modify_callback(self, cb):

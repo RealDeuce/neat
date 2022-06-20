@@ -749,7 +749,7 @@ class MemoryArray(list):
 			self.memories[i].name = 'Memory' + str(i)
 
 	def __len__(self):
-		return self.memories.len()
+		return len(self.memories)
 
 	def __getitem__(self, key):
 		# TODO: Support slices...
@@ -2574,12 +2574,6 @@ class KenwoodHF(Rig):
 			'stateValue': state,
 			'value': value,
 		})
-
-	def add_callback(self, prop, cb):
-		self._state[prop].add_modify_callback(cb)
-
-	def remove_callback(self, prop, cb):
-		self._state[prop].remove_modify_callback(cb)
 
 	def terminate(self):
 		if hasattr(self, 'auto_information'):
