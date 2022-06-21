@@ -25,6 +25,7 @@
 
 from abc import ABC, abstractmethod
 from enum import IntEnum
+import threading
 
 class mode(IntEnum):
 	LSB = 1
@@ -165,17 +166,26 @@ class StateValue(ABC):
 		self._cached_value = None
 		self._modify_callbacks = ()
 		self._set_callbacks = ()
+		self._lock = threading.Lock()
 
 	@property
 	def _cached(self):
-		return self._cached_value
+		self._lock.acquire()
+		ret = self._cached_value
+		self._lock.release()
+		return ret
 
 	@_cached.setter
 	def _cached(self, value):
 		if isinstance(value, StateValue):
 			raise Exception('Forgot to add .cached!')
+		self._lock.acquire()
+		mod = False
 		if self._cached_value != value:
 			self._cached_value = value
+			mod = True
+		self._lock.release()
+		if mod:
 			for cb in self._modify_callbacks:
 				cb(value)
 		for cb in self._set_callbacks:

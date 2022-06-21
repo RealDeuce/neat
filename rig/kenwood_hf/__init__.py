@@ -501,7 +501,7 @@ class KenwoodStateValue(StateValue):
 	@property
 	def value(self):
 		if not self._valid(True):
-			self._cached_value = None
+			self._cached = None
 			return None
 		if self._cached is None and not self._rig._killing_cache:
 			self._rig._query(self)
@@ -617,8 +617,10 @@ class KenwoodListStateValue(KenwoodStateValue):
 		self.add_set_callback(self._update_children)
 
 	def _update_children(self, prop, value):
+		self._lock.acquire()
 		if self._cached_value is None:
 			self._cached_value = [None] * self.length
+		self._lock.release()
 		if value is None:
 			value = [None] * self.length
 		for i in range(self.length):
@@ -627,30 +629,38 @@ class KenwoodListStateValue(KenwoodStateValue):
 
 	@property
 	def _cached(self):
+		self._lock.acquire()
 		if self._cached_value is None:
 			self._cached_value = [None] * self.length
-		return self._cached_value
+		ret = self._cached_value
+		self._lock.release()
+		return ret
 
 	@_cached.setter
 	def _cached(self, value):
-		if self._cached_value is None:
-			self._cached_value = [None] * self.length
 		modified = False
 		if isinstance(value, StateValue):
 			raise Exception('Forgot to add .cached!')
+		self._lock.acquire()
+		if self._cached_value is None:
+			self._cached_value = [None] * self.length
+		cmod = [False] * self.length
 		for i in range(self.length):
 			nv = None if value is None else value[i]
 			if self._cached_value[i] != nv:
+				cmod[i] = True
 				modified = True
 				self._cached_value[i] = nv
 				if self.children[i] is not None:
 					self.children[i]._cached_value = nv
-				if self.children[i] is not None:
-					for cb in self.children[i]._modify_callbacks:
-						cb(nv)
+		self._lock.release()
+		for i in range(self.length):
 			if self.children[i] is not None:
+				if cmod[i]:
+					for cb in self.children[i]._modify_callbacks:
+						cb(value[i])
 				for cb in self.children[i]._set_callbacks:
-					cb(self.children[i], nv)
+					cb(self.children[i], value[i])
 		if modified:
 			for cb in self._modify_callbacks:
 				cb(value)
@@ -3459,8 +3469,12 @@ class KenwoodHF(Rig):
 			# when in MC300, the MC has been updated
 			# TODO: Also fun, the main and sub memory 300 is different
 			if self._state['main_memory_channel']._cached == 300:
+				self.memories.memories[300]._lock.acquire()
+				self._state['main_memory_channel']._lock.acquire()
 				self.memories.memories[300]._cached_value = None
 				self._state['main_memory_channel']._cached_value = None
+				self._state['main_memory_channel']._lock.release()
+				self.memories.memories[300]._lock.release()
 				self._state['main_memory_channel']._cached = 300
 		else:
 			# This is not the enum from ST (sigh)
@@ -3478,9 +3492,13 @@ class KenwoodHF(Rig):
 			# We handle this special case by asserting that if we get IF
 			# when in MC300, the MC has been updated
 			if self._state['sub_memory_channel']._cached == 300:
+				self.memories.memories[300]._lock.acquire()
+				self._state['main_memory_channel']._lock.acquire()
 				self.memories.memories[300]._cached_value = None
 				self._state['sub_memory_channel']._cached_value = None
 				self._state['sub_memory_channel']._cached = 300
+				self._state['main_memory_channel']._lock.release()
+				self.memories.memories[300]._lock.release()
 
 	def _update_IS(self, args):
 		split = self.parse('5d', args)
@@ -3519,7 +3537,9 @@ class KenwoodHF(Rig):
 		# Any time we get an MC300; it means we entered CALL mode
 		# The calling frequency *may* be different than last time!
 		if split[0] == 300:
+			self.memories.memories[300]._lock.acquire()
 			self.memories.memories[300]._cached_value = None
+			self.memories.memories[300]._lock.release()
 			self._send_query(self.memories.memories[300])
 
 	def _update_MD(self, args):

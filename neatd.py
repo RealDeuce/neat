@@ -8,6 +8,7 @@ import socket
 import selectors
 import sys
 import bitarray
+import time
 
 class NeatDCallback:
 	def __init__(self, neatd_connection, prop, name, **kwargs):
@@ -26,13 +27,13 @@ class NeatDCallback:
 			print('2Exception ignored: ', sys.exc_info()[0])
 
 	def callback(self, value):
-		try:
+		#try:
 			if isinstance(value, bitarray.bitarray):
 				value = list(value)
 			self._neatd_connection.append(bytes('watched ' + self._name + '=' + json.dumps(value), 'ascii')+b'\n')
-		except:
-			print('3Exception ignored: ', sys.exc_info()[0])
-			self._neatd_connection.append(b'watched ' + bytes(self._name, 'ascii') + b'=null\n')
+		#except:
+		#	print('3Exception ignored: ', sys.exc_info()[0])
+		#	self._neatd_connection.append(b'watched ' + bytes(self._name, 'ascii') + b'=null\n')
 
 class NeatDConnection:
 	def __init__(self, rig, neatd, conn):
@@ -140,10 +141,14 @@ class NeatDConnection:
 		self.outbuf += buf
 		if (not self.mask & selectors.EVENT_WRITE) and self._conn.fileno() != -1:
 			self.mask |= selectors.EVENT_WRITE
+			self._neatd.sel_lock.acquire()
 			self._neatd.sel.modify(self._conn, self.mask, data = self)
+			self._neatd.sel_lock.release()
 
 	def close(self):
+		self._neatd.sel_lock.acquire()
 		self._neatd.sel.unregister(self._conn)
+		self._neatd.sel_lock.release()
 		self._conn.close()
 
 	def read(self):
@@ -166,7 +171,9 @@ class NeatDConnection:
 				self.outbuf = self.outbuf[sent:]
 			if len(self.outbuf) == 0:
 				self.mask &= ~selectors.EVENT_WRITE
+				self._neatd.sel_lock.acquire()
 				self._neatd.sel.modify(self._conn, self.mask, data = self)
+				self._neatd.sel_lock.release()
 		except BrokenPipeError:
 			print('Connection unexpectedly closed', file=sys.stderr)
 			self.close()
@@ -177,7 +184,9 @@ class NeatD:
 		conn.setblocking(False)
 		laddr = conn.getsockname()
 		rconn = NeatDConnection(self.rigobj.rigs[laddr[1] - self._base_port], self, conn)
+		self.sel_lock.acquire()
 		self.sel.register(conn, rconn.mask, data = rconn)
+		self.sel_lock.release()
 
 	def __init__(self, **kwargs):
 		config = configparser.ConfigParser()
@@ -209,6 +218,7 @@ class NeatD:
 
 		port = self._base_port
 		self.sel = selectors.DefaultSelector()
+		self.sel_lock = threading.Lock()
 		for subrig in self.rigobj.rigs:
 			sock = socket.socket()
 			sock.bind((config['Neat']['neatd_address'], port))
@@ -217,7 +227,13 @@ class NeatD:
 			self.sel.register(sock, selectors.EVENT_READ)
 			port += 1
 		while not self.rigobj._terminate:
+			self.sel_lock.acquire()
 			events = self.sel.select(0.1)
+			self.sel_lock.release()
+			if len(events) == 0:
+				# Allow other thrads to obtain the lock...
+				# It seems these aren't FIFO locks
+				time.sleep(0.0001)
 			for key, mask in events:
 				if isinstance(key.data, NeatDConnection):
 					if mask & selectors.EVENT_WRITE:
