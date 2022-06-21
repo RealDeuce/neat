@@ -27,13 +27,13 @@ class NeatDCallback:
 			print('2Exception ignored: ', sys.exc_info()[0])
 
 	def callback(self, value):
-		#try:
+		try:
 			if isinstance(value, bitarray.bitarray):
 				value = list(value)
 			self._neatd_connection.append(bytes('watched ' + self._name + '=' + json.dumps(value), 'ascii')+b'\n')
-		#except:
-		#	print('3Exception ignored: ', sys.exc_info()[0])
-		#	self._neatd_connection.append(b'watched ' + bytes(self._name, 'ascii') + b'=null\n')
+		except:
+			print('3Exception ignored: ', sys.exc_info()[0])
+			self._neatd_connection.append(b'watched ' + bytes(self._name, 'ascii') + b'=null\n')
 
 class NeatDConnection:
 	def __init__(self, rig, neatd, conn):
