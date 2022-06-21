@@ -27,6 +27,8 @@ class NeatDCallback:
 
 	def callback(self, value):
 		try:
+			if isinstance(value, bitarray.bitarray):
+				value = list(value)
 			self._neatd_connection.append(bytes('watched ' + self._name + '=' + json.dumps(value), 'ascii')+b'\n')
 		except:
 			print('3Exception ignored: ', sys.exc_info()[0])

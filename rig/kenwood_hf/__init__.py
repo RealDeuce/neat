@@ -792,6 +792,83 @@ class KenwoodHFSubRig(Rig):
 		self._terminate = True
 
 class KenwoodHF(Rig):
+	# TODO: Get ranges for non-K types
+	tx_ranges_k = { # Americas
+		'160m': [   1800000,   1999999],
+		'80m':  [   3500000,   3999999],
+		'40m':  [   7000000,   7299999],
+		'30m':  [  10100000,  10149999],
+		'20m':  [  14000000,  14349999],
+		'17m':  [  18068000,  18167999],
+		'15m':  [  21000000,  21449999],
+		'12m':  [  24890000,  24989999],
+		'10m':  [  28000000,  29699999],
+		'6m':   [  50000000,  53999999],
+		'2m':   [ 144000000, 147999999],
+		'70cm': [ 430000000, 449999999],
+		'23cm': [1240000000,1299999999],
+	}
+	tx_ranges_e = { # Europe
+		'160m': [   1810000,   1999999],
+		'80m':  [   3500000,   3799999],
+		'40m':  [   7000000,   7099999],
+		'30m':  [  10100000,  10149999],
+		'20m':  [  14000000,  14349999],
+		'17m':  [  18068000,  18167999],
+		'15m':  [  21000000,  21449999],
+		'12m':  [  24890000,  24989999],
+		'10m':  [  28000000,  29699999],
+		'6m':   [  50000000,  51999999],
+		'2m':   [ 144000000, 145999999],
+		'70cm': [ 430000000, 439999999],
+		'23cm': [1240000000,1299999999],
+	}
+	tx_ranges_e2 = { # Spain
+		'160m': [   1830000,   1849999],
+		'80m':  [   3500000,   3799999],
+		'40m':  [   7000000,   7099999],
+		'30m':  [  10100000,  10149999],
+		'20m':  [  14000000,  14349999],
+		'17m':  [  18068000,  18167999],
+		'15m':  [  21000000,  21449999],
+		'12m':  [  24890000,  24989999],
+		'10m':  [  28000000,  29699999],
+		'6m':   [  50000000,  50199999],
+		'2m':   [ 144000000, 145999999],
+		'70cm': [ 430000000, 439999999],
+		'23cm': [1240000000,1299999999],
+	}
+	rx_ranges_k_main = {
+		'HF':   [     30000,  60000000],
+		'2m':   [ 142000000, 151999999],
+		'70cm': [ 420000000, 449999999],
+		'23cm': [1240000000,1299999999],
+	}
+	rx_ranges_e_main = {
+		'HF':   [     30000,  60000000],
+		'2m':   [ 144000000, 145999999],
+		'70cm': [ 430000000, 439999999],
+		'23cm': [1240000000,1299999999],
+	}
+	rx_ranges_e2_main = {
+		'HF':   [     30000,  60000000],
+		'2m':   [ 144000000, 145999999],
+		'70cm': [ 430000000, 439999999],
+		'23cm': [1240000000,1299999999],
+	}
+	rx_ranges_k_sub = {
+		'2m':   [118000000, 173995000],
+		'70cm': [220000000, 511995000],
+	}
+	rx_ranges_e_sub = {
+		'2m':   [144000000, 145995000],
+		'70cm': [430000000, 439995000],
+	}
+	rx_ranges_e2_sub = {
+		'2m':   [144000000, 145995000],
+		'70cm': [430000000, 439995000],
+	}
+
 	def __init__(self, **kwargs):
 		super().__init__(**kwargs)
 		self._terminate = False
@@ -1132,6 +1209,7 @@ class KenwoodHF(Rig):
 				query_state = QueryState.NONE,
 			),
 			'busy_list': KenwoodListStateValue(self, 2,
+				query_command = 'BY',
 				in_rig = InRig.NONE,
 				set_state = SetState.NONE,
 				query_state = QueryState.ANY,
@@ -1371,6 +1449,7 @@ class KenwoodHF(Rig):
 				query_command = 'FW',
 				set_format = 'FW{:04d}',
 				validity_check = self._filter_width_valid,
+				range_check = self._filter_width_range_check,
 				in_rig = InRig.MAIN,
 				query_state = QueryState.CONTROL,
 				set_state = SetState.CONTROL,
@@ -1562,6 +1641,7 @@ class KenwoodHF(Rig):
 			'memory_groups': KenwoodListStateValue(self, 10,
 				echoed = False,
 				query_command = 'MU',
+				set_command = 'MU{0[0]:1d}{0[1]:1d}{0[2]:1d}{0[3]:1d}{0[4]:1d}{0[5]:1d}{0[6]:1d}{0[7]:1d}{0[8]:1d}{0[9]:1d}',
 				in_rig = InRig.BOTH,
 				query_state = QueryState.ANY,
 				set_state = SetState.ANY,
@@ -1571,6 +1651,7 @@ class KenwoodHF(Rig):
 				query_command = 'NB',
 				set_format = 'NB{:01d}',
 				validity_check = self._noise_blanker_valid,
+				range_check = self._noise_blanker_range_check,
 				in_rig = InRig.MAIN,
 				query_state = QueryState.ANY,
 				set_state = SetState.CONTROL,
@@ -1591,7 +1672,7 @@ class KenwoodHF(Rig):
 				in_rig = InRig.MAIN,
 				query_state = QueryState.CONTROL,
 				set_state = SetState.CONTROL,
-				range_check = self._main_noise_reduction_range_check
+				range_check = self._main_noise_reduction_range_check,
 			),
 			'sub_noise_reduction': KenwoodStateValue(self,
 				name = 'noise_reduction',
@@ -1767,7 +1848,7 @@ class KenwoodHF(Rig):
 				echoed = True,
 				set_format = 'QI',
 				in_rig = InRig.BOTH,
-				query_state = QueryState.ANY,
+				query_state = QueryState.NONE,
 				set_state = SetState.ANY,
 			),
 			'quick_memory_list': KenwoodListStateValue(self, 2,
@@ -1809,9 +1890,9 @@ class KenwoodHF(Rig):
 			'rit_down': KenwoodStateValue(self,
 				echoed = True,
 				set_format = 'RD{:05d}',
-				validity_check = self._rit_up_down_valid,
+				range_check = self._rit_up_down_range_check,
 				in_rig = InRig.MAIN,
-				query_state = QueryState.CONTROL,
+				query_state = QueryState.NONE,
 				set_state = SetState.CONTROL,
 			),
 			'scan_speed': KenwoodStateValue(self,
@@ -1825,7 +1906,7 @@ class KenwoodHF(Rig):
 			'scan_speed_down': KenwoodStateValue(self,
 				echoed = True,
 				set_format = 'RD{:05d}',
-				validity_check = self._scan_speed_up_down_valid,
+				range_check = self._scan_speed_up_down_range_check,
 				in_rig = InRig.MAIN,
 				query_state = QueryState.NONE,
 				set_state = SetState.CONTROL,
@@ -1843,6 +1924,7 @@ class KenwoodHF(Rig):
 				query_command = 'RL',
 				set_format = 'RL{:02d}',
 				validity_check = self._noise_reduction_level_valid,
+				range_check = self._noise_reduction_level_range_check,
 				in_rig = InRig.MAIN,
 				query_state = QueryState.CONTROL,
 				set_state = SetState.CONTROL,
@@ -1891,15 +1973,15 @@ class KenwoodHF(Rig):
 			'rit_up': KenwoodStateValue(self,
 				echoed = True,
 				set_format = 'RU{:05d}',
-				validity_check = self._rit_up_down_valid,
+				range_check = self._rit_up_down_range_check,
 				in_rig = InRig.MAIN,
-				query_state = QueryState.CONTROL,
+				query_state = QueryState.NONE,
 				set_state = SetState.CONTROL,
 			),
 			'scan_speed_up': KenwoodStateValue(self,
 				echoed = True,
 				set_format = 'RU{:05d}',
-				validity_check = self._scan_speed_up_down_valid,
+				range_check = self._scan_speed_up_down_range_check,
 				in_rig = InRig.MAIN,
 				query_state = QueryState.NONE,
 				set_state = SetState.CONTROL,
@@ -1953,6 +2035,7 @@ class KenwoodHF(Rig):
 				query_command = 'SH',
 				set_format = 'SH{:02d}',
 				validity_check = self._voice_cutoff_valid,
+				range_check = self._voice_low_pass_cutoff_range_check,
 				in_rig = InRig.MAIN,
 				set_state = SetState.CONTROL,
 				query_state = QueryState.CONTROL,
@@ -1963,6 +2046,7 @@ class KenwoodHF(Rig):
 				query_command = 'SL',
 				set_format = 'SL{:02d}',
 				validity_check = self._voice_cutoff_valid,
+				range_check = self._voice_high_pass_cutoff_range_check,
 				in_rig = InRig.MAIN,
 				set_state = SetState.CONTROL,
 				query_state = QueryState.CONTROL,
@@ -2025,6 +2109,7 @@ class KenwoodHF(Rig):
 				set_state = SetState.CONTROL,
 				query_state = QueryState.CONTROL,
 				validity_check = self._main_multi_ch_frequency_steps_valid,
+				range_check = self._main_multi_ch_frequency_steps_range_check,
 			),
 			'sub_multi_ch_frequency_steps': KenwoodStateValue(self,
 				name = 'multi_ch_frequency_steps',
@@ -2035,25 +2120,26 @@ class KenwoodHF(Rig):
 				set_state = SetState.CONTROL,
 				query_state = QueryState.CONTROL,
 				validity_check = self._sub_multi_ch_frequency_steps_valid,
+				range_check = self._sub_multi_ch_frequency_steps_range_check,
 			),
 			# TODO: SU - program scan pause frequency
 			'main_memory_to_vfo': KenwoodStateValue(self,
 				name = 'memory_to_vfo',
 				echoed = True,
 				set_format = 'SV',
-				validity_check = self._main_memory_to_vfo_valid,
+				range_check = self._main_memory_to_vfo_range_check,
 				in_rig = InRig.MAIN,
 				set_state = SetState.CONTROL,
-				query_state = QueryState.CONTROL,
+				query_state = QueryState.NONE,
 			),
 			'sub_memory_to_vfo': KenwoodStateValue(self,
 				name = 'memory_to_vfo',
 				echoed = True,
 				set_format = 'SV',
-				validity_check = self._sub_memory_to_vfo_valid,
+				range_check = self._sub_memory_to_vfo_range_check,
 				in_rig = InRig.SUB,
 				set_state = SetState.CONTROL,
-				query_state = QueryState.CONTROL,
+				query_state = QueryState.NONE,
 			),
 			'pc_control_command_mode': KenwoodStateValue(self,
 				echoed = True,
@@ -2069,7 +2155,7 @@ class KenwoodHF(Rig):
 				set_format = 'TD{:02d}',
 				in_rig = InRig.MAIN,
 				set_state = SetState.TX,
-				query_state = QueryState.ANY,
+				query_state = QueryState.NONE,
 			),
 			'sub_send_dtmf_memory_data': KenwoodStateValue(self,
 				name = 'send_dtmf_memory_data',
@@ -2077,7 +2163,7 @@ class KenwoodHF(Rig):
 				set_format = 'TD{:02d}',
 				in_rig = InRig.SUB,
 				set_state = SetState.TX,
-				query_state = QueryState.ANY,
+				query_state = QueryState.NONE,
 			),
 			'tnc_led_list': KenwoodListStateValue(self, 3,
 				query_command = 'TI',
@@ -2179,14 +2265,14 @@ class KenwoodHF(Rig):
 				set_format = 'VR0',
 				in_rig = InRig.BOTH,
 				set_state = SetState.ANY,
-				query_state = QueryState.ANY,
+				query_state = QueryState.NONE,
 			),
 			'voice2': KenwoodStateValue(self,
 				echoed = True,
 				set_format = 'VR1',
 				in_rig = InRig.BOTH,
 				set_state = SetState.ANY,
-				query_state = QueryState.ANY,
+				query_state = QueryState.NONE,
 			),
 			'vox': KenwoodStateValue(self,
 				echoed = False,
@@ -2224,6 +2310,14 @@ class KenwoodHF(Rig):
 				echoed = False,
 				query_command = 'EX0270000',
 				set_format = 'EX0270000{:01d}',
+				in_rig = InRig.MAIN,
+				query_state = QueryState.ANY,
+				set_state = SetState.ANY,
+			),
+			'packet_filter': KenwoodStateValue(self,
+				echoed = False,
+				query_command = 'EX0500100',
+				set_format = 'EX0500100{:01d}',
 				in_rig = InRig.MAIN,
 				query_state = QueryState.ANY,
 				set_state = SetState.ANY,
@@ -2643,6 +2737,8 @@ class KenwoodHF(Rig):
 	def _fill_cache(self):
 		if self._state['power_on']._cached == False:
 			return
+		if self._filling_cache:
+			return
 		self._filling_cache = True
 		done = {}
 		self._fill_cache_state['todo'] = []
@@ -2757,6 +2853,9 @@ class KenwoodHF(Rig):
 		# Fail if main TX is VHF+
 		# With exernal tuners, this should be over 30MHz... :(
 		if self._state['main_tx_frequency']._cached > 60000000:
+			return False
+		# Tuner will not respond to commands with TX outside of band
+		if self._check_frequency(self._state['main_tx_frequency']._cached, self.tx_ranges_k) is None:
 			return False
 		return True
 
@@ -2914,6 +3013,103 @@ class KenwoodHF(Rig):
 		if sf >= 220000000 and sf <= 229999999:
 			return False
 
+	def _rit_up_down_range_check(self, value):
+		return self._state['main_scan_mode']._cached == scanMode.OFF
+
+	def _scan_speed_up_down_range_check(self, value):
+		return self._state['main_scan_mode']._cached != scanMode.OFF
+
+	def _filter_width_range_check(self, value):
+		if self._state['main_rx_mode']._cached in (mode.AM, mode.FM):
+			if value < 0 or value > 1:
+				return False
+		elif self._state['main_rx_mode']._cached in (mode.FSK, mode.FSK_REVERSED):
+			if value not in (250, 500, 1000, 1500):
+				return False
+		elif self._state['main_rx_mode']._cached in (mode.CW, mode.CW_REVERSED):
+			if value not in (50, 80, 100, 150, 200, 300, 400, 500, 600, 1000, 2000):
+				return False
+		else:
+			return False
+		# Don't query filter width when tuning
+		if self._state['start_tune']._cached:
+			return False
+		return True
+
+	def _noise_blanker_range_check(self, value):
+		if self._state['main_rx_mode']._cached == mode.FM:
+			return False
+		elif value < 0 or value > 1:
+			return False
+		return True
+
+	def _voice_low_pass_cutoff_range_check(self, value):
+		if self._state['main_rx_mode']._cached in (mode.FM, mode.LSB, mode.USB):
+			if self._state['packet_filter']._cached:
+				if value < 0 or value > 3:
+					return False
+			elif value < 0 or value > 11:
+				return False
+		elif self._state['main_rx_mode']._cached in (mode.AM,):
+			if value < 0 or value > 3:
+				return False
+		else:
+			return False
+		return True
+
+	def _voice_high_pass_cutoff_range_check(self, value):
+		if self._state['main_rx_mode']._cached in (mode.FM, mode.LSB, mode.USB):
+			if self._state['packet_filter']._cached:
+				if value < 0 or value > 1:
+					return False
+			elif value < 0 or value > 11:
+				return False
+		elif self._state['main_rx_mode']._cached in (mode.AM,):
+			if value < 0 or value > 3:
+				return False
+		else:
+			return False
+		return True
+
+	def _main_multi_ch_frequency_steps_range_check(self, value):
+		if self._state['main_rx_tuning_mode'] in (tuningMode.CALL, tuningMode.MEMORY):
+			return False
+		elif self._state['main_rx_mode']._cached in (mode.USB, mode.LSB, mode.CW, mode.CW_REVERSED, mode.FSK, mode.FSK_REVERSED):
+			if value < 0 or value > 3:
+				return False
+		elif self._state['main_rx_mode']._cached in (mode.AM, mode.FM):
+			if value < 0 or value > 9:
+				return False
+		else:
+			return False
+		return True
+
+	def _sub_multi_ch_frequency_steps_range_check(self, value):
+		if self._state['sub_tuning_mode'] in (tuningMode.CALL, tuningMode.MEMORY):
+			return False
+		elif self._state['sub_mode']._cached in (mode.USB, mode.LSB, mode.CW, mode.CW_REVERSED, mode.FSK, mode.FSK_REVERSED):
+			if value < 0 or value > 3:
+				return False
+		elif self._state['sub_mode']._cached in (mode.AM, mode.FM):
+			if value < 0 or value > 9:
+				return False
+		else:
+			return False
+		return True
+
+	def _main_memory_to_vfo_range_check(self, value):
+		return self._state['main_rx_tuning_mode']._cached == tuningMode.MEMORY
+
+	def _sub_memory_to_vfo_range_check(self, value):
+		return self._state['sub_tuning_mode']._cached == tuningMode.MEMORY
+
+	def _noise_reduction_level_range_check(self, value):
+		if self._state['main_noise_reduction']._cached == noiseReduction.OFF:
+			return False
+		if value < 0 or value > 9:
+			return False
+		return True
+
 	# Set methods return a string to send to the rig
 	def _set_tx(self, value):
 		if value:
@@ -2982,12 +3178,6 @@ class KenwoodHF(Rig):
 
 	# Update methods return a string to send to the rig
 	# Validity check methods return True or False
-	def _rit_up_down_valid(self):
-		return self._state['main_scan_mode']._cached == scanMode.OFF
-
-	def _scan_speed_up_down_valid(self):
-		return self._state['main_scan_mode']._cached != scanMode.OFF
-
 	def _noise_reduction_level_valid(self):
 		return self._state['main_noise_reduction']._cached != noiseReduction.OFF
 
@@ -3007,12 +3197,6 @@ class KenwoodHF(Rig):
 			return False
 		return True
 
-	def _main_memory_to_vfo_valid(self):
-		return self._state['main_rx_tuning_mode']._cached == tuningMode.MEMORY
-
-	def _sub_memory_to_vfo_valid(self):
-		return self._state['sub_tuning_mode']._cached == tuningMode.MEMORY
-
 	def _filter_width_valid(self):
 		if self._state['main_rx_mode']._cached in (mode.LSB, mode.USB,):
 			return False
@@ -3021,31 +3205,17 @@ class KenwoodHF(Rig):
 			return False
 		return True
 
-
-
-
+	def _check_frequency(self, value, band_list):
+		for b in band_list:
+			if value >= band_list[b][0] and value <= band_list[b][1]:
+				return b
+		return None
 
 	def _checkMainFrequencyValid(self, value):
-		ranges = {
-			'HF': [30000, 60000000],
-			'VHF': [142000000, 151999999],
-			'UHF': [420000000, 449999999],
-		}
-		for r in ranges:
-			if value >= ranges[r][0] and value <= ranges[r][1]:
-				return True
-		return False
+		return self._check_frequency(value, self.rx_ranges_k_main) is not None
 
 	def _checkSubFrequencyValid(self, value):
-		ranges = {
-			'VHF': [118000000, 173995000],
-			'VHFH': [220000000, 511995000],
-			'UHF': [420000000, 449999999],
-		}
-		for r in ranges:
-			if value >= ranges[r][0] and value <= ranges[r][1]:
-				return True
-		return False
+		return self._check_frequency(value, self.rx_ranges_k_sub) is not None
 
 	def _check_transmitSet(self, value):
 		if not value:
@@ -3061,6 +3231,9 @@ class KenwoodHF(Rig):
 		if self._state['main_tx_tuning_mode']._cached != self._state['main_rx_tuning_mode']._cached:
 			return True
 		return False
+
+	def _scan_speed_up_down_valid(self):
+		return self._scan_speed_up_down_range_check(None)
 
 	def _update_AC(self, args):
 		split = self.parse('1d1d1d', args)
@@ -3159,6 +3332,8 @@ class KenwoodHF(Rig):
 			self._state['beep_output_level']._cached = int(split[4])
 		elif split[0] == 6:
 			self._state['memory_vfo_split_enabled']._cached = bool(int(split[4]))
+		elif split[0] == 50 and split[1] == 1:
+			self._state['packet_filter']._cached = bool(int(split[4]))
 		else:
 			print('Unhandled EX menu {:03d}'.format(split[0]), file=stderr)
 
@@ -3433,6 +3608,7 @@ class KenwoodHF(Rig):
 		split = self.parse('1d', args)
 		if self._state['control_main']._cached:
 			self._state['main_noise_reduction']._cached = noiseReduction(split[0])
+			self._send_query(self._state['noise_reduction_level'])
 		else:
 			self._state['sub_noise_reduction']._cached = noiseReduction(split[0])
 
