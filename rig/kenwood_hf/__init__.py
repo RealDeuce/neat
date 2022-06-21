@@ -326,23 +326,18 @@ class QueryState(IntEnum):
 class KenwoodStateValue(StateValue):
 	def __init__(self, rig, **kwargs):
 		super().__init__(rig, **kwargs)
-		self._echoed = kwargs.get('echoed')
+		self._echoed = kwargs.get('echoed', True)
 		self._query_command = kwargs.get('query_command')
 		self._query_method = kwargs.get('query_method')
 		self._range_check = kwargs.get('range_check')
 		self._set_format = kwargs.get('set_format')
 		self._set_method = kwargs.get('set_method')
 		self._validity_check = kwargs.get('validity_check')
-		self._works_powered_off = kwargs.get('works_powered_off')
-		self._in_rig = kwargs.get('in_rig')
-		self._set_state = kwargs.get('set_state')
-		self._query_state = kwargs.get('query_state')
-		if self._in_rig is None:
-			self._in_rig = InRig.BOTH
-		if self._set_state is None:
-			self._set_state = SetState.ANY
-		if self._query_state is None:
-			self._query_state = QueryState.ANY
+		self._works_powered_off = kwargs.get('works_powered_off', False)
+		self._works_sub_off = kwargs.get('works_sub_off', False)
+		self._in_rig = kwargs.get('in_rig', InRig.BOTH)
+		self._set_state = kwargs.get('set_state', SetState.ANY)
+		self._query_state = kwargs.get('query_state', QueryState.ANY)
 		if self._set_format is not None and self._set_method is not None:
 			raise Exception('Only one of set_method or set_format may be specified')
 		if self._query_command is not None and self._query_method is not None:
@@ -463,7 +458,7 @@ class KenwoodStateValue(StateValue):
 				return False
 			if self._in_rig == InRig.SUB and self._rig._state['tx_main']._cached == True:
 				return False
-		if self._in_rig == InRig.SUB and self._rig._state['sub_receiver']._cached == False and not self._works_powered_off:
+		if self._in_rig == InRig.SUB and self._rig._state['sub_receiver']._cached == False and not self._works_sub_off:
 			return False
 		if self._range_check is not None:
 			return self._range_check(value)
@@ -495,7 +490,7 @@ class KenwoodStateValue(StateValue):
 		if not self._works_powered_off:
 			if not self._rig.power_on:
 				return False
-		if self._in_rig == InRig.SUB and self._rig._state['sub_receiver']._cached == False and not self._works_powered_off:
+		if self._in_rig == InRig.SUB and self._rig._state['sub_receiver']._cached == False and not self._works_sub_off:
 			return False
 		if self._validity_check is not None:
 			if not self._validity_check():
@@ -533,6 +528,7 @@ class KenwoodDerivedBoolValue(KenwoodStateValue):
 		self._query_command = self._derived_from._query_command
 		self._query_method = self._derived_from._query_method
 		self._works_powered_off = self._derived_from._works_powered_off
+		self._works_sub_off = self._derived_from._works_sub_off
 		self._in_rig = self._derived_from._in_rig
 		self._set_state = self._derived_from._set_state
 		self._query_state = self._derived_from._query_state
@@ -1924,7 +1920,7 @@ class KenwoodHF(Rig):
 				in_rig = InRig.SUB,
 				query_state = QueryState.ANY,
 				set_state = SetState.ANY,
-				works_powered_off = True,
+				works_sub_off = True,
 			),
 			'main_scan_mode': KenwoodStateValue(self,
 				name = 'scan_mode',
@@ -3578,6 +3574,8 @@ class KenwoodHF(Rig):
 	def _update_SB(self, args):
 		split = self.parse('1d', args)
 		self._state['sub_receiver']._cached = bool(split[0])
+		if self._state['sub_receiver']._cached:
+			self._fill_cache()
 
 	def _update_SC(self, args):
 		split = self.parse('1d', args)
