@@ -3381,6 +3381,7 @@ class KenwoodHF(Rig):
 			self._state['main_tx_tuning_mode']._cached = tuning_mode
 			self._main_rx_frequency_query()
 			self._main_tx_frequency_query()
+			self._state['split']._cached = False
 		else:
 			self._state['sub_tuning_mode']._cached = tuning_mode
 			self._sub_frequency_query()
@@ -3397,6 +3398,10 @@ class KenwoodHF(Rig):
 		tuning_mode = tuningMode(split[0])
 		if self._state['control_main']._cached:
 			self._state['main_tx_tuning_mode']._cached = tuning_mode
+			if self._state['main_tx_tuning_mode']._cached != self._state['main_rx_tuning_mode']._cached:
+				self._state['split']._cached = True
+			else:
+				self._state['split']._cached = False
 			self._main_tx_frequency_query()
 		else:
 			self._state['sub_tuning_mode']._cached = tuning_mode
