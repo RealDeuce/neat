@@ -604,14 +604,6 @@ class rigctld_connection:
 		self.inbuf = b''
 		self.outbuf = b''
 		self.mask = selectors.EVENT_READ | selectors.EVENT_WRITE
-		# Hamlib braindead split mode.
-		# In braindead split mode, set_vfo is not expected to change either the RX or TX VFO.
-		# Instead, it just changes the current VFO that commands will be applied to.
-		# When not in braindead mode though, it's expected to change both the RX and TX VFOs.
-		# currVFO is always the "you know what I mean" VFO, even if you don't.
-		self.bd_split = self._rigctld.rig.split
-		if self.bd_split is None:
-			self.bd_split = False
 		self.currVFO = vfo.VFOA # Bah.
 		self.rxVFO = self.currVFO
 		self.txVFO = self.currVFO
@@ -683,7 +675,7 @@ class rigctld_connection:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 			return
 		self.currVFO = vfo
-		if not self.bd_split:
+		if not self._rigctld.rig.split:
 			self.rxVFO = vfo
 		self.append(bytes('RPRT 0\n', 'ascii'))
 
@@ -772,21 +764,21 @@ class rigctld_connection:
 			self.currVFO = rxvfo
 			self.rxVFO = rxvfo
 			self.txVFO = rxvfo
-			self.bd_split = False
+			self._rigctld.rig.split = False
 		elif command['argv'][0] == '1':
 			self._rigctld.rig.split = True
 			self.currVFO = rxvfo
 			self.rxVFO = rxvfo
 			self.txVFO = txvfo
-			self.bd_split = True
+			self._rigctld.rig.split = True
 		else:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 			return
 		self.append(bytes('RPRT 0\n', 'ascii'))
 
 	def _get_split_vfo(self, command):
-		self.append(bytes('{:d}\n'.format(self.bd_split), 'ascii'))
-		if self.txVFO == vfo.VFOA:
+		self.append(bytes('{:d}\n'.format(self._rigctld.rig.split), 'ascii'))
+		if self.rxVFO == vfo.VFOA:
 			self.append(b"VFOA\n")
 		else:
 			self.append(b"VFOB\n")
@@ -815,7 +807,7 @@ class rigctld_connection:
 
 	def _set_split_mode(self, command):
 		# We ignore the VFO passed in and set the mode for both
-		if not self.bd_split:
+		if not self._rigctld.rig.split:
 			self.append(bytes('RPRT {:d}\n'.format(error.RIG_EINVAL), 'ascii'))
 			return
 		mode = self.get_rig_mode(command['argv'][0])
@@ -984,7 +976,7 @@ class rigctld_connection:
 					print(' ' + command['cmd']['in_args'][i]+'='+command['argv'][i], end='', file=sys.stderr)
 				print('', file=sys.stderr)
 			if 'handler' not in command['cmd']:
-				self.append(bytes('RPRT {:d}'.format(error.RIG_ENIMPL), 'ascii'))
+				self.append(bytes('RPRT {:d}\n'.format(error.RIG_ENIMPL), 'ascii'))
 				print('ERROR: ' + command['cmd']['long'] + ' command not implemented', file=sys.stderr)
 				return
 			cmd = cmd[command['endoffset']:]
