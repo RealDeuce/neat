@@ -2835,11 +2835,13 @@ class KenwoodHF(Rig):
 				if self.memories.memories[self._state['sub_memory_channel']._cached]._cached is not None:
 					self._state['sub_frequency']._cached = self.memories.memories[self._state['sub_memory_channel']._cached]._cached['Frequency']
 				else:
+					self._send_query(self.memories.memories[self._state['sub_memory_channel']._cached])
 					self._state['sub_frequency']._cached = None
 		elif self._state['sub_tuning_mode']._cached == tuningMode.CALL:
 			if self.memories.memories[300]._cached is not None:
 				self._state['sub_frequency']._cached = self.memories.memories[300]._cached['Frequency']
 			else:
+				self._send_query(self.memories.memories[self._state['sub_memory_channel']._cached])
 				self._state['sub_frequency']._cached = None
 		return ''
 

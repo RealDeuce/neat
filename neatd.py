@@ -9,6 +9,7 @@ import selectors
 import sys
 import bitarray
 import time
+import queue
 
 class NeatDCallback:
 	def __init__(self, neatd_connection, prop, name, **kwargs):
@@ -42,8 +43,11 @@ class NeatDConnection:
 		self._rig = rig
 		self.inbuf = b''
 		self.outbuf = b''
+		# This lock protects outbuf, mask, closed, and the actual close() call
+		self.outbuf_lock = threading.Lock()
 		self.mask = selectors.EVENT_READ | selectors.EVENT_WRITE
 		self._callbacks = {}
+		self.closed = False
 
 	# TODO: Clean up all watchers in close() and del...
 
@@ -138,18 +142,18 @@ class NeatDConnection:
 	def append(self, buf):
 		if buf is None:
 			return
-		self.outbuf += buf
-		if (not self.mask & selectors.EVENT_WRITE) and self._conn.fileno() != -1:
-			self.mask |= selectors.EVENT_WRITE
-			self._neatd.sel_lock.acquire()
-			self._neatd.sel.modify(self._conn, self.mask, data = self)
-			self._neatd.sel_lock.release()
+		with self.outbuf_lock:
+			self.outbuf += buf
+			if not (self.mask & selectors.EVENT_WRITE):
+				self.mask |= selectors.EVENT_WRITE
+				self._neatd.writeable_queue.put(self)
 
 	def close(self):
-		self._neatd.sel_lock.acquire()
-		self._neatd.sel.unregister(self._conn)
-		self._neatd.sel_lock.release()
-		self._conn.close()
+		with self._neatd.sel_lock:
+			self._neatd.sel.unregister(self._conn)
+		with self.outbuf_lock:
+			self._conn.close()
+			self.closed = True
 
 	def read(self):
 		data = self._conn.recv(1500)
@@ -164,16 +168,14 @@ class NeatDConnection:
 
 	def write(self):
 		try:
-			sent = self._conn.send(self.outbuf)
-			if sent > 0:
-				if self._neatd.verbose:
-					print('NeatD response: '+str(self.outbuf[:sent]), file=sys.stderr)
-				self.outbuf = self.outbuf[sent:]
-			if len(self.outbuf) == 0:
-				self.mask &= ~selectors.EVENT_WRITE
-				self._neatd.sel_lock.acquire()
-				self._neatd.sel.modify(self._conn, self.mask, data = self)
-				self._neatd.sel_lock.release()
+			with self.outbuf_lock:
+				sent = self._conn.send(self.outbuf)
+				if sent > 0:
+					if self._neatd.verbose:
+						print('NeatD response: '+str(self.outbuf[:sent]), file=sys.stderr)
+					self.outbuf = self.outbuf[sent:]
+				if len(self.outbuf) == 0:
+					self.mask &= ~selectors.EVENT_WRITE
 		except BrokenPipeError:
 			print('Connection unexpectedly closed', file=sys.stderr)
 			self.close()
@@ -184,9 +186,7 @@ class NeatD:
 		conn.setblocking(False)
 		laddr = conn.getsockname()
 		rconn = NeatDConnection(self.rigobj.rigs[laddr[1] - self._base_port], self, conn)
-		self.sel_lock.acquire()
 		self.sel.register(conn, rconn.mask, data = rconn)
-		self.sel_lock.release()
 
 	def __init__(self, **kwargs):
 		config = configparser.ConfigParser()
@@ -218,7 +218,10 @@ class NeatD:
 
 		port = self._base_port
 		self.sel = selectors.DefaultSelector()
+		# This lock is to allow connections to close()
 		self.sel_lock = threading.Lock()
+		# This queue is for connection objects that need their event mask updated
+		self.writeable_queue = queue.Queue()
 		for subrig in self.rigobj.rigs:
 			sock = socket.socket()
 			sock.bind((config['Neat']['neatd_address'], port))
@@ -227,17 +230,20 @@ class NeatD:
 			self.sel.register(sock, selectors.EVENT_READ)
 			port += 1
 		while not self.rigobj._terminate:
-			self.sel_lock.acquire()
-			events = self.sel.select(0.1)
-			self.sel_lock.release()
-			if len(events) == 0:
-				# Allow other thrads to obtain the lock...
-				# It seems these aren't FIFO locks
-				time.sleep(0.0001)
+			with self.sel_lock:
+				while not self.writeable_queue.empty():
+					obj = self.writeable_queue.get()
+					with obj.outbuf_lock:
+						if not obj.closed:
+							self.sel.modify(obj._conn, obj.mask, data = obj)
+				events = self.sel.select(0.1)
 			for key, mask in events:
 				if isinstance(key.data, NeatDConnection):
 					if mask & selectors.EVENT_WRITE:
 						key.data.write()
+						with key.data.outbuf_lock:
+							if not (key.data.mask & selectors.EVENT_WRITE):
+								self.writeable_queue.put(key.data)
 					if mask & selectors.EVENT_READ:
 						key.data.read()
 				else:
