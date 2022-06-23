@@ -50,6 +50,10 @@ Neat:
 		size_gauge: 256
 		size_text: 20
 		rig_state: 'swr_meter'
+		active_state: 'meter_type'
+		active_value: int(meter.SWR)
+		active_opacity: 1
+		inactive_opacity: 0.7
 		peak_hold: 0
 		accel_down_initial: -3
 		file_gauge: 'gardengauge/SWR.png'
@@ -65,6 +69,10 @@ Neat:
 		size_gauge: 256
 		size_text: 20
 		rig_state: 'alc_meter'
+		active_state: 'meter_type'
+		active_value: int(meter.ALC)
+		active_opacity: 1
+		inactive_opacity: 0.7
 		file_gauge: 'gardengauge/ALC.png'
 		pos: SWRmeter.pos[0] + self.size_gauge + 10, SWRmeter.pos[1]
 		low_format: '\nALC'
@@ -78,6 +86,10 @@ Neat:
 		size_gauge: 256
 		size_text: 20
 		rig_state: 'compression_meter'
+		active_state: 'meter_type'
+		active_value: int(meter.COMPRESSION)
+		active_opacity: 1
+		inactive_opacity: 0.7
 		file_gauge: 'gardengauge/comp.png'
 		pos: ALCmeter.pos[0] + self.size_gauge + 10, ALCmeter.pos[1]
 		low_cutoff: 11

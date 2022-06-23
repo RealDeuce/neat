@@ -91,6 +91,10 @@ class Meter(Gauge):
 	accel_down_mult = NumericProperty(1.1)
 	click_selects = NumericProperty(int(kenwood_hf.meter.UNSELECTED))
 	calculation = StringProperty()
+	active_state = StringProperty()
+	active_value = NumericProperty()
+	active_opacity = NumericProperty()
+	inactive_opacity = NumericProperty()
 
 	def __init__(self, **kwargs):
 		# Local variables
@@ -104,10 +108,16 @@ class Meter(Gauge):
 			rigobj.add_callback(self.rig_state, self.stateUpdate)
 			self.value = getattr(rigobj, self.rig_state)
 		self._old_rig_state = self.rig_state
+		if self.active_state != '':
+			rigobj.add_callback(self.active_state, self.activeStateUpdate)
+			self.value = getattr(rigobj, self.active_state)
+		self._old_active_state = self.rig_state
 		self._turn()
 		self.bind(low_format=self._turn)
 		self.bind(high_format=self._turn)
 		self.bind(rig_state=self._newRigState)
+		self.bind(active_state=self._newActiveState)
+		self.bind(active_value=self.activeStateUpdate)
 
 	def on_touch_down(self, touch):
 		if self.click_selects == kenwood_hf.meter.UNSELECTED:
@@ -122,11 +132,26 @@ class Meter(Gauge):
 			return False
 		rigobj.meter_type = kenwood_hf.meter(self.click_selects)
 
+	def _newActiveState(self, *args):
+		if self._old_active_state != '':
+			rigobj.remove_callback(self._old_active_state, self.activeStateUpdate)
+		rigobj.add_callback(self.active_state, self.activeStateUpdate)
+		self._old_active_state = self.active_state
+
 	def _newRigState(self, *args):
 		if self._old_rig_state != '':
 			rigobj.remove_callback(self._old_rig_state, self.stateUpdate)
 		rigobj.add_callback(self.rig_state, self.stateUpdate)
 		self._old_rig_state = self.rig_state
+
+	def activeStateUpdate(self, *args):
+		self.timed_event = Clock.schedule_once(lambda *t: self._activeStateUpdate(), 0.01)
+
+	def _activeStateUpdate(self):
+		if self.active_value == getattr(rigobj, self.active_state):
+			self.canvas.opacity = self.active_opacity
+		else:
+			self.canvas.opacity = self.inactive_opacity
 
 	def target(self):
 		# Eliminate values older than peak_hold
