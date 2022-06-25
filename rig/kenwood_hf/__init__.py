@@ -658,14 +658,14 @@ class KenwoodListStateValue(KenwoodStateValue):
 			if self.children[i] is not None:
 				if cmod[i]:
 					for cb in self.children[i]._modify_callbacks:
-						cb(value[i])
+						cb(self._cached_value[i])
 				for cb in self.children[i]._set_callbacks:
-					cb(self.children[i], value[i])
+					cb(self.children[i], self._cached_value[i])
 		if modified:
 			for cb in self._modify_callbacks:
-				cb(value)
+				cb(self._cached_value)
 		for cb in self._set_callbacks:
-			cb(self, value)
+			cb(self, self._cached_value)
 
 	@property
 	def value(self):
