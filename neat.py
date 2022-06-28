@@ -27,7 +27,7 @@ from sys import argv
 
 verbose = False
 client_port = 3532
-kv_file = 'neat.kv'
+kv_file = 'neat-main.kv'
 
 import rig
 import rig.kenwood_hf as kenwood_hf
