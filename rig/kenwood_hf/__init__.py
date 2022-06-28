@@ -3902,7 +3902,7 @@ class KenwoodHF(Rig):
 				print('Resending: '+str(self._serial._last_command), file=stderr)
 				self._serial.writeQueue.put(self._serial._last_command)
 		else:
-			raise Exception('Error count exceeded')
+			raise Exception('Error count exceeded with '+str(self._serial._last_command))
 
 	def _update_ComError(self, args):
 		self._error_count += 1
@@ -3913,7 +3913,7 @@ class KenwoodHF(Rig):
 				print('Resending: '+str(self._serial._last_command), file=stderr)
 				self._serial.writeQueue.put(self._serial._last_command)
 		else:
-			raise Exception('Error count exceeded')
+			raise Exception('Error count exceeded with '+str(self._serial._last_command))
 
 	def _update_IncompleteError(self, args):
 		self._error_count += 1
@@ -3924,7 +3924,7 @@ class KenwoodHF(Rig):
 				print('Resending: '+str(self._serial._last_command), file=stderr)
 				self._serial.writeQueue.put(self._serial._last_command)
 		else:
-			raise Exception('Error count exceeded')
+			raise Exception('Error count exceeded with '+str(self._serial._last_command))
 
 	def parse(self, fmt, args):
 		ret = ()
