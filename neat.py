@@ -37,6 +37,7 @@ import math
 import re
 import time
 import threading
+from bandplan import bandplan
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.config import ConfigParser
@@ -247,6 +248,7 @@ class FreqDisplay(Label):
 	memory_display = ObjectProperty()
 	rig_state = StringProperty()
 	step_display = ObjectProperty()
+	bandplanColour = BooleanProperty(False)
 
 	# TODO: Change frequency if appropriate when TXing
 	def __init__(self, **kwargs):
@@ -314,6 +316,10 @@ class FreqDisplay(Label):
 		colour = '[color=' + kivy.utils.get_hex_from_color(self.activeColour) + ']'
 		if self.vfo_box is not None and self.vfo_box.vfo != vfoa and self.vfo_box.vfo != vfob:
 			colour = '[color=' + kivy.utils.get_hex_from_color(self.inactiveColour) + ']'
+		if self.bandplanColour:
+			for bc in bandplan.values():
+				if bc['low'] <= self.freqValue and bc['high'] >= self.freqValue:
+					colour = '[color=' + kivy.utils.get_hex_from_color(bc['colour']) + ']'
 		if m is not None:
 			e = m.end()
 			new = '[b][color=' + kivy.utils.get_hex_from_color(self.zeroColour) + ']' + new[0:e] + '[/color]' + colour + new[e:] + '[/color][/b]'
