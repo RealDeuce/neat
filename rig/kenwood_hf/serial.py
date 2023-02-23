@@ -100,6 +100,11 @@ class KenwoodHFProtocol:
 								if wait_event:
 									self._event = Event()
 								self._serial.rts = True
+								# These two commands are echoed, but other things (Like mode) are echoed after they take effect, but before these commands are echoed *sigh*
+								if cmd == b'TS0;':
+									return cmd
+								if cmd == b'TS1;':
+									return cmd
 								# Another power-related hack...
 								if cmd == b'PS0;':
 									return cmd

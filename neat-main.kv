@@ -698,12 +698,12 @@ Neat:
 	#	on_press: root.control(bandUp = True)
 	#	pos: TXvfoBox.pos[0] + TXvfoBox.width + 10, mainTXFreq.pos[1] + mainTXFreq.height - self.height
 
-	#Button:
-	#	id: bandDownButton
-	#	size_hint_max: 50, 25
-	#	text: 'DOWN'
-	#	on_press: root.control(bandDown = True)
-	#	pos: bandUpButton.pos[0], bandUpButton.pos[1] - self.height
+	Button:
+		id: copyRXFreqButton
+		size_hint_max: 50, 25
+		text: '= RX'
+		on_press: root.control(tx_frequency = app.rig.rx_frequency, tx_mode = app.rig.rx_mode)
+		pos: TXvfoBox.pos[0] + TXvfoBox.width + 10, mainTXFreq.pos[1] + mainTXFreq.height - self.height * 2
 
 	#BoolToggle:
 	#	rig_state: 'auto_zero_beat'

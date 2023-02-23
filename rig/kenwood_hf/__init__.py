@@ -2222,6 +2222,7 @@ class KenwoodHF(Rig):
 			# If OS != 0, TS0 does nothing, and TS1 toggles
 			# the TS state
 			'transmit_set': KenwoodStateValue(self,
+				# This is echoed, but it's not echoed *first* :(
 				echoed = True,
 				query_command = 'TS',
 				set_method = self._set_transmit_set,
