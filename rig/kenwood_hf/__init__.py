@@ -3225,6 +3225,10 @@ class KenwoodHF(Rig):
 		return None
 
 	def _checkMainFrequencyValid(self, value):
+		# Always invalid while transmitting
+		if self._state['tx']._cached:
+			print('Transmitting, cannot set frequency', file=stderr)
+			return False
 		return self._check_frequency(value, self.rx_ranges_k_main) is not None
 
 	def _checkSubFrequencyValid(self, value):

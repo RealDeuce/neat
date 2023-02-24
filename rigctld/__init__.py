@@ -803,6 +803,7 @@ class rigctld_connection:
 			self._rigctld.rig.rx_frequency = freq
 		else:
 			self._rigctld.rig.tx_frequency = freq
+		# If we return an error here, WSJT-X fails
 		self.append(bytes('RPRT 0\n', 'ascii'))
 
 	def _set_split_mode(self, command):
