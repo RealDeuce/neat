@@ -3,6 +3,6 @@ Press F1 to access the settings screen
 
 ![Screenshot of neat](images/screenshot.png)
 
-Power sycling neat:
+Power cycling neat:
 
 ![GIF of power cycling](images/NeatPower.gif)
